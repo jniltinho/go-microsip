@@ -1,7 +1,7 @@
 #!/bin/sh
 # Headless check (run inside the build container): with no display variables, the binary prints
-# its version, the doctor report, answers an MCP initialize + tools/list handshake on stdio, and
-# refuses a password-like option.
+# its version, the doctor report, answers an MCP initialize + tools/list handshake on stdio,
+# refuses a password-like option, and validates, exports and imports a configuration.
 #   build/qa/headless.sh <binary>
 set -eu
 bin=$1
@@ -29,4 +29,21 @@ for args in "--password s3cret-marker" "doctor --sip-pass=s3cret-marker" "mcp -p
 		exit 1
 	fi
 done
-echo "headless: version, doctor, MCP handshake and password-argument refusal OK"
+# The configuration commands work from files alone: a temporary home, a fictional account.
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+printf 'schema = 1\n[account]\nusername = "1001"\ndomain = "pbx.invalid"\n' >"$tmp/c.toml"
+chmod 600 "$tmp/c.toml"
+export HOME="$tmp" XDG_DATA_HOME="$tmp/data" XDG_CONFIG_HOME="$tmp/config"
+"$bin" --config "$tmp/c.toml" config validate
+"$bin" --config "$tmp/c.toml" config export | grep -q 'username = "1001"'
+"$bin" --config "$tmp/c.toml" doctor | grep -q 'account.username = "1001" \[toml\]'
+"$bin" config import "$tmp/c.toml" --apply | grep -q "Imported into the local database"
+"$bin" doctor --json | grep -q '"source": "sqlite"'
+status=0
+"$bin" --config "$tmp/c.toml" run >/dev/null 2>"$tmp/err" || status=$?
+if [ "$status" -ne 1 ] || ! grep -q "no password is available" "$tmp/err"; then
+	echo "headless: run without a password exited $status: $(cat "$tmp/err")" >&2
+	exit 1
+fi
+echo "headless: version, doctor, MCP handshake, password-argument refusal and configuration commands OK"

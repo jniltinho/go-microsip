@@ -27,8 +27,8 @@ type Options struct {
 	Audio ports.AudioDevices
 	// Input and Output are the device IDs to open; empty is the default device.
 	Input, Output string
-	// CAFile is the PEM bundle that replaces the system roots for a TLS account.
-	CAFile string
+	// CA is the PEM bundle that replaces the system roots for a TLS account.
+	CA []byte
 	// UserAgent is the product name sent in the User-Agent header.
 	UserAgent string
 	// Codecs is the offer in order of preference; empty is the endpoint's default.

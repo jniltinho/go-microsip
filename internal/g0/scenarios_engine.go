@@ -63,7 +63,7 @@ type phone struct {
 func (l *Lab) start(a Account, tone float64, codecs ...media.Codec) *phone {
 	sound := &memory.Audio{Tone: tone}
 	return &phone{user: a.User, account: a, sound: sound, e: engine.Start(engine.Options{
-		Audio: sound, CAFile: a.CAFile, Codecs: codecs, Log: l.Log,
+		Audio: sound, CA: a.ca(), Codecs: codecs, Log: l.Log,
 	})}
 }
 

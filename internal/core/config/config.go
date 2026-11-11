@@ -37,10 +37,10 @@ package config
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/pelletier/go-toml/v2"
+	"unicode/utf8"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
 )
@@ -250,25 +250,59 @@ func (s Stored) stored(f Field) (string, bool) {
 	return "", false
 }
 
-// TOML renders the configuration as schema-1 TOML. It never contains a password.
+// TOML renders the configuration as schema-1 TOML: the schema, then the sections and their keys in
+// alphabetical order, strings double-quoted. It never contains a password.
 func (s Stored) TOML() (string, error) {
-	root := map[string]any{"schema": int64(SchemaVersion)}
+	sections := map[string][]string{}
 	for _, f := range Fields() {
-		if v, ok := s.Value(f); ok {
-			section, key, _ := strings.Cut(f.Key(), ".")
-			table, _ := root[section].(map[string]any)
-			if table == nil {
-				table = map[string]any{}
-				root[section] = table
+		v, ok := s.Value(f)
+		if !ok {
+			continue
+		}
+		section, key, _ := strings.Cut(f.Key(), ".")
+		value := fmt.Sprint(v)
+		if text, isText := v.(string); isText {
+			if !utf8.ValidString(text) {
+				return "", &Error{Kind: Serialize} // a path that is not text cannot be written
 			}
-			table[key] = v
+			value = tomlString(text)
+		}
+		sections[section] = append(sections[section], key+" = "+value)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "schema = %d\n", SchemaVersion)
+	for _, section := range []string{"account", "audio", "ui"} {
+		if lines := sections[section]; len(lines) > 0 {
+			sort.Strings(lines)
+			fmt.Fprintf(&b, "\n[%s]\n%s\n", section, strings.Join(lines, "\n"))
 		}
 	}
-	text, err := toml.Marshal(root)
-	if err != nil {
-		return "", &Error{Kind: Serialize}
+	return b.String(), nil
+}
+
+// tomlString quotes a string as a TOML basic string.
+func tomlString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, c := range s {
+		switch {
+		case c == '"' || c == '\\':
+			b.WriteByte('\\')
+			b.WriteRune(c)
+		case c == '\n':
+			b.WriteString(`\n`)
+		case c == '\t':
+			b.WriteString(`\t`)
+		case c == '\r':
+			b.WriteString(`\r`)
+		case c < 0x20 || c == 0x7f:
+			fmt.Fprintf(&b, `\u%04X`, c)
+		default:
+			b.WriteRune(c)
+		}
 	}
-	return string(text), nil
+	b.WriteByte('"')
+	return b.String()
 }
 
 // PasswordSource says where the effective password came from; empty when there is none.

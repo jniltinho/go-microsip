@@ -53,6 +53,8 @@ type actor struct {
 	dnd      bool
 	call     *call
 	lastCall uint64
+	// released is closed once the sound devices of the call that ended last are closed.
+	released chan struct{}
 }
 
 func (e *Engine) run() {
@@ -133,7 +135,7 @@ func (a *actor) register(c domain.Register) {
 		return
 	}
 	a.dropAccount()
-	a.account = sip.Account{Settings: c.Settings, Password: c.Password, CAFile: a.e.opts.CAFile, UserAgent: a.e.opts.UserAgent, Codecs: a.e.opts.Codecs}
+	a.account = sip.Account{Settings: c.Settings, Password: c.Password, CA: a.e.opts.CA, UserAgent: a.e.opts.UserAgent, Codecs: a.e.opts.Codecs}
 	a.configured, a.attempts = true, 0
 	a.connect()
 }
@@ -325,6 +327,7 @@ func (a *actor) end(c *call, reason domain.EndReason) {
 	c.snap.Phase = domain.EndedWith(reason)
 	a.publish(c)
 	c.release()
+	a.released = c.released
 	if a.call == c {
 		a.call = nil
 	}
@@ -706,6 +709,13 @@ func (a *actor) shutdown() {
 			done()
 		}
 		a.end(c, reason)
+	}
+	// Stopped means the sound devices are closed too, within the same bound.
+	if a.released != nil {
+		select {
+		case <-a.released:
+		case <-time.After(time.Until(deadline)):
+		}
 	}
 	a.generation++
 	if a.retry != nil {

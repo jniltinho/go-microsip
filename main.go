@@ -2,7 +2,10 @@
 // command line and the local MCP server.
 package main
 
-import "github.com/jniltinho/go-microsip/cmd"
+import (
+	"github.com/jniltinho/go-microsip/cmd"
+	"github.com/jniltinho/go-microsip/internal/platform/files"
+)
 
 // version and commit are set at build time:
 // go build -ldflags "-X main.version=0.2.0 -X main.commit=<sha>".
@@ -11,4 +14,5 @@ var (
 	commit  = "unknown"
 )
 
-func main() { cmd.Execute(version, commit) }
+// main is the only place that wires operating-system adapters into the front ends.
+func main() { cmd.Execute(cmd.Platform{Files: files.Access{}}, version, commit) }

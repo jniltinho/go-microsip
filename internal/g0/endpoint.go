@@ -5,6 +5,7 @@ package g0
 
 import (
 	"log/slog"
+	"os"
 
 	dmedia "github.com/emiago/diago/media"
 
@@ -48,6 +49,15 @@ func (a Account) settings() domain.AccountSettings {
 	return s
 }
 
+// ca reads the lab's CA bundle; a missing one is left to the endpoint to refuse.
+func (a Account) ca() []byte {
+	if a.CAFile == "" {
+		return nil
+	}
+	pem, _ := os.ReadFile(a.CAFile)
+	return pem
+}
+
 // NewEndpoint creates the core's endpoint for a lab account.
 func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	codec := media.PCMA
@@ -55,7 +65,7 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 		codec = media.PCMU
 	}
 	e, err := sip.NewEndpoint(sip.Account{
-		Settings: a.settings(), Password: domain.NewSecret(a.Password), CAFile: a.CAFile, Codecs: []media.Codec{codec},
+		Settings: a.settings(), Password: domain.NewSecret(a.Password), CA: a.ca(), Codecs: []media.Codec{codec},
 	}, log)
 	if err != nil {
 		return nil, err

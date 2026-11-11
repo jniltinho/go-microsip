@@ -49,6 +49,8 @@ type call struct {
 	pumps       sync.WaitGroup
 	held, muted atomic.Bool
 	keys        chan domain.DTMFKey
+	// released is closed once the audio is stopped and the sound devices are closed.
+	released chan struct{}
 }
 
 // startAudio connects the call's RTP to the sound devices: one goroutine sends the microphone, one
@@ -134,7 +136,10 @@ func (c *call) release() {
 	}
 	med, dlg, audio, sound := c.media, c.dialog, c.audio, c.sound
 	c.sound = false
+	released := make(chan struct{})
+	c.released = released
 	go func() {
+		defer close(released)
 		if med != nil {
 			_ = med.Close() // unblocks the receive goroutine
 		}

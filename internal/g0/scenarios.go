@@ -43,7 +43,7 @@ func Scenarios() []Scenario {
 			list = append(list, Scenario{fmt.Sprintf("pair/%s-%s/%s", pair[0], pair[1], c.Name), pairCall(pair[0], pair[1], c)})
 		}
 	}
-	return append(append(list, ControlScenarios()...), EngineScenarios()...)
+	return append(append(append(list, ControlScenarios()...), EngineScenarios()...), AppScenarios()...)
 }
 
 func register(user string) func(context.Context, *Lab) (map[string]any, error) {

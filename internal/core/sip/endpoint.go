@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,8 +32,9 @@ import (
 type Account struct {
 	Settings domain.AccountSettings
 	Password domain.Secret
-	// CAFile is the PEM bundle that replaces the system roots for a TLS account.
-	CAFile string
+	// CA is the PEM bundle that replaces the system roots for a TLS account. The caller reads it
+	// from a file it has checked (config.ReadCAFile).
+	CA []byte
 	// Codecs is the offer, in order of preference; empty means PCMU then PCMA.
 	Codecs []media.Codec
 	// UserAgent is the product name sent in the User-Agent header.
@@ -48,13 +48,9 @@ var ErrInsecureAnswer = errors.New("the peer answered without SRTP; the call was
 // TLSConfig builds the client TLS configuration of a TLS account. The configured bundle is the only
 // trust anchor: system roots are never added, so a certificate the operating system trusts but the
 // bundle does not is refused.
-func TLSConfig(server, caFile string) (*tls.Config, error) {
-	if caFile == "" {
+func TLSConfig(server string, pem []byte) (*tls.Config, error) {
+	if len(pem) == 0 {
 		return nil, errors.New("a TLS account needs a CA bundle")
-	}
-	pem, err := os.ReadFile(caFile)
-	if err != nil {
-		return nil, fmt.Errorf("read CA bundle: %w", err)
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(pem) {
@@ -125,7 +121,7 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	}
 	uaOpts := []sipgo.UserAgentOption{sipgo.WithUserAgent(name), sipgo.WithUserAgentHostname(s.Domain)}
 	if s.Transport == domain.TLS {
-		conf, err := TLSConfig(s.Server, a.CAFile)
+		conf, err := TLSConfig(s.Server, a.CA)
 		if err != nil {
 			return nil, err
 		}

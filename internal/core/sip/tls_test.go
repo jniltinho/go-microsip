@@ -107,7 +107,11 @@ func TestBundleReplacesSystemRoots(t *testing.T) {
 	if err := handshake(addr, &tls.Config{ServerName: "pbx"}); err != nil {
 		t.Fatalf("control failed, the server is not system-trusted: %v", err)
 	}
-	conf, err := TLSConfig("pbx", bundle)
+	pem, err := os.ReadFile(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf, err := TLSConfig("pbx", pem)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,15 +134,11 @@ func TestBundleReplacesSystemRoots(t *testing.T) {
 	}
 }
 
-// A TLS account without a bundle, with an unreadable one or with an empty one is an error, never a
-// silent fall back to the system roots.
+// A TLS account without a bundle or with one that holds no certificate is an error, never a silent
+// fall back to the system roots. (An unreadable file is refused earlier, by config.ReadCAFile.)
 func TestTLSConfigNeedsABundle(t *testing.T) {
-	empty := filepath.Join(t.TempDir(), "empty.pem")
-	if err := os.WriteFile(empty, []byte("not a certificate\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	for name, file := range map[string]string{"none": "", "missing": empty + ".absent", "empty": empty} {
-		if _, err := TLSConfig("pbx", file); err == nil {
+	for name, pem := range map[string][]byte{"none": nil, "empty": []byte("not a certificate\n")} {
+		if _, err := TLSConfig("pbx", pem); err == nil {
 			t.Errorf("%s: a TLS configuration was built", name)
 		}
 	}

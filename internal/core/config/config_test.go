@@ -470,6 +470,54 @@ func TestAtomicSaveRoundTripsWithoutSecrets(t *testing.T) {
 	}
 }
 
+// The export is stable text: sections and keys in order, strings double-quoted and escaped so that
+// what is written is read back unchanged.
+func TestExportIsOrderedQuotedAndRoundTrips(t *testing.T) {
+	stored := Stored{
+		Account:     domain.AccountSettings{DisplayName: "Lab Désk", Username: "1001", Domain: "pbx.invalid", Server: "pbx.invalid", Port: 5060, Expires: 300},
+		PasswordEnv: DefaultPasswordEnv, UI: UI{Theme: ThemeXP}, Audio: Audio{OutputDevice: `Speaker "A" \ 'B'`},
+	}
+	text, err := stored.TOML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `schema = 1
+
+[account]
+display_name = "Lab Désk"
+domain = "pbx.invalid"
+expires = 300
+media = "rtp"
+password_env = "GO_MICROSIP_SIP_PASSWORD"
+port = 5060
+server = "pbx.invalid"
+transport = "udp"
+username = "1001"
+
+[audio]
+output_device = "Speaker \"A\" \\ 'B'"
+
+[ui]
+dnd = false
+theme = "xp"
+`
+	if text != want {
+		t.Errorf("export:\n%s\nwant:\n%s", text, want)
+	}
+	c := ctx()
+	c.ConfigPath = file(t, t.TempDir(), "c.toml", text, 0o600)
+	if back := ok(t, c).Config; back != stored {
+		t.Errorf("read back %+v, wrote %+v", back, stored)
+	}
+	if got := tomlString("a\tb\nc\x01\x7f"); got != `"a\tb\nc\u0001\u007F"` {
+		t.Errorf("control characters: %s", got)
+	}
+	stored.CAFile = "/etc/\xff.pem"
+	if _, err := stored.TOML(); asError(t, err).Kind != Serialize {
+		t.Errorf("a path that is not text: %v", err)
+	}
+}
+
 func TestDotEnvParsingEdgeCases(t *testing.T) {
 	text := "# comment\r\n" +
 		"\r\n" +
