@@ -56,6 +56,7 @@ func (c *Client) Outputs() ([]Device, error) {
 // Stream is one call's audio: a capture and a playback stream on chosen devices.
 type Stream struct {
 	*buffers
+	c    *pulse.Client
 	rec  *pulse.RecordStream
 	play *pulse.PlaybackStream
 }
@@ -64,7 +65,7 @@ type Stream struct {
 // service's default device. The capture stream is pinned to its device: if the device goes away the
 // service must not move the stream to another microphone.
 func (c *Client) Open(input, output string) (*Stream, error) {
-	s := &Stream{buffers: newBuffers()}
+	s := &Stream{buffers: newBuffers(), c: c.c}
 
 	recOpts := []pulse.RecordOption{
 		pulse.RecordSampleRate(SampleRate),
@@ -114,6 +115,25 @@ func (s *Stream) wanted(p []int16) (int, error) {
 		s.silence.Add(uint64(len(p) - n))
 	}
 	return len(p), nil
+}
+
+// Discard drops everything the microphone has recorded so far. The service is asked to drop what
+// it holds; its answer comes through the connection that delivers the recordings, in order, so
+// when it is here everything the service sent before it has been delivered, and dropped. What the
+// device had recorded and not passed on yet is counted out of what follows, by the latency the
+// service reports for it. If the service does not answer, nothing more is taken from this
+// microphone, and CaptureLost says so.
+func (s *Stream) Discard() {
+	s.discardBegin()
+	index := s.rec.StreamIndex()
+	if err := s.c.RawRequest(&proto.FlushRecordStream{StreamIndex: index}, nil); err != nil {
+		return
+	}
+	var latency proto.GetRecordLatencyReply
+	if err := s.c.RawRequest(&proto.GetRecordLatency{StreamIndex: index}, &latency); err != nil {
+		return
+	}
+	s.discardEnd(discardDepth + int(latency.Latency)*SampleRate/1_000_000)
 }
 
 // CaptureLost reports that the microphone stopped delivering: it was unplugged or the service is

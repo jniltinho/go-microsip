@@ -105,8 +105,8 @@
       "ok": true,
       "data": {
         "codec": "pcmu",
-        "frames": 131,
-        "heard": 0.9997953978185227,
+        "frames": 130,
+        "heard": 0.9997953978185251,
         "proto": "RTP/AVP"
       }
     },
@@ -115,8 +115,8 @@
       "ok": true,
       "data": {
         "codec": "pcma",
-        "frames": 130,
-        "heard": 0.9998282223432319,
+        "frames": 131,
+        "heard": 0.9998282223432315,
         "proto": "RTP/SAVP"
       }
     },
@@ -150,8 +150,8 @@
         "callee_frames": 130,
         "callee_heard": 0.9997953978185251,
         "callee_proto": "RTP/AVP",
-        "caller_frames": 130,
-        "caller_heard": 0.9997953978185184,
+        "caller_frames": 131,
+        "caller_heard": 0.9997953978185162,
         "caller_proto": "RTP/AVP",
         "codec": "pcmu"
       }
@@ -272,7 +272,7 @@
       "ok": true,
       "data": {
         "held_heard": [
-          0.9998282223432094,
+          0.9998282223432108,
           0,
           0.9998282223432094
         ],
@@ -327,7 +327,7 @@
       "name": "reregister/1101",
       "ok": true,
       "data": {
-        "heard": 0.9902464636505174
+        "heard": 0.9904907019759328
       }
     },
     {
@@ -387,7 +387,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 101,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -407,7 +407,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -417,7 +417,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 99,
         "heard": 1,
         "secure": false
       }
@@ -491,7 +491,7 @@
       "name": "engine/pair/1201-1202",
       "ok": true,
       "data": {
-        "answered_ms": 2402,
+        "answered_ms": 2403,
         "callee_heard": 1,
         "callee_secure": true,
         "caller_heard": 1,
@@ -585,7 +585,7 @@
       "name": "engine/microphone-lost",
       "ok": true,
       "data": {
-        "frames_after": 76,
+        "frames_after": 75,
         "heard_after": 0,
         "heard_before": 1,
         "streams": 1
@@ -600,7 +600,7 @@
       "ok": true,
       "data": {
         "events": 3,
-        "took_ms": 0
+        "took_ms": 1
       }
     },
     {
@@ -645,7 +645,7 @@
       "data": {
         "duration_ms": 3001,
         "events": 8,
-        "frames": 148,
+        "frames": 149,
         "heard": 1,
         "took_ms": 3026
       }
@@ -654,11 +654,11 @@
       "name": "app/run-call/1201",
       "ok": true,
       "data": {
-        "duration_ms": 3001,
+        "duration_ms": 3002,
         "events": 8,
         "frames": 149,
         "heard": 1,
-        "took_ms": 3029
+        "took_ms": 3027
       }
     }
   ],

@@ -242,6 +242,9 @@ func (s *Stream) capture(flow uint32, id string, flags uint32, ready chan<- erro
 					return err
 				}
 				if next == 0 {
+					// Nothing is in this thread's hands and the device has handed over all it
+					// had: a discard that waits is behind.
+					s.discardEnd(0)
 					break
 				}
 				var data *byte
@@ -328,6 +331,11 @@ func (s *Stream) render(id string, ready chan<- error) {
 
 // PlaybackLost reports that the speaker stream ended: the device or the service is gone.
 func (s *Stream) PlaybackLost() bool { return s.playLost.Load() }
+
+// Discard drops everything the microphone has recorded so far. The capture thread confirms it
+// when it next finds the device with nothing more to hand over; until then, and for the device's
+// own period after, nothing it delivers is kept.
+func (s *Stream) Discard() { s.discardBegin() }
 
 // CaptureLost reports that the microphone stopped delivering: it was unplugged or disabled, or the
 // audio service is gone. The call goes on without it; choosing another microphone is the user's

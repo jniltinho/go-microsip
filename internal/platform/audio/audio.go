@@ -27,10 +27,10 @@ const (
 	// primeSamples is the backlog capture builds before it hands out frames, so a fragment that
 	// arrives just after a tick does not become a missed frame. It costs 20 ms of delay.
 	primeSamples = 2 * FrameSamples
-	// captureDelay is the longest a sample is taken to need from the microphone to this adapter.
-	// shortcut: a fixed bound, five times the 20 ms asked of the sound server; measure it per
-	// device if real hardware turns out slower.
-	captureDelay = 100 * time.Millisecond
+	// discardDepth is the least dropped from what the device delivers after it confirmed a
+	// discard: what it had recorded and not handed over yet. A backend adds what its device
+	// reports on top.
+	discardDepth = SampleRate / 10
 	// playBacklog is the most the engine may be ahead of the device; beyond it new audio is dropped
 	// so delay cannot build up.
 	playBacklog = 4 * FrameSamples
@@ -107,10 +107,12 @@ type buffers struct {
 	in, out *ring
 	primed  bool // engine side only
 
-	// discard orders a discard against the device's deliveries; discardUntil is when what the
-	// device delivers is again newer than the last discard.
-	discard      sync.Mutex
-	discardUntil time.Time
+	// discard orders a discard against the device's deliveries. While discarding, everything the
+	// device delivers is dropped, whenever it comes; after the backend confirmed that the device
+	// is past the discard, skip more samples are.
+	discard    sync.Mutex
+	discarding bool
+	skip       int
 
 	lastCapture                          atomic.Int64 // UnixNano of the last captured fragment
 	captureDropped, playDropped, silence atomic.Uint64
@@ -126,10 +128,13 @@ func newBuffers() *buffers {
 func (b *buffers) captured(p []int16) {
 	b.discard.Lock()
 	defer b.discard.Unlock()
-	now := time.Now()
-	b.lastCapture.Store(now.UnixNano())
-	if now.Before(b.discardUntil) {
-		return // recorded before the discard, delivered after it
+	if b.discarding {
+		return // recorded before the discard, whenever it is delivered; and no sign of life
+	}
+	b.lastCapture.Store(time.Now().UnixNano())
+	if b.skip > 0 {
+		n := min(b.skip, len(p))
+		b.skip, p = b.skip-n, p[n:]
 	}
 	if n := b.in.write(p); n < len(p) {
 		b.captureDropped.Add(uint64(len(p) - n))
@@ -166,15 +171,28 @@ func (b *buffers) Capture(frame *[FrameSamples]int16) bool {
 	return true
 }
 
-// Discard drops everything recorded so far and not yet handed out: what waits in the ring, and
-// what the device recorded and delivers within captureDelay. The engine side is this ring's only
-// reader, so it may skip; what the device writes afterwards forms whole new frames.
-func (b *buffers) Discard() {
+// discardBegin is the engine side of a discard: it drops what waits in the ring and, from now on,
+// everything the device delivers, however late, until the backend calls discardEnd. The engine
+// side is this ring's only reader, so it may skip. A discard that is never confirmed leaves the
+// microphone silent, and stale tells so.
+func (b *buffers) discardBegin() {
 	b.discard.Lock()
 	defer b.discard.Unlock()
-	b.discardUntil = time.Now().Add(captureDelay)
+	b.discarding = true
 	b.in.tail.Store(b.in.head.Load())
 	b.primed = false
+}
+
+// discardEnd is the backend's confirmation: whatever the device handed over before the discard
+// has been through captured. Of what it delivers from here, the first skip samples (at least
+// discardDepth) are dropped too: the device recorded them before it handed anything over. It does
+// nothing when no discard is waiting.
+func (b *buffers) discardEnd(skip int) {
+	b.discard.Lock()
+	defer b.discard.Unlock()
+	if b.discarding {
+		b.discarding, b.skip = false, max(skip, discardDepth)
+	}
 }
 
 // Play queues 20 ms for the speaker. It never blocks: when the device is behind by more than

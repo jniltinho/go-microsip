@@ -29,9 +29,11 @@ type Device struct {
 type MediaIO interface {
 	// Capture fills frame with the next 20 ms from the microphone and reports whether it had one.
 	Capture(frame *[FrameSamples]int16) bool
-	// Discard drops everything the microphone has recorded and not handed out yet. The engine
-	// calls it when a hold or a mute ends: what was recorded meanwhile must never be sent. Like
-	// Capture, it is called from the engine's side only and must not block.
+	// Discard drops everything the microphone has recorded so far, handed over by its device or
+	// not: Capture gives none of it afterwards, however late the device delivers it. The engine
+	// calls it when a hold or a mute ends: what was recorded meanwhile must never be sent. It is
+	// called from the engine's side only and may wait for the sound service to confirm, no
+	// longer than a request to it takes.
 	Discard()
 	// Play queues 20 ms for the speaker.
 	Play(frame *[FrameSamples]int16)

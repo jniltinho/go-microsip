@@ -131,15 +131,24 @@ func TestDiscardDropsEverythingCaptured(t *testing.T) {
 	if !b.Capture(&frame) || frame[0] != 7 {
 		t.Fatal("the fixture did not capture")
 	}
-	b.Discard()
+	b.discardEnd(0) // no discard is waiting: nothing to confirm, nothing to skip
+	b.discardBegin()
 	if b.Capture(&frame) {
 		t.Fatal("a frame came out right after the discard")
 	}
-	fill(7, 2*FrameSamples) // recorded before the discard, delivered by the device after it
+	// Recorded before the discard and delivered by the device after it, however late: it is
+	// dropped until the backend confirms that the device is past the discard.
+	time.Sleep(150 * time.Millisecond)
+	fill(7, 2*FrameSamples)
 	if b.Capture(&frame) {
 		t.Fatal("what the device delivered late came out after the discard")
 	}
-	time.Sleep(captureDelay)
+	// Confirmed. What the device had recorded and not handed over yet comes first, and is counted
+	// out: here a frame and a half more than the least that is always dropped.
+	b.discardEnd(discardDepth + FrameSamples*3/2)
+	fill(7, discardDepth)
+	fill(7, FrameSamples)
+	fill(7, FrameSamples/2)
 	fill(1, 4*FrameSamples)
 	n := 0
 	for ; b.Capture(&frame); n++ {

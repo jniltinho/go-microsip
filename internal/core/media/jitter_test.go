@@ -155,6 +155,20 @@ func TestJitterBufferKeepsUpWithAFastSource(t *testing.T) {
 // A packet that is late behind a burst still has its time: the packets queued after it are no
 // reason to declare it lost early. The first catch-up of this buffer did exactly that.
 func TestJitterBufferWaitsForALatePacketBehindABurst(t *testing.T) {
+	// 1 to 3 start the playout and the rest of the burst is already there, but for one packet that
+	// is on its way. On its timetable 1 goes out at once and each of the others one packet time
+	// after the one before: 4 is due at about 60 ms and arrives at about 50 ms; 8 is due at about
+	// 140 ms and arrives at about 125 ms. Neither the packets behind the gap nor a run of ready
+	// packets before it may bring any of that forward.
+	t.Run("the next one", func(t *testing.T) {
+		latePacketBehindABurst(t, []uint16{1, 2, 3, 5, 6, 7, 8, 9, 10}, 4, 50*time.Millisecond)
+	})
+	t.Run("one further on", func(t *testing.T) {
+		latePacketBehindABurst(t, []uint16{1, 2, 3, 4, 5, 6, 7, 9, 10}, 8, 125*time.Millisecond)
+	})
+}
+
+func latePacketBehindABurst(t *testing.T, burst []uint16, late uint16, after time.Duration) {
 	net := make(network, 64)
 	jb := dmedia.NewRTPJitterBuffer(net, 20*time.Millisecond, dmedia.RTPJitterBufferOptions{DelayPackets: 3, MaxPackets: 10})
 	defer jb.Close()
@@ -169,14 +183,11 @@ func TestJitterBufferWaitsForALatePacketBehindABurst(t *testing.T) {
 			got <- p.SequenceNumber
 		}
 	}()
-	// 1 to 3 start the playout; 5 to 10 are already there; 4 is on its way. On its timetable 1 goes
-	// out at once, 2 and 3 one and two packet times later, and 4 is due at about 60 ms: it arrives
-	// at about 50 ms. The packets behind the gap must not bring any of that forward.
-	for _, seq := range []uint16{1, 2, 3, 5, 6, 7, 8, 9, 10} {
+	for _, seq := range burst {
 		net <- seq
 	}
-	time.Sleep(50 * time.Millisecond)
-	net <- 4
+	time.Sleep(after)
+	net <- late
 	for want := uint16(1); want <= 10; want++ {
 		select {
 		case seq := <-got:

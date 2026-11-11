@@ -171,6 +171,25 @@ func TestPulseLoopback(t *testing.T) {
 	mustCatch(t, bad)
 	run(time.Second, 0) // recover
 
+	// A discard against the real service: it is confirmed, nothing comes out for at least the
+	// depth that is always dropped, and then the microphone is back and not taken for lost.
+	began := time.Now()
+	s.Discard()
+	confirmed := time.Since(began)
+	var frame [FrameSamples]int16
+	back := time.Duration(0)
+	for back == 0 && time.Since(began) < 2*time.Second {
+		if s.Capture(&frame) {
+			back = time.Since(began)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Logf("discard: confirmed by the service in %v, microphone back after %v", confirmed, back)
+	if least := time.Second * discardDepth / SampleRate; back < least || s.CaptureLost() {
+		t.Errorf("after a discard the microphone was back in %v (want %v at least, and back at all); lost: %v", back, least, s.CaptureLost())
+	}
+	run(time.Second, 0) // settle again
+
 	// Unplug the microphone: the stream reports the loss, hands out no audio, keeps playing, and is
 	// not moved to the other microphone.
 	// The fixture's voice ends first: the audio service would move that stream to the speaker when
