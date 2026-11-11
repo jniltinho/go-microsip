@@ -2,7 +2,7 @@
 
 Baseline: the Rust-era delta specs at tag `v0.1.0-rc.3` (commit `a75a601`). This file is the working record for the parity gate of `migrate-to-go-wails` (see its `implementation-migration` spec, "Recorded parity gate").
 
-Rules: a row is **proven** only with runtime evidence linked in the Evidence column (a receipt, a test name plus its run, or a lab report); **dropped** only with the owner's written approval linked there. A review, a build or a screenshot is not call evidence. Empty status means not yet verified.
+Rules: a row is **proven** only with runtime evidence linked in the Evidence column (a receipt, a test name plus its run, or a lab report); **dropped** only with the owner's written approval linked there. A review, a build or a screenshot is not call evidence. Empty status means not yet verified. **partial** (used from M1 on) means the behavior has runtime evidence at core or command-line level, and the rest of the row (the window, the control channel, Windows, physical hardware, or a case not exercised yet) is still open; a partial row does not count as proven at the gate.
 
 `add-web-wasm-softphone` is not part of the baseline: nothing of it was implemented in the Rust candidate and it is on hold.
 
@@ -38,7 +38,7 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 | A24 | add-windows-port | config-storage | Windows folders and precedence | WIN-09 cross-OS import |  |  |
 | A25 | add-windows-port | config-storage | Windows folders and precedence | WIN-09 invalid folder variable |  |  |
 | A26 | add-windows-port | reproducible-distribution | Windows cross build in Docker | (requirement) |  |  |
-| A27 | add-windows-port | reproducible-distribution | Windows cross build in Docker | WIN-11 build on a Linux host |  |  |
+| A27 | add-windows-port | reproducible-distribution | Windows cross build in Docker | WIN-11 build on a Linux host | partial | `make go-dist` builds the Windows `.exe` and `.zip` in the Go build image; not started on Windows since G0 |
 | A28 | add-windows-port | reproducible-distribution | Windows release artifacts | (requirement) |  |  |
 | A29 | add-windows-port | reproducible-distribution | Windows release artifacts | WIN-12 per-user MSI |  |  |
 | A30 | add-windows-port | reproducible-distribution | Windows release artifacts | WIN-12 scanner on Windows artifacts |  |  |
@@ -63,47 +63,47 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 | A49 | add-windows-port | windows-integration | Secrets and private data on Windows | WIN-06 Credential Manager unavailable |  |  |
 | A50 | add-windows-port | windows-integration | Unsafe code confinement | (requirement) |  |  |
 | A51 | add-windows-port | windows-integration | Unsafe code confinement | WIN-07 unsafe outside the adapter |  |  |
-| A52 | create-native-rust-linux-release | audio-media | RTP and essential codecs | (requirement) |  |  |
-| A53 | create-native-rust-linux-release | audio-media | RTP and essential codecs | AUD-01 bidirectional voice |  |  |
+| A52 | create-native-rust-linux-release | audio-media | RTP and essential codecs | (requirement) | partial | `make go-call SECONDS=300`, [M1 receipt](../receipts/go-m1-engine-2026-11-11.md); `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/echo/*`, `engine/pair/*` |
+| A53 | create-native-rust-linux-release | audio-media | RTP and essential codecs | AUD-01 bidirectional voice | partial | `make go-call SECONDS=300`, [M1 receipt](../receipts/go-m1-engine-2026-11-11.md) (virtual sound cards, both directions through the echo); physical hardware open |
 | A54 | create-native-rust-linux-release | audio-media | RTP and essential codecs | AUD-02 degraded network and incompatible codec |  |  |
-| A55 | create-native-rust-linux-release | audio-media | Devices and hotplug | (requirement) |  |  |
-| A56 | create-native-rust-linux-release | audio-media | Devices and hotplug | AUD-03 selection and headset removal |  |  |
-| A57 | create-native-rust-linux-release | audio-media | Mute and local testing | (requirement) |  |  |
-| A58 | create-native-rust-linux-release | audio-media | Mute and local testing | AUD-04 test and mute |  |  |
-| A59 | create-native-rust-linux-release | audio-media | Secure media without downgrade | (requirement) |  |  |
-| A60 | create-native-rust-linux-release | audio-media | Secure media without downgrade | AUD-05 mandatory SRTP |  |  |
+| A55 | create-native-rust-linux-release | audio-media | Devices and hotplug | (requirement) | partial | `make go-call SECONDS=300`, [M1 receipt](../receipts/go-m1-engine-2026-11-11.md): devices chosen by ID, microphone unplugged; choosing a new one in the window is M2 |
+| A56 | create-native-rust-linux-release | audio-media | Devices and hotplug | AUD-03 selection and headset removal | partial | same as A55; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/microphone-lost` |
+| A57 | create-native-rust-linux-release | audio-media | Mute and local testing | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/hold-mute/*` (mute); the local audio test is not implemented |
+| A58 | create-native-rust-linux-release | audio-media | Mute and local testing | AUD-04 test and mute | partial | same as A57 |
+| A59 | create-native-rust-linux-release | audio-media | Secure media without downgrade | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/secure/plain-offer-refused`, `engine/echo/1201/*`, `secure/*` |
+| A60 | create-native-rust-linux-release | audio-media | Secure media without downgrade | AUD-05 mandatory SRTP | partial | same as A59; the persistent warning in the window is M2 |
 | A61 | create-native-rust-linux-release | audio-media | NAT with explicit limits | (requirement) |  |  |
 | A62 | create-native-rust-linux-release | audio-media | NAT with explicit limits | AUD-06 supported topology |  |  |
-| A63 | create-native-rust-linux-release | config-storage | Deterministic precedence | (requirement) |  |  |
-| A64 | create-native-rust-linux-release | config-storage | Deterministic precedence | CFG-01 precedence and provenance |  |  |
-| A65 | create-native-rust-linux-release | config-storage | Deterministic precedence | CFG-02 invalid file |  |  |
-| A66 | create-native-rust-linux-release | config-storage | Persistence and editing | (requirement) |  |  |
-| A67 | create-native-rust-linux-release | config-storage | Persistence and editing | CFG-03 durable setting |  |  |
-| A68 | create-native-rust-linux-release | config-storage | Persistence and editing | CFG-04 active external override |  |  |
-| A69 | create-native-rust-linux-release | config-storage | Secrets outside the database | (requirement) |  |  |
+| A63 | create-native-rust-linux-release | config-storage | Deterministic precedence | (requirement) | partial | `internal/core/config` tests (18), `cmd/cli_test.go`; [M1 receipt](../receipts/go-m1-engine-2026-11-11.md) |
+| A64 | create-native-rust-linux-release | config-storage | Deterministic precedence | CFG-01 precedence and provenance | partial | `TestEveryPrecedenceCombinationPicksTheHighestSource`, `doctor` shows each source (`TestDoctorReportsWithoutRevealingThePassword`) |
+| A65 | create-native-rust-linux-release | config-storage | Deterministic precedence | CFG-02 invalid file | partial | `TestTOMLSchemaTypesAndUnknownKeysAreRejected`, `TestMalformedFilesNeverEchoSecretLines` |
+| A66 | create-native-rust-linux-release | config-storage | Persistence and editing | (requirement) | partial | `TestEditsSkipUnchangedAndRefuseOverriddenFields`, `TestSettingsRoundTripAcrossRestartWithoutSecrets`; the settings screen is M2 |
+| A67 | create-native-rust-linux-release | config-storage | Persistence and editing | CFG-03 durable setting | partial | same as A66 |
+| A68 | create-native-rust-linux-release | config-storage | Persistence and editing | CFG-04 active external override | partial | `TestEditsSkipUnchangedAndRefuseOverriddenFields`, `TestFirstRunEditsUseLayerSourcesAndSkipOverrides`; shown in the window in M2 |
+| A69 | create-native-rust-linux-release | config-storage | Secrets outside the database | (requirement) | partial | `TestSecretsNeverAppearInFormattingErrorsExportsOrDoctor`, `TestSettingsRoundTripAcrossRestartWithoutSecrets`; the keyring adapter is M4 |
 | A70 | create-native-rust-linux-release | config-storage | Secrets outside the database | CFG-05 credentials and missing keyring |  |  |
-| A71 | create-native-rust-linux-release | config-storage | Secrets outside the database | CFG-06 insecure secret file |  |  |
-| A72 | create-native-rust-linux-release | config-storage | Migrations and failures preserve data | (requirement) |  |  |
-| A73 | create-native-rust-linux-release | config-storage | Migrations and failures preserve data | CFG-07 interrupted migration |  |  |
-| A74 | create-native-rust-linux-release | config-storage | Migrations and failures preserve data | CFG-08 unavailable or future database |  |  |
-| A75 | create-native-rust-linux-release | config-storage | Deliberate import and export | (requirement) |  |  |
-| A76 | create-native-rust-linux-release | config-storage | Deliberate import and export | CFG-09 import without touching legacy data |  |  |
-| A77 | create-native-rust-linux-release | contacts-history | Local contacts and favorites | (requirement) |  |  |
-| A78 | create-native-rust-linux-release | contacts-history | Local contacts and favorites | CH-01 contact and favorite |  |  |
-| A79 | create-native-rust-linux-release | contacts-history | Validated atomic CSV | (requirement) |  |  |
-| A80 | create-native-rust-linux-release | contacts-history | Validated atomic CSV | CH-02 invalid and duplicate CSV |  |  |
-| A81 | create-native-rust-linux-release | contacts-history | Coherent history | (requirement) |  |  |
-| A82 | create-native-rust-linux-release | contacts-history | Coherent history | CH-03 outcomes and recovery |  |  |
-| A83 | create-native-rust-linux-release | contacts-history | Search and privacy | (requirement) |  |  |
-| A84 | create-native-rust-linux-release | contacts-history | Search and privacy | CH-04 search and retention |  |  |
+| A71 | create-native-rust-linux-release | config-storage | Secrets outside the database | CFG-06 insecure secret file | partial | `TestWritableOrSecretBearingFilesNeedSafePermissions`, `TestPasswordFileMustBePrivateRegularAndNotASymlink` |
+| A72 | create-native-rust-linux-release | config-storage | Migrations and failures preserve data | (requirement) | partial | `internal/core/store` tests (23); [M1 receipt](../receipts/go-m1-engine-2026-11-11.md) |
+| A73 | create-native-rust-linux-release | config-storage | Migrations and failures preserve data | CFG-07 interrupted migration | partial | `TestInterruptedMigrationLeavesV1IntactAndRetries`, `TestV1UpgradesWithPrivateBackupAndKeepsData` |
+| A74 | create-native-rust-linux-release | config-storage | Migrations and failures preserve data | CFG-08 unavailable or future database | partial | `TestMigrationsAreIdempotentAndFutureSchemaIsRefusedUntouched`, `TestCorruptFileIsReportedAndPreserved`, `TestLockedDatabaseReportsBusyWithoutDataLoss`; what the window shows is M2 |
+| A75 | create-native-rust-linux-release | config-storage | Deliberate import and export | (requirement) | partial | `TestConfigImportPreviewsThenAppliesIntoSQLiteOnly`, `TestValidateAndExportUseTheEffectiveConfiguration` |
+| A76 | create-native-rust-linux-release | config-storage | Deliberate import and export | CFG-09 import without touching legacy data | partial | `TestImportPreviewIsValidatedSanitizedAndReadOnly`; `internal/core/rustimport` (the Rust profile is only read) |
+| A77 | create-native-rust-linux-release | contacts-history | Local contacts and favorites | (requirement) | partial | `TestContactsCRUDFavoritesAndLiteralSearch`; the Contacts screen is M2 |
+| A78 | create-native-rust-linux-release | contacts-history | Local contacts and favorites | CH-01 contact and favorite | partial | same as A77 |
+| A79 | create-native-rust-linux-release | contacts-history | Validated atomic CSV | (requirement) | partial | `TestCSVPreviewHandlesQuotesCRLFBOMDuplicatesAndIssues`, `TestCSVImportMergesByNameAndIsAtomic`, `TestCSVLimitsAndHeaderAreEnforced` |
+| A80 | create-native-rust-linux-release | contacts-history | Validated atomic CSV | CH-02 invalid and duplicate CSV | partial | same as A79 |
+| A81 | create-native-rust-linux-release | contacts-history | Coherent history | (requirement) | partial | `TestHistoryRoundTripDedupFiltersSearchAndRetention`, `TestKilledMidCallIsRecoveredOnceAsInterrupted`, `TestRunJournalsTheCallItPlaced`; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `app/run-call/*` |
+| A82 | create-native-rust-linux-release | contacts-history | Coherent history | CH-03 outcomes and recovery | partial | same as A81 |
+| A83 | create-native-rust-linux-release | contacts-history | Search and privacy | (requirement) | partial | `TestHistoryRoundTripDedupFiltersSearchAndRetention`, `TestContactsCRUDFavoritesAndLiteralSearch` |
+| A84 | create-native-rust-linux-release | contacts-history | Search and privacy | CH-04 search and retention | partial | same as A83 |
 | A85 | create-native-rust-linux-release | linux-integration | Optional notifications and tray | (requirement) |  |  |
 | A86 | create-native-rust-linux-release | linux-integration | Optional notifications and tray | LIN-01 desktop without tray |  |  |
 | A87 | create-native-rust-linux-release | linux-integration | Confirmed external URI | (requirement) |  |  |
 | A88 | create-native-rust-linux-release | linux-integration | Confirmed external URI | LIN-02 legitimate and malicious links |  |  |
-| A89 | create-native-rust-linux-release | linux-integration | Local single instance | (requirement) |  |  |
+| A89 | create-native-rust-linux-release | linux-integration | Local single instance | (requirement) | partial | `TestRunIsASingleInstance`, `internal/platform/lock`; forwarding a link to the running window is M4 |
 | A90 | create-native-rust-linux-release | linux-integration | Local single instance | LIN-03 second instance |  |  |
-| A91 | create-native-rust-linux-release | linux-integration | Safe close and quit | (requirement) |  |  |
-| A92 | create-native-rust-linux-release | linux-integration | Safe close and quit | LIN-04 exit during a call |  |  |
+| A91 | create-native-rust-linux-release | linux-integration | Safe close and quit | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/shutdown/*`; `make go-call` (interrupt: call ended, unregistered, status 130) |
+| A92 | create-native-rust-linux-release | linux-integration | Safe close and quit | LIN-04 exit during a call | partial | same as A91; the confirmation in the window is M2 |
 | A93 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | (requirement) |  |  |
 | A94 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | ND-01 comparable layout |  |  |
 | A95 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | ND-02 feature outside the release |  |  |
@@ -118,30 +118,30 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 | A104 | create-native-rust-linux-release | reproducible-distribution | Executable with embedded resources | DIST-01 clean machine |  |  |
 | A105 | create-native-rust-linux-release | reproducible-distribution | Additional AppImage does not hide dependencies | (requirement) |  |  |
 | A106 | create-native-rust-linux-release | reproducible-distribution | Additional AppImage does not hide dependencies | DIST-02 separate ELF and AppImage |  |  |
-| A107 | create-native-rust-linux-release | reproducible-distribution | Docker build without host toolchain | (requirement) |  |  |
+| A107 | create-native-rust-linux-release | reproducible-distribution | Docker build without host toolchain | (requirement) | partial | every `make go-*` target runs in the build image ([M1 receipt](../receipts/go-m1-engine-2026-11-11.md)); a clean-clone build is not run yet |
 | A108 | create-native-rust-linux-release | reproducible-distribution | Docker build without host toolchain | DIST-03 clean-clone build |  |  |
-| A109 | create-native-rust-linux-release | reproducible-distribution | Disposable Asterisk lab | (requirement) |  |  |
-| A110 | create-native-rust-linux-release | reproducible-distribution | Disposable Asterisk lab | DIST-04 lab and isolation |  |  |
+| A109 | create-native-rust-linux-release | reproducible-distribution | Disposable Asterisk lab | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json) (66 scenarios), `make go-call` |
+| A110 | create-native-rust-linux-release | reproducible-distribution | Disposable Asterisk lab | DIST-04 lab and isolation | partial | same as A109: fictional accounts and a new CA per run, internal network, PBX torn down |
 | A111 | create-native-rust-linux-release | reproducible-distribution | Disposable Asterisk lab | DIST-05 manual desktop profile |  |  |
 | A112 | create-native-rust-linux-release | reproducible-distribution | Real gates and independent review | (requirement) |  |  |
 | A113 | create-native-rust-linux-release | reproducible-distribution | Real gates and independent review | DIST-06 incomplete release blocked |  |  |
 | A114 | create-native-rust-linux-release | reproducible-distribution | Traceable, private-by-default publication | (requirement) |  |  |
 | A115 | create-native-rust-linux-release | reproducible-distribution | Traceable, private-by-default publication | DIST-07 pre-push audit |  |  |
-| A116 | create-native-rust-linux-release | sip-telephony | Registration and transports | (requirement) |  |  |
-| A117 | create-native-rust-linux-release | sip-telephony | Registration and transports | SIP-01 registration and renewal |  |  |
-| A118 | create-native-rust-linux-release | sip-telephony | Registration and transports | SIP-02 invalid configuration and authentication |  |  |
-| A119 | create-native-rust-linux-release | sip-telephony | Call lifecycle | (requirement) |  |  |
-| A120 | create-native-rust-linux-release | sip-telephony | Call lifecycle | SIP-03 calls in both directions |  |  |
-| A121 | create-native-rust-linux-release | sip-telephony | Call lifecycle | SIP-04 cancellation and answer race |  |  |
-| A122 | create-native-rust-linux-release | sip-telephony | Call lifecycle | SIP-05 rejection and second call |  |  |
-| A123 | create-native-rust-linux-release | sip-telephony | Call controls | (requirement) |  |  |
-| A124 | create-native-rust-linux-release | sip-telephony | Call controls | SIP-06 DTMF and hold |  |  |
-| A125 | create-native-rust-linux-release | sip-telephony | Call controls | SIP-07 do not disturb |  |  |
-| A126 | create-native-rust-linux-release | sip-telephony | Confirmed blind transfer | (requirement) |  |  |
-| A127 | create-native-rust-linux-release | sip-telephony | Confirmed blind transfer | SIP-08 transfer and failure |  |  |
-| A128 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | (requirement) |  |  |
-| A129 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | SIP-09 invalid certificate |  |  |
-| A130 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | SIP-10 network and suspend |  |  |
+| A116 | create-native-rust-linux-release | sip-telephony | Registration and transports | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `register/*`, `engine/register/*`; `TestRegistrationRecovers` |
+| A117 | create-native-rust-linux-release | sip-telephony | Registration and transports | SIP-01 registration and renewal | partial | same as A116 |
+| A118 | create-native-rust-linux-release | sip-telephony | Registration and transports | SIP-02 invalid configuration and authentication | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `register/wrong-password-refused`, `engine/register/wrong-password`; configuration errors: A65 |
+| A119 | create-native-rust-linux-release | sip-telephony | Call lifecycle | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/pair/*`, `engine/echo/*`, `pair/*` |
+| A120 | create-native-rust-linux-release | sip-telephony | Call lifecycle | SIP-03 calls in both directions | partial | same as A119 |
+| A121 | create-native-rust-linux-release | sip-telephony | Call lifecycle | SIP-04 cancellation and answer race | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/cancel`; the answer race is covered in the actor (`Terminating` as the answer arrives), not by a lab scenario |
+| A122 | create-native-rust-linux-release | sip-telephony | Call lifecycle | SIP-05 rejection and second call | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/reject`, `engine/busy` |
+| A123 | create-native-rust-linux-release | sip-telephony | Call controls | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/dtmf/*`, `engine/hold-mute/*`, `engine/dnd` |
+| A124 | create-native-rust-linux-release | sip-telephony | Call controls | SIP-06 DTMF and hold | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/dtmf/*`, `engine/hold-mute/*` |
+| A125 | create-native-rust-linux-release | sip-telephony | Call controls | SIP-07 do not disturb | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/dnd` |
+| A126 | create-native-rust-linux-release | sip-telephony | Confirmed blind transfer | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/transfer/*` (success); a failed transfer keeps the call in the actor, without a lab scenario yet |
+| A127 | create-native-rust-linux-release | sip-telephony | Confirmed blind transfer | SIP-08 transfer and failure | partial | same as A126 |
+| A128 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `tls/*`, `secure/*`, `peer/sip-foreign-source-dropped`, `reregister/*` |
+| A129 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | SIP-09 invalid certificate | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `tls/unknown-ca-refused`, `tls/wrong-host-refused`, `engine/register/unknown-ca`; `TestBundleReplacesSystemRoots` |
+| A130 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | SIP-10 network and suspend | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `reregister/*`; `TestRegistrationRecovers`; suspend and a network change during a call are not exercised |
 | A131 | refine-native-ui | native-ui-refinement | Square-cornered visual language | (requirement) |  |  |
 | A132 | refine-native-ui | native-ui-refinement | Square-cornered visual language | UIR-01 no rounded corners |  |  |
 | A133 | refine-native-ui | native-ui-refinement | Square-cornered visual language | UIR-02 token contrast |  |  |
@@ -161,33 +161,33 @@ Extracted on 2026-11-11 from a `codebase-memory` index of the repository (projec
 
 | # | Rust item | Notes | Go counterpart | Evidence |
 | --- | --- | --- | --- | --- |
-| B1.1 | `Command::Register(AccountSettings, SecretString)` | password redacted from `Debug` |  |  |
-| B1.2 | `Command::Unregister` |  |  |  |
-| B1.3 | `Command::Dial(DialTarget)` | target 1..64 of alnum `*#+-_.`, `+` only first |  |  |
-| B1.4 | `Command::Answer(CallId)` |  |  |  |
-| B1.5 | `Command::Reject(CallId)` | 486 Busy Here |  |  |
-| B1.6 | `Command::Hangup(CallId)` | cancel, reject or hang up |  |  |
-| B1.7 | `Command::Dtmf(CallId, DtmfKey)` | RFC 4733; `0-9 * # A-D` |  |  |
-| B1.8 | `Command::Hold(CallId)` |  |  |  |
-| B1.9 | `Command::Resume(CallId)` |  |  |  |
-| B1.10 | `Command::Transfer(CallId, DialTarget)` | blind transfer |  |  |
-| B1.11 | `Command::SetMute(CallId, bool)` |  |  |  |
-| B1.12 | `Command::SetDnd(bool)` | new incoming calls get 486 |  |  |
-| B1.13 | `Command::Shutdown` | bounded stop |  |  |
-| B1.14 | `AccountSettings` + `validate` (`lib.rs:68-136`) | display_name, username, auth_username, domain, server, port, transport, media, expires; SRTP requires TLS |  |  |
-| B1.15 | `Transport` udp/tcp/tls, `MediaSecurity` PlainRtp/Srtp, `ValidationError` (5 variants) | default ports 5060/5060/5061 |  |  |
+| B1.1 | `Command::Register(AccountSettings, SecretString)` | password redacted from `Debug` | `domain.Register{Settings, Password}` | `internal/core/domain` tests; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/*` |
+| B1.2 | `Command::Unregister` |  | `domain.Unregister` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/unregister` |
+| B1.3 | `Command::Dial(DialTarget)` | target 1..64 of alnum `*#+-_.`, `+` only first | `domain.Dial{Target}`, `domain.ParseDialTarget` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/echo/*` |
+| B1.4 | `Command::Answer(CallId)` |  | `domain.Answer{Call}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/pair/*` |
+| B1.5 | `Command::Reject(CallId)` | 486 Busy Here | `domain.Reject{Call}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/reject` |
+| B1.6 | `Command::Hangup(CallId)` | cancel, reject or hang up | `domain.Hangup{Call}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/cancel`, `engine/echo/*` |
+| B1.7 | `Command::Dtmf(CallId, DtmfKey)` | RFC 4733; `0-9 * # A-D` | `domain.SendDTMF{Call, Key}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/dtmf/*` |
+| B1.8 | `Command::Hold(CallId)` |  | `domain.Hold{Call}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/hold-mute/*` |
+| B1.9 | `Command::Resume(CallId)` |  | `domain.Resume{Call}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/hold-mute/*` |
+| B1.10 | `Command::Transfer(CallId, DialTarget)` | blind transfer | `domain.Transfer{Call, Target}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/transfer/*` |
+| B1.11 | `Command::SetMute(CallId, bool)` |  | `domain.SetMute{Call, Muted}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/hold-mute/*` |
+| B1.12 | `Command::SetDnd(bool)` | new incoming calls get 486 | `domain.SetDND{On}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/dnd` |
+| B1.13 | `Command::Shutdown` | bounded stop | `domain.Shutdown` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/shutdown/*` |
+| B1.14 | `AccountSettings` + `validate` (`lib.rs:68-136`) | display_name, username, auth_username, domain, server, port, transport, media, expires; SRTP requires TLS | `domain.AccountSettings.Validate` | `internal/core/domain` tests |
+| B1.15 | `Transport` udp/tcp/tls, `MediaSecurity` PlainRtp/Srtp, `ValidationError` (5 variants) | default ports 5060/5060/5061 | `domain.Transport`, `domain.MediaSecurity`, `domain.ValidationError` | `internal/core/domain` tests |
 
 ### B2. Events (engine to front end) — `crates/core/src/lib.rs:209-444`
 
 | # | Rust item | Notes | Go counterpart | Evidence |
 | --- | --- | --- | --- | --- |
-| B2.1 | `Event::Registration(RegistrationState)` | Disabled, Registering, Registered, Failed(Unauthorized/Timeout/Certificate/Network/Rejected(code)) |  |  |
-| B2.2 | `Event::Call(CallSnapshot)` | id, direction, remote, phase, muted, secure, transfer, version |  |  |
-| B2.3 | `Event::Notice(Notice)` | Busy, NotRegistered, UnknownCall, InvalidState, AudioUnavailable, Overloaded, EngineFailed |  |  |
-| B2.4 | `Event::Stopped` | always delivered after `Shutdown` |  |  |
-| B2.5 | `CallPhase` + `can_transition_to` (`lib.rs:271-298`) | Dialing, Ringing, Established, Held, Terminating, Ended(EndReason) |  |  |
-| B2.6 | `EndReason` | Normal, Canceled, Rejected, Busy, NoAnswer, Transferred, NotAcceptable, Failed |  |  |
-| B2.7 | `TransferState` | Pending, Succeeded, Failed(code) |  |  |
+| B2.1 | `Event::Registration(RegistrationState)` | Disabled, Registering, Registered, Failed(Unauthorized/Timeout/Certificate/Network/Rejected(code)) | `domain.RegistrationChanged{State}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/register/*`; `TestRegistrationRecovers` |
+| B2.2 | `Event::Call(CallSnapshot)` | id, direction, remote, phase, muted, secure, transfer, version | `domain.CallChanged{Call}` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/*` |
+| B2.3 | `Event::Notice(Notice)` | Busy, NotRegistered, UnknownCall, InvalidState, AudioUnavailable, Overloaded, EngineFailed | `domain.Noticed{Notice}`; adds `microphone_lost` | `TestRefusals`; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/microphone-lost` |
+| B2.4 | `Event::Stopped` | always delivered after `Shutdown` | `domain.Stopped` | `TestOutboxKeepsWhatIsFinal`; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/shutdown/*` |
+| B2.5 | `CallPhase` + `can_transition_to` (`lib.rs:271-298`) | Dialing, Ringing, Established, Held, Terminating, Ended(EndReason) | `domain.CallPhase.CanTransitionTo` | `internal/core/domain` tests |
+| B2.6 | `EndReason` | Normal, Canceled, Rejected, Busy, NoAnswer, Transferred, NotAcceptable, Failed | `domain.EndReason` | `internal/core/domain` tests; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/*` |
+| B2.7 | `TransferState` | Pending, Succeeded, Failed(code) | `domain.TransferState` | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/transfer/*` |
 | B2.8 | `MediaIo` trait (`lib.rs:424-444`) | capture/play 160-sample frames, start, stop |  |  |
 
 ### B3. Command line — `crates/config/src/cli.rs`, `apps/rust-microsip/src/{main,cli,service}.rs`
@@ -196,13 +196,13 @@ Extracted on 2026-11-11 from a `codebase-memory` index of the repository (projec
 | --- | --- | --- | --- | --- |
 | B3.1 | no command: open the window | exit codes 0/1/2/4, 130/143 on signals |  |  |
 | B3.2 | positional `sip:`/`tel:` link | fills the number, never dials; parsing rules in `crates/platform/src/uri.rs:48-77` |  |  |
-| B3.3 | `--config PATH`, `--env-file PATH` | `=` form accepted for these two only |  |  |
-| B3.4 | `--doctor` [`--json`] | sanitized report, exit 0 even when invalid |  |  |
-| B3.5 | `-h/--help`, `-V/--version` |  |  |  |
-| B3.6 | `config validate` | exit 0/1 |  |  |
-| B3.7 | `config export` | TOML without secrets |  |  |
-| B3.8 | `config import FILE` [`--apply`] | preview, then one-transaction replace |  |  |
-| B3.9 | password guard | any `-…pass…` option is refused, exit 2, arguments never echoed |  |  |
+| B3.3 | `--config PATH`, `--env-file PATH` | `=` form accepted for these two only | `--config`, `--env-file` on every command | `cmd/cli_test.go`, `build/qa/headless.sh` |
+| B3.4 | `--doctor` [`--json`] | sanitized report, exit 0 even when invalid | `doctor [--json]`; adds build, display and sound | `TestDoctorReportsWithoutRevealingThePassword` |
+| B3.5 | `-h/--help`, `-V/--version` |  | `--help`, `--version`, `version` | `TestHelpAndVersionNeedNoConfiguration` |
+| B3.6 | `config validate` | exit 0/1 | `config validate` | `TestValidateAndExportUseTheEffectiveConfiguration` |
+| B3.7 | `config export` | TOML without secrets | `config export` | `TestValidateAndExportUseTheEffectiveConfiguration`, `TestExportIsOrderedQuotedAndRoundTrips` |
+| B3.8 | `config import FILE` [`--apply`] | preview, then one-transaction replace | `config import FILE [--apply]` | `TestConfigImportPreviewsThenAppliesIntoSQLiteOnly`, `TestConfigImportRejectsInvalidFiles` |
+| B3.9 | password guard | any `-…pass…` option is refused, exit 2, arguments never echoed | `app.CheckArguments` before Cobra | `TestPasswordLikeArgumentsAreRefused`, `TestInvalidArgumentsAreUsageErrorsWithoutEcho`, `build/qa/headless.sh` |
 | B3.10 | `status`, `operation get ID`, `devices list`, `config show` | control reads |  |  |
 | B3.11 | `contacts search [TEXT]`, `history list` | `--limit`, `--cursor`, `--filter all/incoming/outgoing/missed` |  |  |
 | B3.12 | `call dial TARGET\|-` | `-` reads one line from stdin |  |  |
@@ -262,39 +262,39 @@ Precedence per field: flag > environment > `.env` > TOML > SQLite > default.
 
 | # | Key | Type and default | Go counterpart | Evidence |
 | --- | --- | --- | --- | --- |
-| B6.1 | `schema` | integer, must be 1 |  |  |
-| B6.2 | `account.display_name` | string, empty |  |  |
-| B6.3 | `account.username` | string, required |  |  |
-| B6.4 | `account.auth_username` | string, optional |  |  |
-| B6.5 | `account.domain` | string, required |  |  |
-| B6.6 | `account.server` | string, default the domain |  |  |
-| B6.7 | `account.port` | integer, 5060 or 5061 for TLS |  |  |
-| B6.8 | `account.transport` | `udp`/`tcp`/`tls`, default `udp` |  |  |
-| B6.9 | `account.media` | `rtp`/`srtp`, default `rtp`; `srtp` requires `tls` |  |  |
-| B6.10 | `account.expires` | integer 1..86400, default 300 |  |  |
-| B6.11 | `account.password_env` | variable name, default `RUST_MICROSIP_SIP_PASSWORD` | default becomes `GO_MICROSIP_SIP_PASSWORD` |  |
-| B6.12 | `account.password_file` | absolute path, optional |  |  |
-| B6.13 | `account.ca_file` | absolute PEM path, optional; replaces system roots |  |  |
-| B6.14 | `account.password` | TOML literal only, never saved or exported, file must be private |  |  |
-| B6.15 | `ui.theme` | `system`/`light`/`dark`, default `dark` | values grow to the seven skins (design D7) |  |
-| B6.16 | `ui.dnd` | boolean, default false |  |  |
-| B6.17 | `audio.input_device`, `audio.output_device` | string, optional |  |  |
-| B6.18 | file rules | size limits, ownership and permission checks (`crates/config/src/files.rs:71-220`) |  |  |
-| B6.19 | password source order | env var, `.env`, password file, TOML literal, then prompt or keyring |  |  |
-| B6.20 | write-back rule | only changed fields not held by a higher layer go to SQLite |  |  |
-| B6.21 | doctor report shape (text and JSON) | `crates/config/src/doctor.rs:69-141` |  |  |
-| B6.22 | SQLite storage of settings and `secret_ref` | `crates/storage/src/settings.rs:16-233` |  |  |
+| B6.1 | `schema` | integer, must be 1 | `config.SchemaVersion` | `TestTOMLSchemaTypesAndUnknownKeysAreRejected` |
+| B6.2 | `account.display_name` | string, empty | same key | `internal/core/config/config_test.go` |
+| B6.3 | `account.username` | string, required | same key | `internal/core/config/config_test.go` |
+| B6.4 | `account.auth_username` | string, optional | same key | `internal/core/config/config_test.go` |
+| B6.5 | `account.domain` | string, required | same key | `internal/core/config/config_test.go` |
+| B6.6 | `account.server` | string, default the domain | same key | `internal/core/config/config_test.go` |
+| B6.7 | `account.port` | integer, 5060 or 5061 for TLS | same key | `internal/core/config/config_test.go` |
+| B6.8 | `account.transport` | `udp`/`tcp`/`tls`, default `udp` | same key | `internal/core/config/config_test.go` |
+| B6.9 | `account.media` | `rtp`/`srtp`, default `rtp`; `srtp` requires `tls` | same key | `internal/core/config/config_test.go` |
+| B6.10 | `account.expires` | integer 1..86400, default 300 | same key | `internal/core/config/config_test.go` |
+| B6.11 | `account.password_env` | variable name, default `RUST_MICROSIP_SIP_PASSWORD` | default becomes `GO_MICROSIP_SIP_PASSWORD` | `internal/core/config/config_test.go` |
+| B6.12 | `account.password_file` | absolute path, optional | same key | `internal/core/config/config_test.go` |
+| B6.13 | `account.ca_file` | absolute PEM path, optional; replaces system roots | same key | `internal/core/config/config_test.go` |
+| B6.14 | `account.password` | TOML literal only, never saved or exported, file must be private | same key | `internal/core/config/config_test.go` |
+| B6.15 | `ui.theme` | `system`/`light`/`dark`, default `dark` | values grow to the seven skins (design D7) | `internal/core/config/config_test.go` |
+| B6.16 | `ui.dnd` | boolean, default false | same key | `internal/core/config/config_test.go` |
+| B6.17 | `audio.input_device`, `audio.output_device` | string, optional | same key | `internal/core/config/config_test.go` |
+| B6.18 | file rules | size limits, ownership and permission checks (`crates/config/src/files.rs:71-220`) | `internal/core/config/files.go`, `internal/platform/files` | `TestWritableOrSecretBearingFilesNeedSafePermissions`, `TestPasswordFileMustBePrivateRegularAndNotASymlink` |
+| B6.19 | password source order | env var, `.env`, password file, TOML literal, then prompt or keyring | `config.Resolve`; the keyring and the prompt are M4 and M2 | `TestPasswordSourcesFollowTheDocumentedOrder` |
+| B6.20 | write-back rule | only changed fields not held by a higher layer go to SQLite | `config.SQLiteEdits` | `TestEditsSkipUnchangedAndRefuseOverriddenFields` |
+| B6.21 | doctor report shape (text and JSON) | `crates/config/src/doctor.rs:69-141` | `config.DoctorReport`; JSON adds `ignored_legacy_env`, text quotes strings once | `TestSQLiteLayerAloneResolvesAndInvalidValuesNameTheOrigin` |
+| B6.22 | SQLite storage of settings and `secret_ref` | `crates/storage/src/settings.rs:16-233` | `internal/core/store/settings.go` | `TestSettingsRoundTripAcrossRestartWithoutSecrets`, `TestRustCandidateDatabaseOpens` |
 
 ### B7. Environment variables — `crates/config/src/lib.rs:189-194, 517-543`
 
 | # | Variable | Maps to | Go counterpart | Evidence |
 | --- | --- | --- | --- | --- |
-| B7.1 | `RUST_MICROSIP_ACCOUNT_{DISPLAY_NAME,USERNAME,AUTH_USERNAME,DOMAIN,SERVER,PORT,TRANSPORT,MEDIA,EXPIRES,PASSWORD_ENV,PASSWORD_FILE,CA_FILE}` | the `account.*` keys | prefix `GO_MICROSIP_` (design D8) |  |
-| B7.2 | `RUST_MICROSIP_UI_{THEME,DND}` | `ui.*` | prefix `GO_MICROSIP_` |  |
-| B7.3 | `RUST_MICROSIP_AUDIO_{INPUT_DEVICE,OUTPUT_DEVICE}` | `audio.*` | prefix `GO_MICROSIP_` |  |
-| B7.4 | `RUST_MICROSIP_SIP_PASSWORD` | default password variable | `GO_MICROSIP_SIP_PASSWORD` |  |
+| B7.1 | `RUST_MICROSIP_ACCOUNT_{DISPLAY_NAME,USERNAME,AUTH_USERNAME,DOMAIN,SERVER,PORT,TRANSPORT,MEDIA,EXPIRES,PASSWORD_ENV,PASSWORD_FILE,CA_FILE}` | the `account.*` keys | prefix `GO_MICROSIP_` (design D8) | `TestEveryPrecedenceCombinationPicksTheHighestSource`, `TestLegacyEnvironmentIsReportedNotRead` |
+| B7.2 | `RUST_MICROSIP_UI_{THEME,DND}` | `ui.*` | prefix `GO_MICROSIP_` | `TestEveryPrecedenceCombinationPicksTheHighestSource`, `TestLegacyEnvironmentIsReportedNotRead` |
+| B7.3 | `RUST_MICROSIP_AUDIO_{INPUT_DEVICE,OUTPUT_DEVICE}` | `audio.*` | prefix `GO_MICROSIP_` | `TestEveryPrecedenceCombinationPicksTheHighestSource`, `TestLegacyEnvironmentIsReportedNotRead` |
+| B7.4 | `RUST_MICROSIP_SIP_PASSWORD` | default password variable | `GO_MICROSIP_SIP_PASSWORD` | `TestPasswordSourcesFollowTheDocumentedOrder` |
 | B7.5 | `RUST_MICROSIP_TRACE` | sanitized engine diagnostics | `GO_MICROSIP_TRACE` |  |
-| B7.6 | `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_RUNTIME_DIR`, `HOME` | configuration, data and runtime directories |  |  |
+| B7.6 | `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_RUNTIME_DIR`, `HOME` | configuration, data and runtime directories | same variables; the directory is `go-microsip` | `TestExplicitFilesMustExistButTheDefaultIsOptional`, `TestStorePath`, `TestImportFromRustPreviewsThenApplies` |
 | B7.7 | `APPDATA`, `LOCALAPPDATA` | Windows directories |  |  |
 | B7.8 | `APPDIR`, `APPIMAGE` | desktop entry target |  |  |
 | B7.9 | `.env` handling and syntax | only from `--env-file`; `crates/config/src/dotenv.rs:13-89` |  |  |
