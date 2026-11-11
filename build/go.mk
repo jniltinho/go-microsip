@@ -27,7 +27,7 @@ GO_GUI     := GO_DOCKER_FLAGS="--init --security-opt seccomp=unconfined --securi
               --security-opt systempaths=unconfined -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
-	go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-shell
+	go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-vm go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
 	docker build -t $(GO_IMAGE) -f build/linux.Dockerfile build
@@ -88,6 +88,16 @@ go-windows: go-frontend go-licenses ## Go: the Windows amd64 .exe and .zip
 go-dist: go-appimage go-windows ## Go: Linux binary, AppImage, Windows .exe and .zip, notices, SHA256SUMS
 	cp $(GO_BIN) $(GO_DIST)/$(GO_NAME)-linux-amd64
 	build/dist-manifest.sh $(GO_DIST) $(GO_NAME) $(GO_VERSION) $(GO_COMMIT) $(GO_WINDOW) $(GO_IMAGE)
+
+# The one target that needs more than Docker on the host: Vagrant and VirtualBox. It checks what
+# go-dist left in dist/go; the audio adapter's test is built for the guests here.
+GO_VMS    ?= ubuntu2604 debian13 windows11
+GO_VM_OUT ?= artifacts/go-vm
+go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 debian13 windows11", SECONDS=300)
+	$(GO) sh -c 'mkdir -p $(GO_DIST)/g0 && CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/audio.test ./internal/platform/audio && \
+		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/audio.test.exe ./internal/platform/audio'
+	mkdir -p $(GO_VM_OUT)
+	build/vm/run.sh $(GO_VERSION) "$(abspath $(GO_VM_OUT))" $(or $(SECONDS),300) $(GO_VMS)
 
 go-shell: ## Go: interactive shell in the build container
 	GO_DOCKER_FLAGS=-it $(GO) bash

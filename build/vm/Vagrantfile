@@ -1,7 +1,7 @@
 # Disposable Linux desktop VMs for milestone checks (openspec/changes/migrate-to-go-wails): the two
 # supported distributions with their own default GNOME desktop and nothing added for go-microsip.
 #
-#   build/vm/run.sh <version> <receipt dir> [audio seconds] [ubuntu2604 debian13 windows11]
+#   make go-vm     (build/vm/run.sh <version> <log dir> [audio seconds] [ubuntu2604 debian13 windows11])
 #
 # Only two folders are shared: this one (/vagrant) and the artifacts (/dist), read-only on Linux. The VMs use
 # VirtualBox NAT, change nothing on the host, and are destroyed after the run.

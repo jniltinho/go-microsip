@@ -73,11 +73,19 @@ changes `go.mod`. Design and tasks are in `openspec/changes/migrate-to-go-wails/
 at the same time: they share the lab's Compose project. Each run generates new fictional accounts
 and a new CA under the git-ignored `artifacts/`, and tears the PBX down.
 
-Desktop VM checks (VirtualBox through Vagrant; nothing is installed for go-microsip in the guests):
+Desktop VM checks, the one target whose host needs more than Docker (Vagrant and VirtualBox;
+nothing is installed for go-microsip in the guests). It checks what `make go-dist` left in
+`dist/go` on a clean Ubuntu 26.04, Debian 13 and Windows 11, one after the other, writes the logs
+and a screenshot of each to the git-ignored `artifacts/go-vm/`, and destroys each VM:
 
 ```sh
-build/vm/run.sh 0.2.0-g0 "$PWD/docs/receipts/go-g0" 300 ubuntu2604 debian13 windows11
+make go-vm
 ```
+
+`GO_VMS="ubuntu2604 debian13"` chooses the guests and `SECONDS=20` shortens the sound measurement
+(300 by default). The status is not zero when any guest fails a check, its sound threshold
+included. The Windows guest's emulated sound card has no host backend, so its sound threshold is
+expected to fail there (task 2.8); its window check is the one that counts.
 
 The command line is Cobra. Status 0 is done, 1 failed, 2 invalid usage; `run` exits 130 or 143
 after a signal.
