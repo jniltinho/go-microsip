@@ -100,7 +100,7 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 
 	go func() { // microphone -> network
 		defer c.pumps.Done()
-		var frame, silence [media.FrameSamples]int16
+		mic := microphone{audio: audio}
 		payload := make([]byte, media.FrameSamples)
 		lost := false
 		for ctx.Err() == nil {
@@ -113,21 +113,18 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 				continue
 			default:
 			}
-			if c.held.Load() {
+			out, fed := mic.next(c.held.Load(), c.muted.Load())
+			if out == nil {
 				// On hold nothing is sent: the library would keep the stream going.
 				time.Sleep(20 * time.Millisecond)
 				continue
 			}
-			out := &frame
-			if !audio.Capture(&frame) {
-				out = &silence // no frame yet: silence keeps the stream alive
+			if !fed {
 				c.unfed.Add(1)
 				if !lost && audio.CaptureLost() {
 					lost = true // said once; no other microphone is opened here
 					micLost()
 				}
-			} else if c.muted.Load() {
-				out = &silence
 			}
 			codec.Encode(payload, out)
 			c.sent.Add(1)
@@ -179,6 +176,39 @@ func (c *call) take() ports.MediaIO {
 	audio := c.opened
 	c.opened = nil
 	return audio
+}
+
+// microphone decides what each 20 ms tick of a call sends. What the microphone records while the
+// call is held or muted is the user's own: it is never sent, not then and not afterwards.
+type microphone struct {
+	audio          ports.MediaIO
+	frame, silence [media.FrameSamples]int16
+	// private: the call was held or muted at the previous tick.
+	private bool
+}
+
+// next returns the frame to send, or nil when nothing is sent this tick. fed is false when the
+// frame is silence because the microphone had nothing.
+func (m *microphone) next(held, muted bool) (out *[media.FrameSamples]int16, fed bool) {
+	if held || muted {
+		m.audio.Capture(&m.frame) // read and dropped, so the device's queue does not fill up
+		m.private = true
+		if held {
+			return nil, true
+		}
+		return &m.silence, true // muted: silence keeps the stream alive
+	}
+	if m.private {
+		// Resumed or unmuted. Whatever the device still holds was recorded before: it is dropped
+		// at the source, so the frames from here on are made only of what is recorded from now.
+		m.private = false
+		m.audio.Discard()
+		return &m.silence, true
+	}
+	if !m.audio.Capture(&m.frame) {
+		return &m.silence, false // no frame yet: silence keeps the stream alive
+	}
+	return &m.frame, true
 }
 
 // stopAudio stops the call's audio and closes the sound devices, beside the caller. It is safe to

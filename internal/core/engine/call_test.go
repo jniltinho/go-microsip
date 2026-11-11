@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/media"
 	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 )
 
@@ -175,5 +177,92 @@ func TestTheFinalSnapshotSaysTheCallWasAnswered(t *testing.T) {
 	b.end(never, domain.EndCanceled)
 	if never.snap.Answered() || never.snap.EndedMS == 0 {
 		t.Errorf("unanswered call %+v", never.snap)
+	}
+}
+
+// queuedMicrophone is a microphone that records on its own, whether or not anybody reads it, as a
+// sound device does: samples queue up until Capture takes them, a frame at a time.
+type queuedMicrophone struct {
+	*memory.Stream
+	samples []int16
+}
+
+func (q *queuedMicrophone) record(value int16, samples int) {
+	for range samples {
+		q.samples = append(q.samples, value)
+	}
+}
+
+func (q *queuedMicrophone) Discard() { q.samples = q.samples[:0] }
+
+func (q *queuedMicrophone) Capture(frame *[media.FrameSamples]int16) bool {
+	if len(q.samples) < media.FrameSamples {
+		return false
+	}
+	copy(frame[:], q.samples)
+	q.samples = q.samples[media.FrameSamples:]
+	return true
+}
+
+// What the microphone records while the call is held is never sent: not during the hold, and not
+// after the resume, when a device that kept recording still has some of it queued.
+func TestNothingRecordedOnHoldIsEverSent(t *testing.T) {
+	const talk, private = 1, 7 // what is said to the other party, and what is said on hold
+	q := &queuedMicrophone{Stream: &memory.Stream{}}
+	mic := microphone{audio: q}
+	var sent []int16
+	tick := func(held, muted bool) {
+		if out, _ := mic.next(held, muted); out != nil {
+			sent = append(sent, out[:]...)
+		}
+	}
+	for range 5 {
+		q.record(talk, media.FrameSamples)
+		tick(false, false)
+	}
+	if len(sent) != 5*media.FrameSamples || sent[0] != talk {
+		t.Fatalf("before the hold: %d samples sent", len(sent))
+	}
+	// On hold the device records two and a half frames per tick: its queue grows whatever is read.
+	for range 50 {
+		q.record(private, media.FrameSamples*5/2)
+		tick(true, false)
+	}
+	if len(sent) != 5*media.FrameSamples {
+		t.Fatal("something was sent during the hold")
+	}
+	// The resume comes with a queue full of the hold and a frame that is half hold, half talk.
+	q.record(private, media.FrameSamples/2)
+	for range 20 {
+		q.record(talk, media.FrameSamples)
+		tick(false, false)
+	}
+	after := sent[5*media.FrameSamples:]
+	talked := 0
+	for _, v := range after {
+		if v == private {
+			t.Fatal("audio recorded on hold was sent after the resume")
+		}
+		if v == talk {
+			talked++
+		}
+	}
+	if len(after) != 20*media.FrameSamples || talked < 17*media.FrameSamples {
+		t.Errorf("after the resume: %d samples sent, %d of them the talk", len(after), talked)
+	}
+	// Muted is the same promise: what is said then is not sent, not even once unmuted, and the
+	// stream goes on with silence meanwhile.
+	before := len(sent)
+	for range 10 {
+		q.record(private, media.FrameSamples*3/2)
+		tick(false, true)
+	}
+	for range 10 {
+		q.record(talk, media.FrameSamples)
+		tick(false, false)
+	}
+	got := sent[before:]
+	if len(got) != 20*media.FrameSamples || slices.Contains(got, private) || got[len(got)-1] != talk || slices.Contains(got[:10*media.FrameSamples], talk) {
+		t.Errorf("mute and unmute: %d samples, private sent %v, last %d", len(got), slices.Contains(got, private), got[len(got)-1])
 	}
 }

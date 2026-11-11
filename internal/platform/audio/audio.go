@@ -150,6 +150,13 @@ func (b *buffers) Capture(frame *[FrameSamples]int16) bool {
 	return true
 }
 
+// Discard drops everything captured and not yet handed out. The engine side is this ring's only
+// reader, so it may skip; what the device writes from now on forms whole new frames.
+func (b *buffers) Discard() {
+	b.in.tail.Store(b.in.head.Load())
+	b.primed = false
+}
+
 // Play queues 20 ms for the speaker. It never blocks: when the device is behind by more than
 // playBacklog, the frame is dropped so delay cannot build up.
 func (b *buffers) Play(frame *[FrameSamples]int16) {

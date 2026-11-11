@@ -65,8 +65,8 @@
       "ok": true,
       "data": {
         "codec": "pcmu",
-        "frames": 130,
-        "heard": 0.9997953978185251,
+        "frames": 131,
+        "heard": 0.9997953978185227,
         "proto": "RTP/AVP"
       }
     },
@@ -272,7 +272,7 @@
       "ok": true,
       "data": {
         "held_heard": [
-          0.9998282223432094,
+          0.9998282223432108,
           0,
           0.9998282223432094
         ],
@@ -367,7 +367,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 99,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -387,7 +387,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 101,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -397,7 +397,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -417,7 +417,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 101,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -446,7 +446,7 @@
       "name": "engine/pair/1001-1002",
       "ok": true,
       "data": {
-        "answered_ms": 2403,
+        "answered_ms": 2405,
         "callee_heard": 1,
         "callee_secure": false,
         "caller_heard": 1,
@@ -616,7 +616,7 @@
       "ok": true,
       "data": {
         "events": 3,
-        "took_ms": 0
+        "took_ms": 1
       }
     },
     {
@@ -658,7 +658,7 @@
         "events": 8,
         "frames": 148,
         "heard": 1,
-        "took_ms": 3027
+        "took_ms": 3028
       }
     }
   ],

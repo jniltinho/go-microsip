@@ -114,3 +114,36 @@ func TestMeter(t *testing.T) {
 		}
 	}
 }
+
+// Discard drops what was captured and not handed out, to the last sample: the next frame is made
+// only of what the device delivers afterwards.
+func TestDiscardDropsEverythingCaptured(t *testing.T) {
+	b := newBuffers()
+	fill := func(value int16, samples int) {
+		p := make([]int16, samples)
+		for i := range p {
+			p[i] = value
+		}
+		b.captured(p)
+	}
+	var frame [FrameSamples]int16
+	fill(7, 3*FrameSamples+FrameSamples/2) // three and a half frames of what must not be sent
+	if !b.Capture(&frame) || frame[0] != 7 {
+		t.Fatal("the fixture did not capture")
+	}
+	b.Discard()
+	if b.Capture(&frame) {
+		t.Fatal("a frame came out right after the discard")
+	}
+	fill(1, 4*FrameSamples)
+	for n := 0; b.Capture(&frame); n++ {
+		for i, v := range frame {
+			if v != 1 {
+				t.Fatalf("frame %d, sample %d is %d: it was captured before the discard", n, i, v)
+			}
+		}
+	}
+	if st := b.Stats(); st.CaptureDropped != 0 {
+		t.Errorf("%d samples counted as dropped: a discard is not a loss", st.CaptureDropped)
+	}
+}

@@ -9,6 +9,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | 3 | `e856d17` | UNSOUND: earlier findings resolved or accepted except three partial; 3 new major, 2 minor | [codex-round3.md](codex-round3.md) |
 | 4 | `8483f9f` | UNSOUND: everything earlier resolved or accepted; 1 new major | [codex-round4.md](codex-round4.md) |
 | 5 | `cf8e470` | UNSOUND: everything earlier resolved; 1 new major, 1 minor | [codex-round5.md](codex-round5.md) |
+| 6 | `c2fe87a` | UNSOUND: everything earlier resolved; 1 new major | [codex-round6.md](codex-round6.md) |
 
 ## What was done about round 1
 
@@ -73,3 +74,10 @@ Of the fourteen findings of round 1, after both rounds: thirteen are fixed in co
 | 1 | Merging intermediate states can erase that a call was answered | Fixed. Every snapshot carries when the call began, was first established and ended (`StartedMS`, `AnsweredMS`, `EndedMS`), the final one included; the history and `run` read "answered" and the times from the snapshot, never from having seen "established". `TestTheFinalSnapshotSaysTheCallWasAnswered` merges the established snapshot away; `TestHistoryDoesNotDependOnSeeingTheCallEstablished` stores a call seen only ringing and ended; the lab's pair and reject scenarios check the final snapshot's times. |
 | 2 | A configuration directory on another file system | Fixed. When the rename cannot reach, the file is copied beside its destination, synced and renamed there; a copy left on its way is removed by the recovery. `TestConfigurationOnAnotherFileSystem` forces the fallback (a real second file system is not used). |
 | - | Receipt wording | "The voice is gone" now says what is asserted (at most 10 of 200 pieces, measured 0), and the sequential-cleanup test is described as what it is: a test of the count the shutdown waits for, not of a whole shutdown. |
+
+## What was done about round 6
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | Microphone audio recorded during a hold can be sent after the resume | Fixed, for a mute too, which had the same gap in small. The sound port has a new call, `Discard`, that drops everything the microphone recorded and did not hand out; the engine calls it when a hold or a mute ends, after reading and dropping one frame per tick meanwhile. The decision is one small type (`microphone` in `call.go`) that the test drives with a microphone that records on its own, whether it is read or not: `TestNothingRecordedOnHoldIsEverSent` (hold and mute), and `TestDiscardDropsEverythingCaptured` for the real adapter's ring. A first attempt that drained by reading until nothing came was caught by the lab: a microphone that always has a frame never ran dry and the call stayed silent after the resume. |
+| - | Receipt | It now says that the lab's hold and mute scenarios use a microphone that produces audio only when asked, so they cannot see this; the unit tests above are what covers it. |

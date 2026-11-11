@@ -106,6 +106,9 @@ func (s *Stream) Play(frame *[ports.FrameSamples]int16) {
 	s.mu.Unlock()
 }
 
+// Discard has nothing to drop: this microphone records only when it is asked.
+func (s *Stream) Discard() {}
+
 // CaptureLost reports whether the microphone was unplugged.
 func (s *Stream) CaptureLost() bool { return s.unplugged.Load() }
 
