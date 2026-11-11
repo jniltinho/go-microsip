@@ -186,6 +186,9 @@ func TestTheFinalSnapshotSaysTheCallWasAnswered(t *testing.T) {
 type queuedMicrophone struct {
 	*memory.Stream
 	samples []int16
+	// taking, when set, runs once as a frame is about to be taken: what the actor and the device
+	// do while the sender is between reading the call's state and reading the microphone.
+	taking func()
 }
 
 func (q *queuedMicrophone) record(value int16, samples int) {
@@ -197,6 +200,10 @@ func (q *queuedMicrophone) record(value int16, samples int) {
 func (q *queuedMicrophone) Discard() { q.samples = q.samples[:0] }
 
 func (q *queuedMicrophone) Capture(frame *[media.FrameSamples]int16) bool {
+	if f := q.taking; f != nil {
+		q.taking = nil
+		f()
+	}
 	if len(q.samples) < media.FrameSamples {
 		return false
 	}
@@ -218,7 +225,7 @@ func TestNothingRecordedOnHoldIsEverSent(t *testing.T) {
 		if now := [2]bool{held, muted}; now != was {
 			was, changes = now, changes+2
 		}
-		if out, _ := mic.next(held, muted, changes); out != nil {
+		if out, _ := mic.next(func() (bool, bool, uint64) { return held, muted, changes }); out != nil {
 			sent = append(sent, out[:]...)
 		}
 	}
@@ -282,7 +289,7 @@ func TestPrivacyBetweenTwoTicksIsNotMissed(t *testing.T) {
 	c := &call{}
 	var sent []int16
 	tick := func() {
-		if out, _ := mic.next(c.held.Load(), c.muted.Load(), c.privacy.Load()); out != nil {
+		if out, _ := mic.next(c.privacyState); out != nil {
 			sent = append(sent, out[:]...)
 		}
 	}
@@ -303,5 +310,27 @@ func TestPrivacyBetweenTwoTicksIsNotMissed(t *testing.T) {
 	}
 	if n := len(sent) / media.FrameSamples; n != 13 || sent[len(sent)-1] != talk {
 		t.Errorf("%d frames sent, the last one %d", n, sent[len(sent)-1])
+	}
+	// The same, later still: the sender has read the call's state and is about to read the
+	// microphone when the user mutes, speaks and unmutes. The frame it then takes is not sent.
+	for _, flag := range []*atomic.Bool{&c.muted, &c.held} {
+		before := len(sent)
+		q.taking = func() {
+			c.private(flag, true)
+			q.record(private, 3*media.FrameSamples+40)
+			c.private(flag, false)
+		}
+		tick() // the microphone had nothing queued: the frame taken is all of the mute
+		for range 6 {
+			q.record(talk, media.FrameSamples)
+			tick()
+		}
+		got := sent[before:]
+		if slices.Contains(got, private) {
+			t.Fatal("audio recorded during a mute or a hold that overlapped the reading of the microphone was sent")
+		}
+		if len(got) != 7*media.FrameSamples || got[len(got)-1] != talk {
+			t.Errorf("after the overlap: %d samples sent, the last one %d", len(got), got[len(got)-1])
+		}
 	}
 }

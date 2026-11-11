@@ -11,6 +11,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | 5 | `cf8e470` | UNSOUND: everything earlier resolved; 1 new major, 1 minor | [codex-round5.md](codex-round5.md) |
 | 6 | `c2fe87a` | UNSOUND: everything earlier resolved; 1 new major | [codex-round6.md](codex-round6.md) |
 | 7 | `1d2ff41` | UNSOUND: round 6's fix partial (a hold or mute between two sender ticks); nothing else | [codex-round7.md](codex-round7.md) |
+| 8 | `0ef5947` | UNSOUND: round 7's fix partial (a hold or mute between the sender's reading of the state and of the microphone); nothing else | [codex-round8.md](codex-round8.md) |
 
 ## What was done about round 1
 
@@ -89,3 +90,10 @@ Of the fourteen findings of round 1, after both rounds: thirteen are fixed in co
 | --- | --- | --- |
 | 1 | A hold or a mute entirely between two sender ticks is forgotten | Fixed. The actor counts every change of hold and mute, before and after it sets the flag; the send goroutine drops what the microphone holds whenever the count is one it has not acted on, whether or not it ever saw the flag set. `TestPrivacyBetweenTwoTicksIsNotMissed` mutes, records and unmutes (and the same with a hold) without a tick in between. The helper and the adapter's ring are tested each on its own; the two goroutines together are not driven by a test. |
 | - | Found by the lab while this was verified | The fix of round 1's finding 4 ended a call as failed when its audio stopped a moment before the dialog reported the other side's hang-up (one lab run in about ten). A dialog now has half a second to turn out ended before stopped audio counts as a failure; the shutdown scenarios then passed 6 runs of 3 and the pair scenarios 3 runs of 2. |
+
+## What was done about round 8
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | A hold or a mute after the sender read the call's state and before it read the microphone | Fixed. The sender reads the count of changes again once it has the frame, and does not send a frame taken while the count moved; the count, still not acted on, makes the next tick drop what the device holds. As the count moves before the flag does, a frame that passes was recorded before any change began. `TestPrivacyBetweenTwoTicksIsNotMissed` now also mutes, records and unmutes (and the same with a hold) from inside the reading of the microphone; with the second reading switched off it fails. It is still the helper that is tested, with the actor's part played inside one goroutine. |
+| - | Round 8 on `mediaGrace` | Recorded as a limitation in the receipt: a dialog that takes longer than half a second to report its end after the audio stopped is ended as failed. A media direction that fails alone still has no test of its own. |

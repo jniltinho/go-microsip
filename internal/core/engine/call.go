@@ -116,7 +116,7 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 				continue
 			default:
 			}
-			out, fed := mic.next(c.held.Load(), c.muted.Load(), c.privacy.Load())
+			out, fed := mic.next(c.privacyState)
 			if out == nil {
 				// On hold nothing is sent: the library would keep the stream going.
 				time.Sleep(20 * time.Millisecond)
@@ -193,9 +193,11 @@ type microphone struct {
 }
 
 // next returns the frame to send, or nil when nothing is sent this tick. fed is false when the
-// frame is silence because the microphone had nothing. changes is the call's count of hold and
-// mute changes, read after the two flags.
-func (m *microphone) next(held, muted bool, changes uint64) (out *[media.FrameSamples]int16, fed bool) {
+// frame is silence because the microphone had nothing. state reads the call's hold and mute and
+// the count of their changes; it is read again once the frame is taken, as the actor may change
+// them at any moment in between.
+func (m *microphone) next(state func() (held, muted bool, changes uint64)) (out *[media.FrameSamples]int16, fed bool) {
+	held, muted, changes := state()
 	if held || muted {
 		m.audio.Capture(&m.frame) // read and dropped, so the device's queue does not fill up
 		m.private = true
@@ -213,10 +215,23 @@ func (m *microphone) next(held, muted bool, changes uint64) (out *[media.FrameSa
 		m.audio.Discard()
 		return &m.silence, true
 	}
-	if !m.audio.Capture(&m.frame) {
+	got := m.audio.Capture(&m.frame)
+	if _, _, now := state(); now != changes {
+		// A hold or a mute began while the frame was being taken, and may be over already: the
+		// frame may hold what was recorded then. It is not sent, and the count, still not acted
+		// on, makes the next tick drop the rest.
+		return &m.silence, true
+	}
+	if !got {
 		return &m.silence, false // no frame yet: silence keeps the stream alive
 	}
-	return &m.frame, true
+	return &m.frame, true // recorded before any change of hold or mute began
+}
+
+// privacyState is what the microphone decides on: the two flags, then the count of their changes.
+func (c *call) privacyState() (held, muted bool, changes uint64) {
+	held, muted = c.held.Load(), c.muted.Load()
+	return held, muted, c.privacy.Load()
 }
 
 // private sets held or muted, for the actor. The count moves before and after the flag, so the
