@@ -75,13 +75,19 @@ func StorePath(env map[string]string) string {
 	return filepath.Join(home, config.DirName, config.DirName+".sqlite3")
 }
 
-// context builds the resolution context, with the settings saved in an existing database. No
-// database is created here.
-func (o Options) context() config.Context {
+// base is the resolution context without the database: the environment and the two paths.
+func (o Options) base() config.Context {
 	c := config.ProcessContext(o.ConfigPath, o.EnvFile, o.Files)
 	if o.Env != nil {
 		c.Env = o.Env
 	}
+	return c
+}
+
+// context builds the resolution context, with the settings saved in an existing database. No
+// database is created here.
+func (o Options) context() config.Context {
+	c := o.base()
 	path := StorePath(c.Env)
 	if info, err := os.Stat(path); path == "" || err != nil || !info.Mode().IsRegular() {
 		return c
@@ -149,10 +155,14 @@ func Import(o Options, file string, apply bool) (string, error) {
 	if !apply {
 		return text, nil
 	}
-	env := o.context().Env
-	path := StorePath(env)
+	path := StorePath(o.base().Env)
 	if path == "" {
 		return "", &ImportError{Preview: text, Err: ErrNoDataDirectory}
+	}
+	// An import from the Rust application that was interrupted is undone before the database is
+	// written: what is stored now must not be replaced by that recovery later.
+	if err := RecoverImport(o); err != nil {
+		return "", &ImportError{Preview: text, Err: err}
 	}
 	s, err := store.Open(path)
 	if err == nil {

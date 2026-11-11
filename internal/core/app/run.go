@@ -57,7 +57,8 @@ func (noAudio) Open(_, _ string) (ports.MediaIO, error) { return nil, ports.ErrN
 // within the engine's bound.
 func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)) error {
 	// One softphone per user: two would fight over the account, the sound and the history.
-	if lock := InstanceLock(o.context().Env); o.Locks != nil && lock != "" {
+	// The lock and the recovery come before anything opens the database.
+	if lock := InstanceLock(o.base().Env); o.Locks != nil && lock != "" {
 		unlock, err := o.Locks.Lock(lock)
 		if errors.Is(err, ports.ErrLocked) {
 			return ErrRunning

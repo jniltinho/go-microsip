@@ -31,10 +31,7 @@ func InstanceLock(env map[string]string) string {
 // rustImporter locates both applications' data. The Rust application's paths follow its own rules:
 // the same bases as go-microsip's, with its name.
 func (o Options) rustImporter() (*rustimport.Importer, error) {
-	c := config.ProcessContext(o.ConfigPath, o.EnvFile, o.Files)
-	if o.Env != nil {
-		c.Env = o.Env
-	}
+	c := o.base()
 	if o.Locks == nil || runtime.GOOS == "windows" {
 		return nil, ErrImportUnsupported
 	}
