@@ -32,8 +32,14 @@ const status = computed((): { icon: IconName; label: string; tone: string } => {
     </span>
     <span v-if="ui.dnd" class="flex items-center gap-1"><Icon name="dnd" />DND</span>
     <span v-if="isMock" title="Simulated engine with fictional data">Mock</span>
-    <span v-if="!unavailable" class="ml-auto truncate text-[0.9rem]" aria-label="Account">{{
-      ui.accountText
-    }}</span>
+    <!-- The account gives way first (the weight leaves the state under 1/64 px of the squeeze), so
+         a wide font never cuts the registration state. -->
+    <span
+      v-if="!unavailable"
+      class="ml-auto shrink-[9999] truncate text-[0.9rem]"
+      aria-label="Account"
+      :title="ui.accountText"
+      >{{ ui.accountText }}</span
+    >
   </footer>
 </template>

@@ -10,6 +10,7 @@ export const SKINS: readonly Skin[] = [
   { id: "macos", label: "macOS", dark: false },
   { id: "ubuntu", label: "Ubuntu", dark: false },
   { id: "win98", label: "Windows 98", dark: false },
+  { id: "matrix", label: "Matrix", dark: true },
 ];
 export const SYSTEM = "system";
 /** What settings offers: System first, then every skin. */

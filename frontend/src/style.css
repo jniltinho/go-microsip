@@ -2,7 +2,8 @@
 @import "./themes/index.css";
 
 /* Tailwind's own palette, radii and shadows are removed: color utilities exist only for the skin
-   tokens below, so a component cannot name a literal color or round a corner. */
+   tokens below, so a component cannot name a literal color, and a corner takes its radius only here,
+   from the skin's radius tokens. */
 @theme {
   --color-*: initial;
   --radius-*: initial;
@@ -37,7 +38,10 @@
   }
   body {
     overflow: hidden; /* the window never scrolls as a page */
-    background: var(--surface);
+    /* The backdrop is the skin's own layer over the surface (scan lines in matrix, none elsewhere).
+       Its animation runs once and for under five seconds, and not at all with reduced motion. */
+    background: var(--backdrop), var(--surface);
+    animation: var(--backdrop-motion);
     color: var(--text);
     font-family: var(--font-ui);
     line-height: 1.35;
@@ -52,17 +56,82 @@
   }
   button,
   input,
-  select,
-  dialog {
+  select {
     border-radius: var(--radius);
   }
+  /* Check boxes and radio buttons are drawn from the tokens, not by the webview: the box is a small
+     field, --accent fills it when it is on and --accent-text draws the mark (two strokes for a
+     check, a dot for a radio), so the mark is what tells on from off. */
   input[type="checkbox"],
   input[type="radio"] {
-    accent-color: var(--accent);
+    appearance: none;
+    flex: none;
+    width: 1.15em;
+    height: 1.15em;
+    margin: 0;
+    background: var(--input);
+    border: var(--border-width) solid var(--field-border);
+    box-shadow: var(--field-bevel);
   }
+  input[type="checkbox"] {
+    border-radius: calc(var(--radius) / 2);
+  }
+  input[type="radio"] {
+    border-radius: 50%; /* a radio button is a disc in every system */
+  }
+  input[type="checkbox"]:checked {
+    background:
+      linear-gradient(
+          to top right,
+          transparent calc(50% - 1px),
+          var(--accent-text) calc(50% - 1px) calc(50% + 1px),
+          transparent calc(50% + 1px)
+        )
+        16% 76% / 32% 32% no-repeat,
+      linear-gradient(
+          to top left,
+          transparent calc(50% - 1px),
+          var(--accent-text) calc(50% - 1px) calc(50% + 1px),
+          transparent calc(50% + 1px)
+        )
+        84% 42% / 48% 64% no-repeat,
+      var(--accent);
+  }
+  input[type="radio"]:checked {
+    background: radial-gradient(circle, var(--accent-text) 0 30%, var(--accent) 38%);
+  }
+  /* The ring stands off the control, so it is told from the control by the gap and from the
+     surroundings by its color; where the surroundings are not the surface, it takes the text
+     color of that place (below). */
   :focus-visible {
     outline: var(--focus-width) var(--focus-style) var(--focus);
-    outline-offset: 1px;
+    outline-offset: 2px;
+  }
+  ::-webkit-scrollbar {
+    width: var(--scroll-size);
+    height: var(--scroll-size);
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: var(--scroll-track);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    box-shadow: var(--scroll-thumb-bevel);
+    border-radius: var(--scroll-radius);
+  }
+  @keyframes backdrop {
+    from {
+      background-position: var(--backdrop-shift);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation: none !important;
+      transition: none !important;
+    }
   }
   ::selection {
     background: var(--selection);
@@ -165,40 +234,49 @@
   .well {
     background: var(--panel);
     border: var(--border-width) solid var(--field-border);
+    border-radius: var(--radius);
     box-shadow: var(--field-bevel);
   }
 
+  /* Tabs carry no border of their own: a skin draws their edges with --tab-bevel, and --tab-border
+     is the line under the bar. With --tab-lift the tabs sit on that line and the selected one
+     stands taller and covers it; with a lift of zero they are buttons apart from it. */
   .tabbar {
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    padding: 4px 4px 0;
+    padding: var(--tabbar-pad);
     background: var(--tab-bar);
     border-bottom: var(--border-width) solid var(--tab-border);
   }
+  .tablist {
+    display: flex;
+    gap: 2px;
+    background: var(--tab-trough);
+    border-radius: var(--tab-radius);
+  }
   .tab {
-    margin-top: 2px;
-    margin-bottom: calc(-1 * var(--border-width));
-    padding: 0.3rem 0.75rem;
+    margin-top: var(--tab-lift);
+    padding: 0.35rem 0.8rem;
     background: var(--tab);
     color: var(--tab-text);
-    border: var(--border-width) solid var(--tab-border);
+    border-radius: var(--tab-radius);
     box-shadow: var(--tab-bevel);
   }
   .tab[aria-selected="true"] {
     background: var(--tab-active);
     color: var(--tab-active-text);
-    /* The selected tab stands two pixels taller than its neighbors. */
     margin-top: 0;
-    padding-top: calc(0.3rem + 2px);
-    border-bottom-color: transparent;
-    box-shadow:
-      inset 0 2px 0 var(--tab-accent),
-      var(--tab-bevel);
+    margin-bottom: calc(var(--tab-lift) * -0.5); /* over the bar's line when the tabs sit on it */
+    padding-top: calc(0.35rem + var(--tab-lift));
+    box-shadow: var(--tab-active-bevel);
     font-weight: 600;
   }
   .tabbar .btn {
-    margin-bottom: 3px;
+    margin-bottom: calc(var(--tab-lift) * 1.5);
+  }
+  .tabbar :focus-visible {
+    outline-color: var(--tab-text);
   }
 
   .statusbar {
@@ -233,18 +311,40 @@
 
   .titlebar {
     display: flex;
+    flex-direction: var(--title-direction);
     align-items: center;
-    justify-content: space-between;
     gap: 0.5rem;
     min-height: var(--ctl-height);
     padding: 0.2rem 0.3rem 0.2rem 0.6rem;
     background: var(--title);
     color: var(--title-text);
     font-weight: var(--title-weight);
+    text-shadow: var(--title-shadow);
   }
-  .titlebar .btn {
+  .titlebar-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-align: var(--title-align);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The close button of a view's title bar, in the skin's own shape and color. */
+  .titlebar .btn,
+  .titlebar .btn:hover:not(:disabled) {
     min-height: calc(var(--ctl-height) - 6px);
-    padding: 0 0.25rem;
+    aspect-ratio: 1;
+    padding: 0;
+    background: var(--close);
+    color: var(--close-text);
+    border-radius: var(--close-radius);
+    text-shadow: none;
+  }
+  .titlebar .btn:active:not(:disabled) {
+    filter: brightness(0.85);
+  }
+  .titlebar :focus-visible {
+    outline-color: var(--title-text);
   }
 
   .dialog {
@@ -256,6 +356,7 @@
     background: var(--surface);
     color: var(--text);
     border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-window);
     box-shadow: var(--dialog-bevel);
   }
   .dialog::backdrop {
@@ -268,7 +369,8 @@
     background: var(--panel);
     color: var(--text);
     border: var(--border-width) solid var(--border);
-    box-shadow: var(--dialog-bevel);
+    border-radius: var(--radius-menu);
+    box-shadow: var(--menu-bevel);
   }
   .menuitem {
     display: flex;
@@ -276,6 +378,7 @@
     gap: 0.5rem;
     width: 100%;
     padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-menu);
     text-align: left;
   }
   .menuitem:hover,
@@ -299,6 +402,7 @@
     gap: 0.25rem;
     padding: 0 0.35rem;
     border: 1px solid currentColor;
+    border-radius: var(--radius);
     font-size: 0.9rem;
     white-space: nowrap;
   }
@@ -315,19 +419,25 @@
   }
   .group {
     padding: 0.5rem 0.6rem 0.6rem;
-    border: var(--border-width) solid var(--border);
+    background: var(--group);
+    border: var(--border-width) solid var(--group-border);
+    border-radius: var(--radius);
     box-shadow: var(--group-bevel);
   }
   .group > legend {
     padding: 0 0.3rem;
+    color: var(--group-title);
     font-weight: 600;
   }
 }
 
 /* Outside the layers so it wins over the color utilities: everything in a selected row takes the
-   selection's text color. */
+   selection's text color, and so does the focus ring drawn inside it. */
 .row[aria-current="true"],
 .row[aria-current="true"] * {
   background: var(--selection);
   color: var(--selection-text);
+}
+.row[aria-current="true"]:focus-visible {
+  outline-color: var(--selection-text);
 }

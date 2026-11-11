@@ -132,15 +132,19 @@ The webview serves only the embedded `frontend` build (asset origin differs by p
 
 ### D7: Skins — one stylesheet per skin, one token contract
 
-Following `goXterm/frontend/src/themes`: `frontend/src/themes/index.ts` holds the registry (`id`, `label`, `dark`), each skin is a CSS file with a `:root[data-theme="<id>"]` block, and `<html data-theme>` selects it. `system` resolves to `light`/`dark` through `prefers-color-scheme` and follows changes live. Shipped ids: `light`, `dark`, `xp`, `macos`, `ubuntu`, `win98`.
+Following `goXterm/frontend/src/themes`: `frontend/src/themes/index.ts` holds the registry (`id`, `label`, `dark`), each skin is a CSS file with a `:root[data-theme="<id>"]` block, and `<html data-theme>` selects it. `system` resolves to `light`/`dark` through `prefers-color-scheme` and follows changes live. Shipped ids: `light`, `dark`, `xp`, `macos`, `ubuntu`, `win98`, `matrix`.
 
-Tokens cover surfaces, text, borders, accent, selection, focus, call-state colors, title/tab chrome, fonts, bevel style and control metrics; Tailwind utilities map to the tokens, so components contain no literal colors. `internal/archtest/skins_test.go` (as in kvm-gui) fails when skins define different token sets or fewer than the six ship. A frontend test fails on hex/rgb literals outside `src/themes/`.
+Tokens cover surfaces and the backdrop, text, borders, accent, selection, focus, call-state colors, title, close-button, tab, group, dialog, menu and scroll-bar chrome, fonts, bevel style, corner radii and control metrics; Tailwind utilities map to the tokens, so components contain no literal colors. `internal/archtest/skins_test.go` (as in kvm-gui) fails when skins define different token sets or fewer than the seven ship. A frontend test fails on hex/rgb literals outside `src/themes/`.
 
-Look per skin: `xp` (Luna blue title gradient, Tahoma-like font, `#ece9d8` faces), `win98` (gray `#c0c0c0`, 2-px bevels, navy title bar), `macos` (light gray chrome, system-font stack, subtle separators), `ubuntu` (Yaru aubergine/orange accent, Ubuntu-like font stack), `light`/`dark` (the refined default). Skins evoke a style with original CSS; no vendor logos, wallpapers or copied bitmaps, and fonts are bundled open-licensed faces with fallbacks. Corners stay square in every skin, per the existing `refine-native-ui` "Square-cornered visual language" requirement and the sibling projects' skins.
+Look per skin: `xp` (Luna: blue title gradient with a red close button, glossy navy-outlined buttons, tabs with an orange stripe, blue window frame, Tahoma-like font, `#ece9d8` faces), `win98` (gray `#c0c0c0`, 2-px bevels, navy title bar, dithered scroll track), `macos` (light gray toolbar with a centered title and the close disc at the left, a segmented control for the sections, white rounded controls, boxed groups, system-font stack), `ubuntu` (Yaru light: light gray header bar, orange accent and focus, switcher buttons with an orange line, aubergine ringing state, Ubuntu-like font stack), `matrix` (a dark terminal: phosphor green on near-black, monospace system fonts, glowing edges, a backdrop of scan lines and faint streaks that fall once for four seconds and not at all under `prefers-reduced-motion`), `light`/`dark` (the refined neutral default). Skins evoke a style with original CSS; no vendor logos, wallpapers, copied bitmaps or film artwork, nothing fetched from the network, and any bundled font is an open-licensed face recorded in the third-party notices (none is bundled today: every stack names system fonts with fallbacks).
 
-The stored setting stays the `ui.theme` key; its accepted values grow from three to seven and unknown values resolve to `system`.
+Corners (changed on 2026-11-11, when the owner asked for skins closer to the real systems and for the Matrix skin): corners are square by default, as in the `refine-native-ui` "Square-cornered visual language" requirement and the sibling projects' skins, and a skin that evokes a system with rounded corners may round them. Radii are tokens (`--radius`, `--radius-window`, `--radius-menu`, `--tab-radius`, `--close-radius`, `--scroll-radius`); today `xp`, `macos` and `ubuntu` round, and `light`, `dark`, `win98` and `matrix` keep every radius at zero. The frontend test names the skins that may round and fails when a source rounds a corner other than through a radius token.
 
-- Alternative: ad-manager's larger theme set (16 skins) from day one. Rejected: the user named six; the registry makes more a one-file addition.
+Accessibility (same date): every skin meets WCAG AAA contrast. Text, labels and placeholders are at 7:1 on every background they are drawn on (disabled text is exempt); the edges of buttons, keys and fields, state icons, the selection fill, the scroll thumb and the focus ring are at 3:1; the focus ring is solid and at least 2 px; a pressed toggle differs from a released one by a 3:1 line and not only by its fill; call states are an icon and a label; no animation runs longer than five seconds or at all under `prefers-reduced-motion`. Where a system's own colors miss these numbers (Luna's title blue, Yaru's orange selection, the stock macOS control outlines), the skin uses a deeper tone. The token test and the rendered audit of the screenshot run enforce the numbers.
+
+The stored setting stays the `ui.theme` key; its accepted values grow from three to eight (`system` and the seven skins) and unknown values resolve to `system`.
+
+- Alternative: ad-manager's larger theme set (16 skins) from day one. Rejected: the user named six and later added Matrix; the registry makes more a one-file addition.
 
 ### D8: Configuration, storage and secrets keep their formats; names change
 
@@ -193,7 +197,7 @@ One Docker image (`build/linux.Dockerfile`, on a Debian 13 base: Go, Node, GTK4/
 | M0 / G0 | Spike: SIP+SRTP+audio (D3, D4), empty Wails window, AppImage and cross-built `.exe` | G0 receipt with go/no-go, Codex review |
 | M1 Core | `internal/core` complete with in-memory adapters, config, store, import, CLI | Lab suites green from the CLI, layering test, `dist/` |
 | M2 Desktop | Wails window with every screen wired to events, Light/Dark | Lab calls from the window, agent-desktop smoke, `dist/` |
-| M3 Skins | Six skins, refinement, screenshot matrix, contrast audit | Matrix and audit receipts, `dist/` |
+| M3 Skins | Seven skins, refinement, screenshot matrix, contrast audit | Matrix and audit receipts, `dist/` |
 | M4 Integration | Tray, notifications, links, single instance, control + MCP, Windows adapters | Linux and Windows VM receipts, `dist/` |
 | M5 Cutover | Parity gate, FreePBX interop, archive Rust, rename, docs, release candidate | Parity receipt, owner decision |
 

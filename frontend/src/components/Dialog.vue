@@ -11,7 +11,9 @@ onMounted(() => el.value?.showModal());
 
 <template>
   <dialog ref="el" class="dialog" :aria-label="title" @cancel.prevent="emit('cancel')">
-    <div class="titlebar">{{ title }}</div>
+    <div class="titlebar">
+      <span class="titlebar-text">{{ title }}</span>
+    </div>
     <div class="flex flex-col gap-2 p-3"><slot /></div>
   </dialog>
 </template>

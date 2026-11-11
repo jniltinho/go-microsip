@@ -1,0 +1,117 @@
+/* Matrix: a dark terminal, drawn with original CSS only (no image, no canvas, nothing from the
+   films). Phosphor green on near-black, a monospace system font stack, thin edges that glow, inverse
+   video for selections, and a backdrop of scan lines and faint falling streaks. The streaks fall
+   once for four seconds when the skin is drawn and then stand still (nothing moves at all under
+   prefers-reduced-motion); they are dim enough that text on them keeps 7:1 (themes.test.ts counts
+   the backdrop's colors as backgrounds). Square corners. */
+:root[data-theme="matrix"] {
+  color-scheme: dark;
+  --surface: #030b06;
+  --backdrop:
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 6% 30px / 2px 170px repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 17% 110px / 1px 230px
+      repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 28% 60px / 2px 150px repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 41% 140px / 1px 210px
+      repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 53% 10px / 2px 190px repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 64% 90px / 1px 160px repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 76% 50px / 2px 240px repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 88% 130px / 1px 180px
+      repeat-y,
+    linear-gradient(180deg, transparent 0%, #06200f 60%, #0a3617 100%) 96% 20px / 2px 200px repeat-y,
+    repeating-linear-gradient(0deg, transparent 0 2px, #06180c 2px 3px);
+  --backdrop-shift:
+    6% -140px, 17% -120px, 28% -90px, 41% -70px, 53% -180px, 64% -70px, 76% -190px, 88% -50px,
+    96% -180px, 0 0;
+  --backdrop-motion: backdrop 4s ease-out 1;
+  --panel: #010703;
+  --input: #000401;
+  --overlay: rgba(0, 6, 2, 0.8);
+  --text: #33ff66;
+  --text-muted: #2fd862;
+  --text-disabled: #1b7a39;
+  --border: #00a030;
+  --border-subtle: #0a3d1a;
+  --accent: #00ff41;
+  --accent-text: #001a06;
+  --link: #7dffa0;
+  --selection: #00e63a;
+  --selection-text: #001a06;
+  --hover: #082a13;
+  --focus: #d7ffe3;
+  --focus-style: solid;
+  --focus-width: 2px;
+  --btn: #03140a;
+  --btn-text: #33ff66;
+  --btn-border: #00a030;
+  --btn-hover: #06220f;
+  --btn-active: #082a13;
+  --btn-bevel: 0 0 5px rgba(0, 255, 65, 0.3), inset 0 0 6px rgba(0, 255, 65, 0.1);
+  --btn-bevel-pressed: inset 0 0 0 2px #00ff41, 0 0 8px rgba(0, 255, 65, 0.55);
+  --field-border: #00a030;
+  --field-bevel: inset 0 0 6px rgba(0, 255, 65, 0.18);
+  --key: linear-gradient(180deg, #05190c 0%, #020e06 100%);
+  --key-text: #5dff8a;
+  --key-sub: #2fd862;
+  --call: #00e63a;
+  --call-text: #001a06;
+  --hangup: #ff6e6e;
+  --hangup-text: #1a0000;
+  --state-active: #00ff41;
+  --state-ringing: #7df9ff;
+  --state-held: #ffd75e;
+  --state-muted: #ffad5c;
+  --state-error: #ffa6a6;
+  --state-secure: #00ff41;
+  --state-insecure: #ffd75e;
+  --notice: #1a1500;
+  --notice-text: #ffe680;
+  --title: linear-gradient(90deg, #00420f 0%, #001f08 100%);
+  --title-text: #b6ffcb;
+  --title-weight: 700;
+  --title-shadow: 0 0 6px rgba(0, 255, 65, 0.8);
+  --title-direction: row;
+  --title-align: left;
+  --close: #03140a;
+  --close-text: #33ff66;
+  --close-radius: 0;
+  --tab-bar: #010703;
+  --tabbar-pad: 4px 4px 0;
+  --tab-trough: transparent;
+  --tab: #010703;
+  --tab-text: #2fd862;
+  --tab-active: #082a13;
+  --tab-active-text: #b6ffcb;
+  --tab-border: #00a030;
+  --tab-bevel: inset 1px 0 0 #0a3d1a, inset -1px 0 0 #0a3d1a, inset 0 1px 0 #0a3d1a;
+  --tab-active-bevel:
+    inset 0 2px 0 #00ff41, inset 1px 0 0 #00a030, inset -1px 0 0 #00a030,
+    0 -2px 8px rgba(0, 255, 65, 0.45);
+  --tab-radius: 0;
+  --tab-lift: 2px;
+  --status: #000401;
+  --status-bevel: none;
+  --status-text: #2fd862;
+  --group: transparent;
+  --group-border: #0a5c22;
+  --group-title: #33ff66;
+  --group-bevel: 0 0 6px rgba(0, 255, 65, 0.15);
+  --dialog-bevel: 0 0 0 1px #00ff41, 0 0 28px rgba(0, 255, 65, 0.5);
+  --menu-bevel: 0 0 14px rgba(0, 255, 65, 0.45);
+  --radius-window: 0;
+  --radius-menu: 0;
+  --scroll-track: #010703;
+  --scroll-thumb: #00a030;
+  --scroll-thumb-bevel: inset 0 0 4px rgba(0, 255, 65, 0.6);
+  --scroll-size: 10px;
+  --scroll-radius: 0;
+  --font-ui:
+    "JetBrains Mono", "Cascadia Mono", "Fira Mono", "DejaVu Sans Mono", "Liberation Mono", Consolas,
+    Menlo, "Courier New", monospace;
+  --font-size: 12px;
+  --radius: 0;
+  --border-width: 1px;
+  --ctl-height: 26px;
+  --key-height: 42px;
+}

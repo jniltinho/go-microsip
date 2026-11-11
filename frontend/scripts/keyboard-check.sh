@@ -32,8 +32,8 @@ ab eval "localStorage.clear()"
 
 scene ""
 keys Tab
-check "Tab focuses a control and its focus ring is visible" \
-	"$focused !== document.body && getComputedStyle($focused).outlineStyle !== 'none' && parseFloat(getComputedStyle($focused).outlineWidth) >= 1"
+check "Tab focuses a control and its focus ring is solid and at least 2 px" \
+	"$focused !== document.body && getComputedStyle($focused).outlineStyle === 'solid' && parseFloat(getComputedStyle($focused).outlineWidth) >= 2"
 keys Control+l
 check "Ctrl+L focuses the number entry" "$focused.id === 'number'"
 ab keyboard type "1002"
@@ -133,6 +133,19 @@ check "a held call shows an icon and a label" "$call.querySelector('[role=status
 scene no-engine
 check "without an engine the window says so and offers no call control" \
 	"document.body.innerText.includes('Phone engine unavailable') && !document.querySelector('.key, .btn-call')"
+
+# Motion: the Matrix backdrop falls once, for under five seconds, and not at all with reduced motion.
+ab eval "localStorage.setItem('go-microsip.mock.theme','matrix');localStorage.setItem('go-microsip.skin','matrix')"
+scene ""
+body='getComputedStyle(document.body)'
+check "the Matrix backdrop moves once and for under five seconds" \
+	"$body.animationName === 'backdrop' && parseFloat($body.animationDuration) < 5 && $body.animationIterationCount === '1'"
+ab set media light reduced-motion
+ab wait 300
+check "with reduced motion nothing moves" "$body.animationName === 'none'"
+ab set media light
+ab wait 300
+check "and it moves again without it" "$body.animationName === 'backdrop'"
 
 ab eval "localStorage.clear()"
 [ "$failed" = 0 ] && echo "keyboard-check: all passed" || { echo "keyboard-check: FAILED" >&2; exit 1; }

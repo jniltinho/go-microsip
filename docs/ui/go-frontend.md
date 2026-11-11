@@ -13,9 +13,9 @@ Notes of the frontend work done in parallel with the G0 spike of `openspec/chang
 | Reducer | `frontend/src/state.ts`, `state.test.ts` | Port of `apps/rust-microsip/src/ui/state.rs`: intents go through `dispatch` (at most one command each); registration and call state change only in `applyEvent`. |
 | Store | `frontend/src/store.ts` | The reducer made reactive, fed by `subscribe`; calls `ready()` once the page has drawn, also when the backend is missing. |
 | Screens | `frontend/src/App.vue`, `src/components/*.vue` | Dialpad, Calls, Contacts, contact editor, in-call panel, incoming call, settings, menu, status bar, agent approval and confirmation dialogs, engine-unavailable and stopped states. |
-| Skins | `frontend/src/themes/` | Registry `index.ts`, one CSS file per skin (`light`, `dark`, `xp`, `macos`, `ubuntu`, `win98`) and `system`. Tests in `themes.test.ts`. |
-| Checks | `frontend/scripts/prints.sh`, `contrast.js`, `keyboard-check.sh` | Screenshot matrix with a contrast audit of each screen as drawn, and a keyboard walkthrough, both driven with `agent-browser`. |
-| Screenshots | `docs/prints/go/<skin>/*.png`, `docs/prints/go/contrast.txt`, `docs/prints/go/window.png` | 25 screens in each of the 6 skins from the mock; `window.png` is the real Wails window of this commit (`make go-prints`). |
+| Skins | `frontend/src/themes/` | Registry `index.ts`, one CSS file per skin (`light`, `dark`, `xp`, `macos`, `ubuntu`, `win98`, `matrix`) and `system`. Tests in `themes.test.ts`. See "Skins at AAA" below. |
+| Checks | `frontend/scripts/prints.sh`, `contrast.js`, `keyboard-check.sh`, `scale-check.sh` | Screenshot matrix with an AAA contrast audit of each screen as drawn, a keyboard walkthrough and a scaling check, all driven with `agent-browser`. |
+| Screenshots | `docs/prints/go/<skin>/*.png`, `docs/prints/go/contrast.txt`, `docs/prints/go/before/`, `docs/prints/go/compare/`, `docs/prints/go/window.png` | 25 screens in each of the 7 skins from the mock; `before/` holds four screens of each of the six earlier skins as they were before the AAA rework and `compare/` one before-and-after sheet per skin; `window.png` is the real Wails window of an earlier commit (`make go-prints`). |
 
 Window layout follows MicroSIP: tabs on top with the menu button at the right, the keypad with `Backspace + C` under it, Call and End, the `DND / Mute / Hold / Xfer` row, and the status bar at the bottom with the registration state and the account.
 
@@ -52,27 +52,54 @@ Do not run `make go-frontend` (it runs `npm ci`) while the development server is
 | Check | Result |
 | --- | --- |
 | `vp check` (format, lint, type check of `.ts`) | pass, 24 files |
-| `vp test run` | pass, 26 tests: 17 reducer and validation tests (ported from Rust, plus agent-request arming and confirmations), 9 skin tests |
+| `vp test run` | pass, 28 tests: 17 reducer and validation tests (ported from Rust, plus agent-request arming and confirmations), 11 skin tests |
 | `vp build` and `make go-self-test` | pass: "window opened and the page called the backend" |
 | Embedded build free of the mock | pass: no mock chunk and no fictional data in `internal/gui/dist` |
-| `frontend/scripts/keyboard-check.sh` | pass, 34 of 34 |
-| `frontend/scripts/prints.sh` | 150 screenshots (25 screens x 6 skins); 150 of 150 pass the contrast audit |
+| `frontend/scripts/keyboard-check.sh` | pass, 37 of 37 (the focus ring is solid and at least 2 px; the Matrix backdrop moves once for under five seconds and not at all with reduced motion) |
+| `frontend/scripts/prints.sh` | 175 screenshots (25 screens x 7 skins), scroll bars drawn; 175 of 175 pass the AAA audit as drawn |
+| `frontend/scripts/scale-check.sh` | pass, 63 of 63 (100, 150 and 200 % x 7 skins x 3 screens), scroll bars drawn |
 | Clipping at 360x560 and at the minimum 320x480 | none in `win98` and `ubuntu` (the widest fonts) on dialpad, in-call, approval, incoming, calls, contacts, menu, settings |
 
 Ported reducer tests: dial validation, DTMF only when established, incoming answer/reject, hold and mute following snapshots, DND and the transfer prompt, sticky engine failure, overload notice, version dedup and final snapshots, redial needing an explicit action, quitting during a call, skin change during a call, settings validation and registration without printing the password, account and dial-target rules, ages and durations. The Rust tests of storage, keyring, CSV import, audio test and the link handler were not ported: that logic belongs to the Go core, not to the page.
 
-Skin tests fail when: fewer or other skins than the six are registered; a skin misses or adds a token (the skin and the token are named); a skin block holds anything but token declarations; `--radius` is not `0` or a source rounds a corner; a hex/`rgb()`/named color or a Tailwind palette class appears outside `src/themes/`; a source uses `v-html`, `innerHTML` or `outerHTML`; a module other than `api.ts` imports the Wails runtime or the mock; a text token is below 4.5:1 on its background; the focus ring is below 3:1.
+Skin tests fail when: fewer or other skins than the seven are registered; a skin misses or adds a token (the skin and the token are named); a skin block holds anything but token declarations; a skin other than `xp`, `macos` and `ubuntu` has a radius token that is not `0`, or a source rounds a corner other than through a radius token; a hex/`rgb()`/named color or a Tailwind palette class appears outside `src/themes/`; a source uses `v-html`, `innerHTML` or `outerHTML`; a module other than `api.ts` imports the Wails runtime or the mock; a text token is below 7:1 on a background it is drawn on; a control edge, state icon, check mark, selection fill, scroll thumb or the focus ring is below 3:1; the focus ring is not solid or is thinner than 2 px; a backdrop animation repeats or lasts five seconds or more, or the reduced-motion rule is missing, or a component animates.
 
-### Contrast
+### Contrast (WCAG AAA)
 
-Two audits, both at 4.5:1 for text:
+Two audits, both at 7:1 for text and 3:1 for what is not text:
 
-1. Tokens (`themes.test.ts`): 39 text-on-background pairs per skin, gradients checked at every stop. Lowest ratio per skin: light 5.02, dark 5.02, xp 5.01, macos 4.99, ubuntu 5.03, win98 5.60.
-2. Rendered (`contrast.js` in `prints.sh`): every visible text, field value and placeholder of each screenshot against its nearest painted background. 150 of 150 screens pass (`docs/prints/go/contrast.txt`).
+1. Tokens (`themes.test.ts`): the text-on-background pairs of each skin as the components draw them (57 where every background is a color), gradients and the backdrop checked at every stop, and 25 pairs that are not text plus the scroll thumb. Lowest ratio per skin, text then non-text: light 7.13 / 3.90, dark 7.21 / 3.57, xp 7.19 / 3.33, macos 7.16 / 3.41, ubuntu 7.32 / 3.31, win98 7.37 / 7.37, matrix 7.16 / 3.40.
+2. Rendered (`contrast.js` in `prints.sh`): every visible text, field value and placeholder of each screenshot against its nearest painted background at 7:1; every icon, and the edge of every button, key, field, check box and radio (its border, an opaque line of its bevel, or its face) against what it stands on, at 3:1. 175 of 175 screens pass (`docs/prints/go/contrast.txt`). The audit was checked against weakened tokens: it reports the text, the icon and the edges.
 
-Fixed on the way: the call button of `xp` (4.37) and `macos` (4.41) and the hang-up button of `xp` (4.50) were darkened; the secondary text of a selected row took the muted color on the selection color and now takes the selection's text color.
+Exempt, as in WCAG 1.4.6 and 1.4.11: the text and edges of disabled controls, and what lies behind an open modal dialog (inert).
 
-Exempt, as in WCAG 1.4.3: the text of disabled controls, and what lies behind an open modal dialog (inert). The icon colors in the status bar are not text and were not audited.
+### Skins at AAA, closer to the systems, and Matrix (2026-11-11)
+
+The owner asked for the skins at the best quality (AAA), closer to the real systems, and for a Matrix skin. Before the work the six skins had 12 to 27 text pairs below 7:1 each and control edges between 1.2 and 2.8:1 in every skin but `win98`.
+
+What changed in the token contract (65 tokens became 89; every skin defines all of them):
+
+| Tokens | Why |
+| --- | --- |
+| `--radius-window`, `--radius-menu`, `--tab-radius`, `--close-radius`, `--scroll-radius` beside `--radius` | Corners per part. Design D7 kept every corner square; it now allows a skin of a system with rounded corners to round (`xp`, `macos`, `ubuntu`), and the test names those skins. |
+| `--backdrop`, `--backdrop-shift`, `--backdrop-motion` | A layer over the surface (the scan lines and streaks of `matrix`; `none` elsewhere) and its one-time animation. |
+| `--title-shadow`, `--title-direction`, `--title-align`, `--close`, `--close-text` | Title bars: shadowed text (`xp`), a centered title (`macos`, `ubuntu`), the close button at the left (`macos`) and in the system's shape and color. |
+| `--tabbar-pad`, `--tab-trough`, `--tab-active-bevel`, `--tab-lift` (`--tab-accent` is gone) | Tabs that sit on the bar's line (`light`, `dark`, `xp`, `win98`, `matrix`) or stand apart from it as a segmented control (`macos`) or switcher buttons (`ubuntu`). Tabs carry no border; a skin draws their edges with the bevels. |
+| `--group`, `--group-border`, `--group-title` | Group boxes: filled boxes (`macos`, `ubuntu`), blue captions (`xp`). |
+| `--menu-bevel` | A menu's shadow apart from a dialog's frame. |
+| `--scroll-track`, `--scroll-thumb`, `--scroll-thumb-bevel`, `--scroll-size` | Scroll bars per skin. |
+
+Also changed, without new tokens: check boxes and radio buttons are drawn from the tokens (`--input`, `--field-border`, `--field-bevel`, `--accent`, `--accent-text`) instead of by the webview, so their edges are audited and they look like the system's; the selection fill is strong in every skin (it is what shows the focused menu item); a pressed toggle carries a 3:1 line; the focus ring is solid, at least 2 px, stands 2 px off the control, and takes the text color of a title bar, the tab bar or a selected row when it is drawn there.
+
+Where a system's own colors miss AAA, the skin uses a deeper tone: the Luna title blue and selection, the greens and reds of every call and hang-up button, Yaru's orange selection (a burnt orange; the orange itself stays on focus rings, checks and the tab line), the stock macOS control outlines (as with its "Increase contrast" setting), the Windows 98 title gradient.
+
+Not covered, and why:
+
+- **Target size.** WCAG 2.5.5 (AAA) asks for 44 px targets; the compact MicroSIP-like layout has 24 to 28 px controls. That is the layout's question (see the proposals in `docs/ui/layouts` on their branch), not a skin's.
+- **Focus ring against the green and red buttons.** One ring color cannot reach 3:1 against the window, a white field and a dark green button at once. The ring is 3:1 against what it is drawn on and against the plain faces, and stands 2 px off every control, so the gap separates it from a colored face.
+- **The top-left edge of a Windows 98 button** is the white highlight (1.8:1 on the gray); the dark bottom-right edge (11.6:1) is what the audit counts.
+- **The list of a `<select>`** is drawn by the webview and the system, not by the skin.
+- **Real windows.** Everything here ran in headless Chromium against the mock. The skins were not looked at in the WebKitGTK window on Linux or the WebView2 window on Windows, where scroll-bar styling (`::-webkit-scrollbar`) and the system fonts may differ. Of the system fonts named by the stacks, this machine has Ubuntu and DejaVu; Tahoma, Segoe UI, the Apple system font and the monospace faces other than DejaVu Sans Mono were not seen.
 
 ### Visual refinement pass
 
@@ -162,7 +189,7 @@ Where two layouts were reasonable, the one closest to MicroSIP was taken:
 - **`internal/archtest/skins_test.go`** (design D7, task 4.6) was not written: `internal/` belongs to the engine session. The same rules are enforced by `frontend/src/themes/themes.test.ts`.
 - **Vue templates are not type-checked.** `vp check` type-checks `.ts` files only; checking templates needs `vue-tsc` as a new development dependency (owner's call).
 - **No component rendering tests.** The hostile-name case is covered by the source scan (no raw HTML rendering) and by `keyboard-check.sh` in a real browser, not by a unit test; a DOM test environment would be a new dependency.
-- **Bundled fonts** (task 5.4): none are bundled. The retro skins depend on system fonts, so `xp` and `win98` draw in DejaVu Sans on Linux.
+- **Bundled fonts** (task 5.4): none are bundled, so the third-party notices gain nothing. The skins depend on system fonts: `xp` and `win98` draw in DejaVu Sans on Linux, `matrix` in the first monospace face the system has (DejaVu Sans Mono on the Linux targets).
 - **Scaling**: checked by layout (no clipping at the default and minimum sizes). The 150 % and 200 % runs of task 4.3 need the built application on a scaled desktop.
 - **Not built** because the contract does not carry them: audio test, volume, CSV contact import, agent grant management, About/licences view, `sip:`/`tel:` link confirmation, tray. They belong to M2 to M4.
 - **`docs/themes.md`** (task 5.7) is not written; `frontend/src/themes/index.ts` explains adding a skin in its header.

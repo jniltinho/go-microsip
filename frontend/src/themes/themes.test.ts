@@ -1,5 +1,7 @@
-// The skin contract (openspec ui-themes): every skin defines the same tokens, colors live only in this
-// folder, corners are square, and text meets 4.5:1 in every skin.
+// The skin contract (openspec ui-themes, design D7): every skin defines the same tokens, colors live
+// only in this folder, corners are rounded only by the radius tokens and only in the skins of
+// systems that round them, and every skin meets WCAG AAA: text at 7:1, the edges of controls, state
+// icons and the focus ring at 3:1, a solid focus ring of at least 2 px.
 import { expect, test } from "vite-plus/test";
 import { effectiveSkin, knownSkin, SKINS } from "./index";
 
@@ -29,8 +31,16 @@ function tokens(id: string): Map<string, string> {
   return new Map([...block(id).matchAll(DECLARATION)].map((m) => [m[1], m[2].trim()]));
 }
 
-test("the six shipped skins are registered, each with its own stylesheet", () => {
-  expect(SKINS.map((s) => s.id)).toEqual(["light", "dark", "xp", "macos", "ubuntu", "win98"]);
+test("the seven shipped skins are registered, each with its own stylesheet", () => {
+  expect(SKINS.map((s) => s.id)).toEqual([
+    "light",
+    "dark",
+    "xp",
+    "macos",
+    "ubuntu",
+    "win98",
+    "matrix",
+  ]);
   expect(Object.keys(sheets).sort()).toEqual(
     ["./index.css", ...SKINS.map((s) => `./${s.id}.css`)].sort(),
   );
@@ -60,14 +70,41 @@ test("every skin defines the same token set", () => {
   }
 });
 
-test("corners are square in every skin and no source rounds them", () => {
-  for (const { id } of SKINS) expect(tokens(id).get("--radius"), id).toBe("0");
+// Corners are square unless the system a skin evokes rounds them (design D7, changed on 2026-11-11).
+const ROUNDED = ["xp", "macos", "ubuntu"];
+const RADII = ["--radius", "--radius-window", "--radius-menu", "--tab-radius", "--close-radius"];
+
+test("corners are rounded only by the radius tokens, and only in the skins of rounded systems", () => {
+  for (const { id } of SKINS) {
+    if (ROUNDED.includes(id)) continue;
+    for (const token of [...RADII, "--scroll-radius"])
+      expect(tokens(id).get(token), `${id} ${token}`).toBe("0");
+  }
+  for (const id of ROUNDED) expect(tokens(id).get("--radius"), id).toMatch(/^[1-9]\d*px$/);
   for (const [file, text] of Object.entries(sources)) {
     expect(text, file).not.toMatch(/\brounded(-|\b)/);
-    expect(text.replaceAll("border-radius: var(--radius)", ""), file).not.toContain(
-      "border-radius",
-    );
+    // A radius comes from a token (a check box takes half of one); only a radio is a disc everywhere.
+    const allowed =
+      /border-radius: (var\(--[\w-]+\)|calc\(var\(--radius\) \/ 2\)|50%; \/\* a radio button is a disc in every system \*\/)/g;
+    expect(text.replace(allowed, ""), file).not.toContain("border-radius");
   }
+});
+
+test("nothing moves for longer than five seconds, and nothing at all with reduced motion", () => {
+  for (const { id } of SKINS) {
+    const motion = tokens(id).get("--backdrop-motion") ?? "";
+    if (motion === "none") continue;
+    // One run of a named animation, shorter than the five seconds of WCAG 2.2.2.
+    const m = /^backdrop (\d+(?:\.\d+)?)s [\w-]+ 1$/.exec(motion);
+    expect(m, `${id}: --backdrop-motion "${motion}"`).not.toBeNull();
+    expect(Number(m?.[1]), id).toBeLessThan(5);
+  }
+  const style = sources["../style.css"];
+  expect(style).toMatch(
+    /@media \(prefers-reduced-motion: reduce\) \{[^}]*\{\s*animation: none !important;\s*transition: none !important;/,
+  );
+  for (const [file, text] of Object.entries(sources))
+    if (file !== "../style.css") expect(text, file).not.toMatch(/animation|transition|@keyframes/);
 });
 
 test("system resolves to light or dark and unknown ids resolve to system", () => {
@@ -131,60 +168,107 @@ function contrast(a: string, b: string): number {
 /** Every color of a token value: a gradient is checked at each of its stops. */
 const colors = (value: string): string[] => value.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
 
+/** The colors of a token. The surface also shows the skin's backdrop, so its colors count there. */
+function colorsOf(t: Map<string, string>, name: string): string[] {
+  const own = colors(t.get(`--${name}`) ?? "");
+  return name === "surface" ? [...own, ...colors(t.get("--backdrop") ?? "")] : own;
+}
+/**
+ * The contrast of foreground tokens on background tokens: against a background, a color counts by
+ * its worst stop; of several foreground colors (an edge drawn by a border and a bevel), the best
+ * one counts when `best` is set. Undefined when a side holds no color (a clear background).
+ */
+function ratio(t: Map<string, string>, fgs: string[], bgs: string[], best = false) {
+  const bg = bgs.flatMap((n) => colorsOf(t, n));
+  const each = fgs
+    .flatMap((n) => colorsOf(t, n))
+    .map((f) => Math.min(...bg.map((b) => contrast(f, b))));
+  if (!each.length || !bg.length) return undefined;
+  return best ? Math.max(...each) : Math.min(...each);
+}
+
 const STATES = ["active", "ringing", "held", "muted", "error", "secure", "insecure"];
-/** Text token on background token, as the components pair them (style.css). */
+/** What a control or a text may stand on besides a well: the window and a group box. */
+const AROUND = ["surface", "panel", "group"];
+/** Text token on background token, as the components pair them (style.css): 7:1. */
 const TEXT_PAIRS: [string, string][] = [
-  ["text", "surface"],
-  ["text", "panel"],
-  ["text", "input"],
-  ["text", "hover"],
-  ["text-muted", "surface"],
-  ["text-muted", "panel"],
-  ["text-muted", "input"],
-  ["text-muted", "hover"],
+  ...["surface", "panel", "input", "hover", "group"].map((bg): [string, string] => ["text", bg]),
+  ...["surface", "panel", "input", "hover", "group", "btn", "btn-hover", "btn-active"].map(
+    (bg): [string, string] => ["text-muted", bg],
+  ),
   ["link", "surface"],
   ["link", "panel"],
-  ["accent-text", "accent"],
   ["selection-text", "selection"],
-  ["btn-text", "btn"],
-  ["btn-text", "btn-hover"],
-  ["btn-text", "btn-active"],
-  ["key-text", "key"],
-  ["key-sub", "key"],
+  ...["btn-text", "key-text", "key-sub"].flatMap((fg): [string, string][] => [
+    [fg, fg === "btn-text" ? "btn" : "key"],
+    [fg, "btn-hover"],
+    [fg, "btn-active"],
+  ]),
   ["call-text", "call"],
   ["hangup-text", "hangup"],
   ["notice-text", "notice"],
+  ["state-error", "notice"],
   ["title-text", "title"],
   ["tab-text", "tab"],
   ["tab-text", "tab-bar"],
   ["tab-active-text", "tab-active"],
   ["status-text", "status"],
-  ...STATES.flatMap((s): [string, string][] => [
-    [`state-${s}`, "surface"],
-    [`state-${s}`, "panel"],
+  ["group-title", "surface"],
+  ["group-title", "group"],
+  ...STATES.flatMap((s) => AROUND.map((bg): [string, string] => [`state-${s}`, bg])),
+];
+/**
+ * What is not text, at 3:1 (WCAG 1.4.11): name, the tokens that draw it (the best one counts) and
+ * what it stands on. A button's edge is its border or its bevel; a check box and a radio are small
+ * fields whose mark is drawn in --accent-text on --accent; the selection fill is what shows the focused menu item; the pressed bevel is what tells a
+ * pressed toggle from a released one; the focus ring is drawn on the window, a well or a group and
+ * beside the plain faces (in a title bar, the tab bar or a selected row it takes that place's text
+ * color, which the text pairs hold at 7:1).
+ */
+const UI_PAIRS: [string, string[], string][] = [
+  ["check mark", ["accent-text"], "accent"],
+  ["selection fill", ["selection"], "panel"],
+  ...[...AROUND, "title", "tab-bar"].map((bg): [string, string[], string] => [
+    "button edge",
+    ["btn-border", "btn-bevel"],
+    bg,
   ]),
+  ...[...AROUND, "input"].map((bg): [string, string[], string] => [
+    "field edge",
+    ["field-border", "field-bevel"],
+    bg,
+  ]),
+  ["pressed button", ["btn-bevel-pressed"], "btn-active"],
+  ...[...AROUND, "input", "btn", "key"].map((bg): [string, string[], string] => [
+    "focus ring",
+    ["focus"],
+    bg,
+  ]),
+  ["close icon", ["close-text"], "close"],
+  ...["active", "ringing", "error"].flatMap((s) =>
+    ["status", "hover"].map((bg): [string, string[], string] => [
+      `state icon ${s}`,
+      [`state-${s}`],
+      bg,
+    ]),
+  ),
 ];
 
-/** The lowest contrast of each pair in each skin, for the report in docs/ui/go-frontend.md. */
-function audit(): { skin: string; fg: string; bg: string; ratio: number }[] {
-  return SKINS.flatMap(({ id }) => {
-    const t = tokens(id);
-    return TEXT_PAIRS.map(([fg, bg]) => {
-      const ratios = colors(t.get(`--${fg}`) ?? "").flatMap((f) =>
-        colors(t.get(`--${bg}`) ?? "").map((b) => contrast(f, b)),
-      );
-      return { skin: id, fg, bg, ratio: Math.min(Infinity, ...ratios) };
-    });
-  });
-}
-
-test("text meets 4.5:1 on its background in every skin", () => {
+test("text meets 7:1 on its background in every skin", () => {
   expect(contrast("#000000", "#ffffff")).toBeCloseTo(21);
-  const rows = audit();
-  expect(rows.length).toBe(SKINS.length * TEXT_PAIRS.length);
+  const rows = SKINS.flatMap(({ id }) =>
+    TEXT_PAIRS.map(([fg, bg]) => ({ skin: id, fg, bg, ratio: ratio(tokens(id), [fg], [bg]) })),
+  ).filter((r) => r.ratio !== undefined) as {
+    skin: string;
+    fg: string;
+    bg: string;
+    ratio: number;
+  }[];
+  // Only a clear group box and a clear backdrop leave a pair without a color.
+  expect(rows.length).toBeGreaterThan(SKINS.length * (TEXT_PAIRS.length - 12));
   expect(
     rows
-      .filter((r) => !(r.ratio >= 4.5))
+      .filter((r) => !(r.ratio >= 7))
       .map((r) => `${r.skin}: ${r.fg} on ${r.bg} = ${r.ratio.toFixed(2)}`),
   ).toEqual([]);
   const worst = SKINS.map(({ id }) => {
@@ -194,20 +278,26 @@ test("text meets 4.5:1 on its background in every skin", () => {
   console.log(`lowest text contrast per skin\n  ${worst.join("\n  ")}`);
 });
 
-test("the focus ring meets 3:1 in every skin", () => {
+test("control edges, state icons and the focus ring meet 3:1 in every skin", () => {
   const failures: string[] = [];
   for (const { id } of SKINS) {
     const t = tokens(id);
-    for (const [fg, bg] of [
-      ["focus", "surface"],
-      ["focus", "panel"],
-    ]) {
-      const ratio = contrast(
-        colors(t.get(`--${fg}`) ?? "")[0] ?? "",
-        colors(t.get(`--${bg}`) ?? "")[0] ?? "",
-      );
-      if (!(ratio >= 3)) failures.push(`${id}: ${fg} on ${bg} = ${ratio.toFixed(2)}`);
+    for (const [name, fgs, bg] of UI_PAIRS) {
+      const r = ratio(t, fgs, [bg], true);
+      if (bg !== "group" && r === undefined) failures.push(`${id}: ${name} on ${bg} has no color`);
+      if (r !== undefined && !(r >= 3)) failures.push(`${id}: ${name} on ${bg} = ${r.toFixed(2)}`);
     }
+    // The scroll thumb against its track, or against what shows through a clear track.
+    const track = colorsOf(t, "scroll-track").length ? ["scroll-track"] : ["surface", "panel"];
+    const thumb = ratio(t, ["scroll-thumb", "scroll-thumb-bevel"], track, true);
+    if (!(thumb !== undefined && thumb >= 3)) failures.push(`${id}: scroll thumb = ${thumb}`);
   }
   expect(failures).toEqual([]);
+});
+
+test("the focus ring is solid and at least 2 px wide in every skin", () => {
+  for (const { id } of SKINS) {
+    expect(tokens(id).get("--focus-style"), id).toBe("solid");
+    expect(parseFloat(tokens(id).get("--focus-width") ?? ""), id).toBeGreaterThanOrEqual(2);
+  }
 });

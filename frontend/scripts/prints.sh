@@ -1,8 +1,8 @@
 #!/bin/sh
 # The screenshot matrix: every screen in every skin, driven with agent-browser against the mock
-# backend, by keyboard wherever a step is an action. Each screen is also audited for 4.5:1 text
-# contrast as drawn (contrast.js); the results go to <output directory>/contrast.txt and any
-# failure makes the run fail. Run from the repository root with the dev server up (see
+# backend, by keyboard wherever a step is an action. Each screen is also audited as drawn for 7:1
+# text contrast and 3:1 edges and icons (contrast.js); the results go to <output
+# directory>/contrast.txt and any failure makes the run fail. Run from the repository root with the dev server up (see
 # docs/ui/go-frontend.md):
 #   frontend/scripts/prints.sh [base URL] [output directory] [skins...]
 set -eu
@@ -10,9 +10,12 @@ audit=$(cat "$(dirname "$0")/contrast.js")
 base=${1:-http://127.0.0.1:5173}
 out=$(mkdir -p "${2:-docs/prints/go}" && cd "${2:-docs/prints/go}" && pwd)
 [ $# -ge 2 ] && shift 2 || shift $#
-skins=${*:-light dark xp macos ubuntu win98}
+skins=${*:-light dark xp macos ubuntu win98 matrix}
 
-ab() { agent-browser "$@" >/dev/null; }
+# Scroll bars are part of a skin and take room: draw them, as the real window does (headless
+# Chromium hides them unless told at launch, so run this in a browser session of its own).
+abo() { agent-browser --hide-scrollbars false "$@"; }
+ab() { abo "$@" >/dev/null; }
 # Loads a mock scene (empty: the idle, registered phone) with the current skin already stored.
 scene() {
 	ab open "$base/?scene=$1"
@@ -22,11 +25,11 @@ scene() {
 shot() {
 	ab wait 250
 	ab screenshot "$out/$skin/$1.png"
-	low=$(agent-browser eval "$audit")
+	low=$(abo eval "$audit")
 	if [ "$low" = '""' ]; then
 		echo "$skin/$1: ok" >>"$out/contrast.txt"
 	else
-		echo "$skin/$1: BELOW 4.5:1 $low" | tee -a "$out/contrast.txt"
+		echo "$skin/$1: BELOW AAA $low" | tee -a "$out/contrast.txt"
 	fi
 }
 click() { ab eval "document.querySelector('$1').click()"; }
@@ -34,6 +37,8 @@ keys() { for k in "$@"; do ab press "$k"; done; }
 
 : >"$out/contrast.txt"
 ab set viewport 360 560
+# Still pictures: a backdrop that moves (matrix) is drawn at rest, as with reduced motion.
+ab set media light reduced-motion
 for skin in $skins; do
 	mkdir -p "$out/$skin"
 	ab open "$base/"
@@ -113,5 +118,6 @@ for skin in $skins; do
 	keys Enter End Enter
 	shot stopped
 done
+ab set media light
 echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit)"
 ! grep -q BELOW "$out/contrast.txt"

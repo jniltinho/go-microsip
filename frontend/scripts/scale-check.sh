@@ -10,10 +10,13 @@ base=${1:-http://127.0.0.1:5173}
 out=${2:-}
 failed=0
 
-ab() { agent-browser "$@" >/dev/null; }
+# Scroll bars are part of a skin and take room: draw them, as the real window does (headless
+# Chromium hides them unless told at launch, so run this in a browser session of its own).
+abo() { agent-browser --hide-scrollbars false "$@"; }
+ab() { abo "$@" >/dev/null; }
 whole='document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll("button, input, select, [role=status]")].every((e) => { const r = e.getBoundingClientRect(); return r.width === 0 || (r.left >= -1 && r.right <= innerWidth + 1); })'
 check() { # <description>
-	if [ "$(agent-browser eval "Boolean($whole)")" = true ]; then
+	if [ "$(abo eval "Boolean($whole)")" = true ]; then
 		echo "PASS  $1"
 	else
 		echo "FAIL  $1"
@@ -24,7 +27,7 @@ check() { # <description>
 ab open "$base/"
 for scale in 100 150 200; do
 	ab set viewport $((360 * scale / 100)) $((560 * scale / 100))
-	for skin in light dark xp macos ubuntu win98; do
+	for skin in light dark xp macos ubuntu win98 matrix; do
 		ab eval "localStorage.setItem('go-microsip.skin', '$skin')"
 		ab open "$base/?scene=active"
 		ab wait .statusbar

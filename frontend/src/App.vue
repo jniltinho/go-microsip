@@ -89,7 +89,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
     <template v-else>
       <header class="tabbar">
         <div
-          class="flex gap-0.5"
+          class="tablist"
           role="tablist"
           aria-label="Sections"
           @keydown="moveFocus($event, '.tab', true)"
