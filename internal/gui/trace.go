@@ -50,13 +50,15 @@ func (t *trace) page(report string) {
 	}
 }
 
-// snapshotScript leaves in the page what it shows: its text, the skin, and where its buttons are
+// snapshotScript leaves in the page what it shows: its text, the skin, how many images it holds (the
+// page has none of its own: one would be markup that got in), and where its buttons and fields are
 // (so a test presses the button a person would, wherever a skin puts it). The page hands it over
 // when it gets the probe event.
 const snapshotScript = `document.documentElement.dataset.probe = JSON.stringify({
   text: document.body.innerText,
   skin: document.documentElement.dataset.skin || "",
   theme: document.documentElement.dataset.theme || "",
+  images: document.images.length,
   buttons: [...document.querySelectorAll("button")].map((b) => {
     const r = b.getBoundingClientRect();
     return {
@@ -64,6 +66,14 @@ const snapshotScript = `document.documentElement.dataset.probe = JSON.stringify(
       x: Math.round(r.left + r.width / 2),
       y: Math.round(r.top + r.height / 2),
       disabled: b.disabled,
+    };
+  }),
+  fields: [...document.querySelectorAll("input:not([type=checkbox]), select, textarea")].map((f) => {
+    const r = f.getBoundingClientRect();
+    return {
+      label: (f.getAttribute("aria-label") || f.closest("label")?.innerText || f.placeholder || "").trim(),
+      x: Math.round(r.left + r.width / 2),
+      y: Math.round(r.top + r.height / 2),
     };
   }),
 })`

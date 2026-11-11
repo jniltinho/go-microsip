@@ -27,7 +27,7 @@ GO_GUI     := GO_DOCKER_FLAGS="--init --security-opt seccomp=unconfined --securi
               --security-opt systempaths=unconfined -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
-	go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-vm go-shell
+	go-frontend-test go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-vm go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
 	docker build -t $(GO_IMAGE) -f build/linux.Dockerfile build
@@ -48,6 +48,9 @@ go-test: go-embed-stub ## Go: unit tests with the race detector (includes the la
 
 go-frontend: ## Go: build the Vue / Vite Plus / Tailwind frontend into internal/gui/dist
 	$(GO) sh -c 'cd frontend && npm ci --no-audit --no-fund && npm run build'
+
+go-frontend-test: ## Go: the page's format, lint and type checks and its tests (reducer, skins, no raw HTML rendering)
+	$(GO) sh -c 'cd frontend && npm ci --no-audit --no-fund && npx vp check && npx vp test run'
 
 go-build: go-frontend ## Go: the Linux amd64 binary into dist/go/ (GO_WINDOW=purego|cgo)
 	mkdir -p $(GO_DIST)

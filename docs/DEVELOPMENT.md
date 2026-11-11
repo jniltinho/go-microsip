@@ -60,6 +60,7 @@ changes `go.mod`. Design and tasks are in `openspec/changes/migrate-to-go-wails/
 | `make go-image` | Build the build image. |
 | `make go-check` | gofmt, and go vet for the CGO-free, cgo, no-window and Windows builds and for the core on macOS. |
 | `make go-test` | Unit tests with the race detector, including the layering rules. |
+| `make go-frontend-test` | The page's own checks: format, lint, types, and its tests: the reducer ported from the Rust candidate, the skins' token contract and contrast, and the source scan that refuses `v-html`, `innerHTML` and `outerHTML` anywhere in the page. |
 | `make go-frontend` | Vue 3 + Vite Plus (`vp`) + Tailwind page into `internal/gui/dist`. |
 | `make go-build` | Linux binary into `dist/go/` (`GO_WINDOW=purego` default, `cgo` fallback). |
 | `make go-headless` | With no display: `version`, `doctor`, an MCP handshake, the password-argument refusal and the configuration commands. |
