@@ -250,6 +250,36 @@ func TestThePageIsToldTheDesktopsPreference(t *testing.T) {
 	}
 }
 
+// Saving through the bound method over a configuration file that cannot be read stores nothing:
+// once the file is gone, no account has appeared.
+func TestSavingOverAnUnreadableConfigurationStoresNothing(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config", "go-microsip", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("schema = 1\n[account\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	core := app.Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	phone, err := app.OpenPhone(core, app.PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer phone.Close()
+	svc := &App{phone: phone, emit: func(UIEvent) {}, quit: func() {}}
+	account := Account{Username: "1001", Domain: "pbx.invalid", Server: "pbx.invalid", Port: 5060, Transport: "udp", Media: "rtp", Expires: 300}
+	if err := svc.SaveSettings(SettingsPatch{Account: &account}); err == nil {
+		t.Fatal("an account was saved over a configuration file that cannot be read")
+	}
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	if s, err := svc.Settings(); err != nil || s.Account != nil || s.Theme != "dark" {
+		t.Errorf("after the refused save and without the file: %+v, %v", s, err)
+	}
+}
+
 // Without a phone the window still opens: every method says why there is none.
 func TestWithoutAPhoneEveryMethodSaysWhy(t *testing.T) {
 	svc := &App{unavailable: "go-microsip is already running"}

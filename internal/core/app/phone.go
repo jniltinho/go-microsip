@@ -226,7 +226,7 @@ func (p *Phone) SetDND(on bool) error {
 // Settings reads the saved configuration.
 func (p *Phone) Settings() Settings {
 	c := p.context()
-	draft, _, _ := config.Draft(c)
+	draft, _, _, _ := config.Draft(c)
 	s := Settings{
 		Theme: string(draft.UI.Theme), DND: draft.UI.DND,
 		AudioInput: draft.Audio.InputDevice, AudioOutput: draft.Audio.OutputDevice,
@@ -245,14 +245,20 @@ func (p *Phone) Settings() Settings {
 }
 
 // SaveSettings stores an edit in the database. A field that the configuration file, the
-// environment or a flag holds cannot be changed here: the error names it. The audio devices and the
+// environment or a flag holds cannot be changed here: the error names it. While a configuration
+// source cannot be read at all, nothing is saved. The audio devices and the
 // CA bundle of a running engine are those it started with; a change applies at the next start.
 func (p *Phone) SaveSettings(patch SettingsPatch) error {
 	s, err := p.storage()
 	if err != nil {
 		return err
 	}
-	before, sources, draftErr := config.Draft(p.context())
+	before, sources, loaded, draftErr := config.Draft(p.context())
+	if !loaded {
+		// A source could not be read: what it holds is unknown, so nothing is saved over it. The
+		// error names the file; the window shows it.
+		return draftErr
+	}
 	edits := map[string]*string{}
 	if patch.Account != nil {
 		after := before

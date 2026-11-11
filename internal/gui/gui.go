@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -64,6 +65,9 @@ type Options struct {
 	// UserAgent is the product name sent to the PBX.
 	UserAgent string
 }
+
+// errUnguarded: on a platform whose webview can be kept on the embedded page, it could not be.
+var errUnguarded = errors.New("the window could not be confined to its own page (the webview's navigation guard could not be installed), so it was closed")
 
 // selfTestTimeout bounds --self-test: the page must report ready by then.
 const selfTestTimeout = 60 * time.Second
@@ -161,6 +165,7 @@ func Run(o Options) error {
 
 	// Once the page is loaded the webview is told to stay on it.
 	var guarding sync.Once
+	var unguarded atomic.Bool
 	guarded := make(chan bool, 1)
 	main.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
 		guarding.Do(func() {
@@ -168,9 +173,14 @@ func Run(o Options) error {
 				ok := application.InvokeSyncWithResult(func() bool { return guardNavigation(main.NativeWindow()) })
 				switch {
 				case ok:
-				case guardExpected:
-					slog.Error("the navigation guard could not be installed: the content security policy alone confines the page")
-				default:
+				case guardExpected && !o.SelfTest:
+					// The page could leave: the window does not stay open like that. (A self-test
+					// goes on, to report it.)
+					unguarded.Store(true)
+					slog.Error(errUnguarded.Error())
+					ui.Dialog.Error().SetTitle("go-microsip").SetMessage(errUnguarded.Error() + ".").Show()
+					ui.Quit()
+				case !guardExpected:
 					slog.Warn("no navigation guard on this platform: the content security policy alone confines the page")
 				}
 				guarded <- ok
@@ -224,6 +234,9 @@ func Run(o Options) error {
 	svc.mu.Unlock()
 	if err != nil {
 		return err
+	}
+	if unguarded.Load() {
+		return errUnguarded
 	}
 	if o.SelfTest {
 		select {

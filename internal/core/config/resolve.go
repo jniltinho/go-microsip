@@ -349,12 +349,17 @@ func Resolve(c Context) (*Effective, error) {
 // and valid, defaults for the others, the source that holds each, and the error Resolve would give
 // (nil when the configuration is complete). Never register an account with a Draft that has an
 // error.
-func Draft(c Context) (Stored, map[Field]Source, error) {
+//
+// loaded is false when a source could not be read at all (a file with a syntax error, one that
+// cannot be opened): the draft is then empty, nobody knows which source holds what, and nothing may
+// be saved over it.
+func Draft(c Context) (draft Stored, sources map[Field]Source, loaded bool, err error) {
 	in, err := load(c)
 	if err != nil {
-		return Stored{UI: UI{Theme: ThemeDark}}, map[Field]Source{}, err
+		return Stored{UI: UI{Theme: ThemeDark}}, map[Field]Source{}, false, err
 	}
-	return build(in.layers)
+	draft, sources, err = build(in.layers)
+	return draft, sources, true, err
 }
 
 // SQLiteEdits returns the database writes for a settings edit, keyed as the store expects; a nil

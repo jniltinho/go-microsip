@@ -267,3 +267,42 @@ func TestPhoneKeepsOverridesOfAnIncompleteConfiguration(t *testing.T) {
 		t.Errorf("after the refused edit: %+v", s.Account)
 	}
 }
+
+// A configuration file that cannot be read is not an incomplete account: the window opens, and
+// nothing is saved over what nobody could read, not even a setting that looks harmless.
+func TestPhoneSavesNothingOverAnUnreadableConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config", config.DirName, "config.toml")
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("schema = 1\n[account\nusername = \"1001\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o := Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	account := domain.AccountSettings{Username: "1002", Domain: "pbx.invalid", Server: "pbx.invalid", Port: 5060, Expires: 300}
+	xp := "xp"
+	for name, patch := range map[string]SettingsPatch{"an account": {Account: &account}, "a skin": {Theme: &xp}} {
+		if err := p.SaveSettings(patch); err == nil {
+			t.Errorf("%s was saved over a configuration file that cannot be read", name)
+		}
+	}
+	if values, err := p.journal.store.LoadConfig(); err != nil || len(values) != 0 {
+		t.Errorf("the database holds %v (%v) after the refused saves", values, err)
+	}
+	// Once the file is fixed the same edit goes through, and the next start resolves.
+	if err := os.WriteFile(file, []byte("schema = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.SaveSettings(SettingsPatch{Account: &account}); err != nil {
+		t.Fatalf("the account, once the file can be read: %v", err)
+	}
+	if _, err := config.Resolve(p.context()); err != nil {
+		t.Errorf("the saved configuration does not resolve: %v", err)
+	}
+}
