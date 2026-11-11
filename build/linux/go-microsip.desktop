@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=go-microsip
+Comment=Compact SIP softphone
+Exec=go-microsip
+Icon=go-microsip
+StartupWMClass=go-microsip
+Terminal=false
+Categories=Network;Telephony;

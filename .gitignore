@@ -31,3 +31,6 @@ __pycache__/
 # Go application (migrate-to-go-wails): the embedded frontend build and its dependencies.
 /internal/gui/dist/
 /frontend/node_modules/
+
+# Vagrant state of the disposable test VMs.
+.vagrant/

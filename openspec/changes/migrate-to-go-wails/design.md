@@ -118,11 +118,11 @@ Consequences: with the pure-Go backend the Windows build is a plain `CGO_ENABLED
 
 `internal/gui` binds a small set of Go services to the SPA (send `Command`, query settings/contacts/history, run the import preview) and forwards core `Event`s as Wails events. The SPA holds a reducer equivalent to `apps/rust-microsip/src/ui/state.rs` and renders only from events. The UI thread never blocks the engine: commands go through the same bounded queue and overload notice as today. Audio never crosses the webview.
 
-Tray, single instance and window management use Wails v3 facilities where they exist; notifications, secrets and `sip:`/`tel:` registration go through `internal/platform` so the CLI/MCP modes can use them without Wails. Go initializes every imported package before `main` runs, so headless safety cannot come from import order. Instead the GUI is constructed lazily: nothing in `internal/gui` or its imports may touch a display, GTK, WebKit or a graphics context at package initialization; the Wails application is created only inside the function the GUI mode calls. Wails `v3.1.0` also ships experimental CGO-free Linux and macOS backends (release notes of 2026-11-01); the G0 window spike tries the CGO-free Linux backend first and keeps the cgo GTK/WebKitGTK backend if the experimental one fails to open the window, confine navigation or pass the headless check. Whether Wails v3 itself is free of display side effects at import is unverified and is a G0 check: `version`, `doctor --json` and a stdio MCP handshake must all succeed in a container with no display variables set (the sibling projects already ship this behavior).
+Tray, single instance and window management use Wails v3 facilities where they exist; notifications, secrets and `sip:`/`tel:` registration go through `internal/platform` so the CLI/MCP modes can use them without Wails. Go initializes every imported package before `main` runs, so headless safety cannot come from import order. Instead the GUI is constructed lazily: nothing in `internal/gui` or its imports may touch a display, GTK, WebKit or a graphics context at package initialization; the Wails application is created only inside the function the GUI mode calls. Wails `v3.1.0` also ships experimental CGO-free Linux and macOS backends (release notes of 2026-11-01). G0 finding: the CGO-free Linux backend (`-tags purego`, GTK 4 and WebKitGTK 6.0 loaded at run time) builds with `CGO_ENABLED=0`, opens the window under Xvfb, serves the embedded page, answers a bound call and passes the headless checks, so it is the default (`GO_WINDOW=purego`); the cgo backend stays one flag away (`GO_WINDOW=cgo`) and passed the same checks. The navigation guard of D6 is still to be built in M2 and must work without cgo; if it cannot, the Linux window falls back to the cgo backend and the guard of the sibling projects. Whether Wails v3 itself is free of display side effects at import is unverified and is a G0 check: `version`, `doctor --json` and a stdio MCP handshake must all succeed in a container with no display variables set (the sibling projects already ship this behavior).
 
 Window: compact softphone proportions (MicroSIP-like), resizable within limits, close-to-tray preserved from rc.2.
 
-### D6: Web trust boundary
+### D6: Web trust boundary (desktop window)
 
 The webview serves only the embedded `frontend` build (asset origin differs by platform in Wails v3: `wails://localhost` on Linux/macOS, `http://wails.localhost` on Windows — never hard-coded). Navigation and new windows are blocked; no backend HTTP listener exists for the UI; the Content-Security-Policy forbids remote scripts, styles, fonts and `eval`. Remote-controlled strings (display names, headers, contact imports) are rendered with text interpolation only — no `v-html`, enforced by a frontend lint rule. Links never open from remote content.
 
@@ -194,6 +194,14 @@ One Docker image (`build/linux.Dockerfile`, on a Debian 13 base: Go, Node, GTK4/
 | M5 Cutover | Parity gate, FreePBX interop, archive Rust, rename, docs, release candidate | Parity receipt, owner decision |
 
 Each milestone ends with: shared format/vet/test run, `make go-dist`, Codex review, commit and push, and a status report of verified tasks.
+
+### D14: Frontend on Vue 3 + Vite Plus, shared with a web version
+
+The frontend is Vue 3 built with Vite Plus (`vp`) and Tailwind, as in the sibling projects (owner instruction). The owner also asked for a web version. It is a separate change, to be proposed on top of `internal/core` in place of the Rust-era `add-web-wasm-softphone`; this change only keeps the door open, at no extra cost:
+
+- The page reaches the backend through one small module (`frontend/src/api.ts`). Screens never call the Wails runtime directly, so a web build swaps that module's transport (Wails bindings on the desktop, HTTP and WebSocket in a browser) through a Vite mode, as `goXterm` does with its `desktop` mode.
+- The core's command/event contract carries no desktop type, so a `web` Cobra command can serve the same page and the same contract.
+- The desktop rules of D6 (no listener, nothing remote) describe the desktop window only. A web mode listens on a socket by definition and needs its own trust boundary (authentication, TLS, origin checks) and its own audio path in the browser; both belong to that change, not to this one.
 
 ## Risks / Trade-offs
 

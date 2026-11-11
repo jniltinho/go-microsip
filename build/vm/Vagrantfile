@@ -1,0 +1,32 @@
+# Disposable Linux desktop VMs for milestone checks (openspec/changes/migrate-to-go-wails): the two
+# supported distributions with their own default GNOME desktop and nothing added for go-microsip.
+#
+#   make go-vm-check            both VMs: provision, run check.sh, destroy
+#
+# Only two folders are shared, read-only: this one (/vagrant) and the artifacts (/dist). The VMs use
+# VirtualBox NAT, change nothing on the host, and are destroyed after the run.
+Vagrant.configure("2") do |config|
+  config.vm.synced_folder ".", "/vagrant", mount_options: ["ro"]
+  config.vm.synced_folder "../../dist/go", "/dist", mount_options: ["ro"]
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 4096
+    vb.cpus = 2
+    vb.gui = false
+  end
+
+  # The distribution's default desktop, as its installer would put it. apt runs with the
+  # distribution's own recommends, so the result is what a user has before installing anything.
+  { "ubuntu2604" => ["bento/ubuntu-26.04", "ubuntu-desktop-minimal"],
+    "debian13" => ["bento/debian-13", "task-gnome-desktop"] }.each do |name, (box, desktop)|
+    config.vm.define name do |vm|
+      vm.vm.box = box
+      vm.vm.hostname = name
+      vm.vm.provision "shell", inline: <<~SH
+        set -eu
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -q
+        apt-get install -y -q #{desktop}
+      SH
+    end
+  end
+end
