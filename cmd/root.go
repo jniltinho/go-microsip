@@ -22,6 +22,8 @@ type Platform struct {
 	Files ports.FileAccess
 	// Audio opens the sound devices; nil when this build has no sound service.
 	Audio ports.AudioDevices
+	// Locks takes instance locks; nil when this build cannot.
+	Locks ports.Locker
 }
 
 // Window flags, read by the build that links the window.
@@ -73,7 +75,7 @@ func (s *session) getenv(name string) string {
 // options are the core's options for this run.
 func (s *session) options() app.Options {
 	return app.Options{
-		ConfigPath: s.configPath, EnvFile: s.envFile, Files: s.platform.Files, Env: s.env,
+		ConfigPath: s.configPath, EnvFile: s.envFile, Files: s.platform.Files, Env: s.env, Locks: s.platform.Locks,
 		Warn: func(message string) { fmt.Fprintln(s.stderr, "go-microsip:", message) },
 	}
 }
@@ -109,7 +111,7 @@ account.password_env, a private account.password_file, or the prompt of the wind
 		Run: func(c *cobra.Command, _ []string) {
 			fmt.Fprintf(c.OutOrStdout(), "go-microsip %s (%s)\n", s.version, s.commit)
 		},
-	}, s.doctor(), s.config(), s.run(), mcpCommand())
+	}, s.doctor(), s.config(), s.importCommand(), s.run(), mcpCommand())
 	return root
 }
 

@@ -51,6 +51,21 @@ func (p ImportPreview) String() string {
 	return b.String()
 }
 
+// FileValues reads a TOML configuration file and returns the fields it sets, and whether it holds a
+// literal password. The file passes the same checks as --config, but it need not describe a
+// complete account: the rest may come from another source.
+func FileValues(path string, files ports.FileAccess) (values map[Field]string, literalPassword bool, err error) {
+	l, err := readRequired(path, maxConfigBytes, false, files)
+	if err != nil {
+		return nil, false, err
+	}
+	values, _, literalPassword, err = tomlLayer(l.text, path)
+	if err == nil && literalPassword {
+		err = requirePrivate(path, l.info, files)
+	}
+	return values, literalPassword, err
+}
+
 // PreviewImport reads and fully validates path as an import source. It writes nothing; the caller
 // applies SQLiteValues in one transaction only after confirmation.
 //

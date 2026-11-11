@@ -72,16 +72,23 @@ func (a *Audio) OpenStreams() int {
 
 // Stream is one call's fake sound: the engine side is ports.MediaIO, the test side is Heard.
 type Stream struct {
-	tone   float64
-	n      int // engine side only
-	closed atomic.Bool
+	tone      float64
+	n         int // engine side only
+	closed    atomic.Bool
+	unplugged atomic.Bool
 
 	mu     sync.Mutex
 	played []int16
 }
 
-// Capture produces the next 20 ms of the tone.
+// Unplug makes the microphone stop delivering, as a device that was removed does.
+func (s *Stream) Unplug() { s.unplugged.Store(true) }
+
+// Capture produces the next 20 ms of the tone, or nothing once the microphone is unplugged.
 func (s *Stream) Capture(frame *[ports.FrameSamples]int16) bool {
+	if s.unplugged.Load() {
+		return false
+	}
 	for i := range frame {
 		frame[i] = int16(12000 * math.Sin(2*math.Pi*s.tone*float64(s.n)/sampleRate))
 		s.n++
@@ -99,8 +106,8 @@ func (s *Stream) Play(frame *[ports.FrameSamples]int16) {
 	s.mu.Unlock()
 }
 
-// CaptureLost is always false: this microphone cannot be unplugged.
-func (s *Stream) CaptureLost() bool { return false }
+// CaptureLost reports whether the microphone was unplugged.
+func (s *Stream) CaptureLost() bool { return s.unplugged.Load() }
 
 // Close marks the stream closed.
 func (s *Stream) Close() { s.closed.Store(true) }

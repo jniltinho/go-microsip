@@ -15,6 +15,7 @@ import (
 	gosip "github.com/emiago/sipgo/sip"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 	"github.com/jniltinho/go-microsip/internal/core/store"
 )
 
@@ -133,6 +134,31 @@ func TestRunJournalsTheCallItPlaced(t *testing.T) {
 	c := calls[0].Call
 	if c.Remote != "1002" || c.Direction != domain.Outgoing || c.Outcome != store.BusyPeer || c.EndedUTC == nil || c.AnsweredUTC != nil {
 		t.Errorf("journaled call %+v", c)
+	}
+}
+
+// One softphone per user: while one runs, a second one refuses to start.
+func TestRunIsASingleInstance(t *testing.T) {
+	o, _ := options(t, registrar(t))
+	o.Locks = &memory.Locks{}
+	o.Env["XDG_RUNTIME_DIR"] = t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var second error
+	err := Run(ctx, o, RunOptions{}, func(ev domain.Event) {
+		if r, ok := ev.(domain.RegistrationChanged); ok && r.State.Status == domain.Registered {
+			second = Run(context.Background(), o, RunOptions{}, func(domain.Event) {})
+			cancel()
+		}
+	})
+	if err != nil || !errors.Is(second, ErrRunning) {
+		t.Errorf("first run: %v; second run: %v, want the refusal", err, second)
+	}
+	// The lock goes with the run.
+	again, stop := context.WithCancel(context.Background())
+	stop()
+	if err := Run(again, o, RunOptions{}, func(domain.Event) {}); err != nil {
+		t.Errorf("a run after the first one ended: %v", err)
 	}
 }
 

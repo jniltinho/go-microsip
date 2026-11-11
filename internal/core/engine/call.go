@@ -51,11 +51,15 @@ type call struct {
 	keys        chan domain.DTMFKey
 	// released is closed once the audio is stopped and the sound devices are closed.
 	released chan struct{}
+	// What the audio goroutines did, for the summary logged when the call's audio ends.
+	sent, unfed, received atomic.Uint64
+	log                   *slog.Logger
 }
 
 // startAudio connects the call's RTP to the sound devices: one goroutine sends the microphone, one
 // plays what arrives. Neither touches the actor.
-func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog.Logger) error {
+// micLost is called once, from the audio goroutine, when the microphone stops delivering.
+func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog.Logger, micLost func()) error {
 	codec := media.PCMA
 	if dmedia.CodecAudioFromSession(med.MediaSession()).PayloadType == media.PCMU.PayloadType() {
 		codec = media.PCMU
@@ -71,13 +75,14 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 		return err
 	}
 	ctx, stop := context.WithCancel(context.Background())
-	c.audio, c.stop, c.sound = audio, stop, true
+	c.audio, c.stop, c.sound, c.log = audio, stop, true, log
 	c.pumps.Add(2)
 
 	go func() { // microphone -> network
 		defer c.pumps.Done()
 		var frame, silence [media.FrameSamples]int16
 		payload := make([]byte, media.FrameSamples)
+		lost := false
 		for ctx.Err() == nil {
 			select {
 			case key := <-c.keys:
@@ -93,10 +98,18 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 				continue
 			}
 			out := &frame
-			if !audio.Capture(&frame) || c.muted.Load() {
-				out = &silence // muted or no frame yet: silence keeps the stream alive
+			if !audio.Capture(&frame) {
+				out = &silence // no frame yet: silence keeps the stream alive
+				c.unfed.Add(1)
+				if !lost && audio.CaptureLost() {
+					lost = true // said once; no other microphone is opened here
+					micLost()
+				}
+			} else if c.muted.Load() {
+				out = &silence
 			}
 			codec.Encode(payload, out)
+			c.sent.Add(1)
 			if _, err := writer.Write(payload); err != nil { // paced by the RTP clock: 20 ms
 				if ctx.Err() == nil {
 					log.Debug("audio send ended", "error", err)
@@ -119,6 +132,7 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 				return
 			}
 			if codec.Decode(&frame, buf[:n]) {
+				c.received.Add(1)
 				audio.Play(&frame)
 			}
 		}
@@ -146,6 +160,9 @@ func (c *call) release() {
 		if sound {
 			c.pumps.Wait()
 			audio.Close()
+			// Counts only: how many 20 ms frames went out, how many of them had no microphone
+			// audio to carry, and how many came in.
+			c.log.Info("call audio ended", "frames_sent", c.sent.Load(), "frames_without_capture", c.unfed.Load(), "frames_received", c.received.Load())
 		}
 		if dlg != nil {
 			_ = dlg.Close()

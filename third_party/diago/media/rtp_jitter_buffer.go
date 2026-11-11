@@ -118,6 +118,8 @@ type RTPJitterBuffer struct {
 	releaseNow bool
 	// go-microsip: lostRun counts playout decisions in a row that found no packet.
 	lostRun int
+	// go-microsip: nextPlayout is when the next playout decision is due.
+	nextPlayout time.Time
 
 	// inputClosed reports that readLoop has stopped producing packet events.
 	inputClosed bool
@@ -428,10 +430,24 @@ func (j *RTPJitterBuffer) startPlayout() {
 	j.stopAndDrainTimer(j.initialTimer)
 	j.playout = true
 	j.releaseNow = true
+	j.nextPlayout = time.Now()
 }
 
+// go-microsip: upstream scheduled each decision one packet time after the previous one was taken,
+// so every late timer and every packet the source sent a little early added delay that never went
+// away: the queue filled, packets beyond the window were dropped, and the call lost a fifth of a
+// second of audio every time. Playout now follows a timetable, and when more packets wait than the
+// delay asks for, the next one is taken at once instead of one packet time later.
 func (j *RTPJitterBuffer) resetPlayoutTimer() {
-	j.resetTimer(j.playoutTimer, j.packetDuration)
+	now := time.Now()
+	j.nextPlayout = j.nextPlayout.Add(j.packetDuration)
+	switch {
+	case j.queued > j.delayPackets+1:
+		j.nextPlayout = now // the source runs ahead of this clock: catch up
+	case now.Sub(j.nextPlayout) > j.packetDuration:
+		j.nextPlayout = now.Add(j.packetDuration) // the consumer was away: start the timetable again
+	}
+	j.resetTimer(j.playoutTimer, max(0, j.nextPlayout.Sub(now)))
 }
 
 func (j *RTPJitterBuffer) resetTimer(timer *time.Timer, duration time.Duration) {

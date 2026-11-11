@@ -110,3 +110,44 @@ func TestJitterBufferResumesAfterSilence(t *testing.T) {
 	time.Sleep(silence)
 	stream(500, 505) // jumped far ahead
 }
+
+// A source that runs a little faster than this machine's clock (or timers that fire a little late)
+// must not cost audio: upstream v0.42.0 let the delay grow until the window overflowed and then lost
+// ten packets in a row, again and again.
+func TestJitterBufferKeepsUpWithAFastSource(t *testing.T) {
+	const packets = 300
+	net := make(network, packets)
+	jb := dmedia.NewRTPJitterBuffer(net, 20*time.Millisecond, dmedia.RTPJitterBufferOptions{DelayPackets: 3, MaxPackets: 10})
+	defer jb.Close()
+	got := make(chan uint16, packets)
+	go func() {
+		buf := make([]byte, dmedia.RTPBufSize)
+		for {
+			var p rtp.Packet
+			if _, err := jb.ReadRTP(buf, &p); err != nil {
+				return
+			}
+			got <- p.SequenceNumber
+		}
+	}()
+	// 5 % fast: one packet every 19 ms for about six seconds.
+	tick := time.NewTicker(19 * time.Millisecond)
+	defer tick.Stop()
+	for seq := uint16(1); seq <= packets; seq++ {
+		net <- seq
+		<-tick.C
+	}
+	time.Sleep(300 * time.Millisecond) // what is queued comes out
+	delivered, last := 0, uint16(0)
+	for len(got) > 0 {
+		seq := <-got
+		if seq <= last {
+			t.Fatalf("packet %d after %d", seq, last)
+		}
+		delivered, last = delivered+1, seq
+	}
+	st := jb.Statistics()
+	if delivered < packets-3 || st.PacketsDropped != 0 || st.PacketsLate != 0 {
+		t.Errorf("%d of %d packets delivered (%d lost, %d late, %d dropped)", delivered, packets, st.PacketsLost, st.PacketsLate, st.PacketsDropped)
+	}
+}

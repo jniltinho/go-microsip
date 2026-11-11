@@ -294,10 +294,13 @@ const (
 	NoticeOverloaded
 	// NoticeEngineFailed: the engine stopped after an internal failure.
 	NoticeEngineFailed
+	// NoticeMicrophoneLost: the microphone of the call stopped delivering (unplugged, for example).
+	// The call goes on in silence; another microphone is used only when the user chooses one.
+	NoticeMicrophoneLost
 )
 
 func (n Notice) String() string {
-	return [...]string{"busy", "not_registered", "unknown_call", "invalid_state", "audio_unavailable", "overloaded", "engine_failed"}[n]
+	return [...]string{"busy", "not_registered", "unknown_call", "invalid_state", "audio_unavailable", "overloaded", "engine_failed", "microphone_lost"}[n]
 }
 
 // Event is what the engine tells every front end. The types below are all of them.

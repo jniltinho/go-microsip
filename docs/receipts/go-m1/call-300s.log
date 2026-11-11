@@ -1,0 +1,10 @@
+call_linux_test.go:201: 1001, 300 s through the binary and the echo: speaker 29992 of 29996 10 ms pieces (longest silence 2 pieces, arrival gap 24 ms)
+call_linux_test.go:221: 1001 after the unplug: voice in 0 pieces of 2 s, other microphone in 0 % of the blocks
+time=2026-11-11T15:27:07.586Z level=INFO msg="call audio ended" frames_sent=15315 frames_without_capture=217 frames_received=15313
+call_linux_test.go:201: 1201, 300 s through the binary and the echo: speaker 29994 of 29996 10 ms pieces (longest silence 1 pieces, arrival gap 23 ms)
+call_linux_test.go:221: 1201 after the unplug: voice in 0 pieces of 2 s, other microphone in 0 % of the blocks
+time=2026-11-11T15:32:13.981Z level=INFO msg="call audio ended" frames_sent=15316 frames_without_capture=218 frames_received=15314
+--- PASS: TestCallThroughTheBinary (612.80s)
+--- PASS: TestCallThroughTheBinary/1001 (306.42s)
+--- PASS: TestCallThroughTheBinary/1201 (306.38s)
+PASS

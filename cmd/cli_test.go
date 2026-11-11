@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 )
 
 const marker = "fictional-secret-marker-7731"
@@ -68,6 +70,10 @@ func TestDoctorReportsWithoutRevealingThePassword(t *testing.T) {
 		}
 		if args[1] == "--json" && (!strings.HasPrefix(out, "{") || !strings.Contains(out, `"password_present": true`) || !strings.Contains(out, `"version": "1.2.3"`)) {
 			t.Errorf("JSON report:\n%s", out)
+		}
+		// These tests wire no sound backend: the report says so instead of pretending.
+		if !strings.Contains(out, "this build has no sound backend") {
+			t.Errorf("audio is not reported as unavailable:\n%s", out)
 		}
 		if args[1] != "--json" && (!strings.Contains(out, "configuration: OK") || !strings.Contains(out, "password: present [env]")) {
 			t.Errorf("text report:\n%s", out)
@@ -192,6 +198,65 @@ func TestMalformedFilesNeverEchoSecretLines(t *testing.T) {
 		if strings.Contains(out, marker) || !strings.Contains(out, "line") {
 			t.Errorf("%v: %d\n%s", args, code, out)
 		}
+	}
+}
+
+// The import from the Rust application is explicit: a preview, then --apply; its files are only
+// read, and go-microsip's previous files stay as backups.
+func TestImportFromRustPreviewsThenApplies(t *testing.T) {
+	dir := t.TempDir()
+	env := map[string]string{
+		"XDG_CONFIG_HOME": filepath.Join(dir, "config"), "XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_RUNTIME_DIR": filepath.Join(dir, "run"),
+	}
+	rust := filepath.Join(dir, "config", "rust-microsip", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(rust), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	content := "schema = 1\n[account]\nusername = \"1007\"\ndomain = \"pbx.invalid\"\n"
+	write(t, rust, content)
+	with := func(p Platform, args ...string) (int, string) {
+		var out bytes.Buffer
+		code := execute(&session{platform: p, env: env, stdout: &out, stderr: &out, version: "1.2.3", commit: "abc1234"}, args)
+		return code, out.String()
+	}
+	locks := Platform{Files: me{}, Locks: &memory.Locks{}}
+
+	if code, out := with(Platform{Files: me{}}, "import", "rust-microsip"); code != 1 || !strings.Contains(out, "not available in this build") {
+		t.Errorf("a build without locks: %d %q", code, out)
+	}
+	code, out := with(locks, "import", "rust-microsip")
+	if code != 0 || !strings.Contains(out, "account: 1007@pbx.invalid") || !strings.Contains(out, "--apply") {
+		t.Fatalf("preview: %d\n%s", code, out)
+	}
+	if _, err := os.Stat(env["XDG_DATA_HOME"]); err == nil {
+		t.Fatal("the preview created the data directory")
+	}
+	// The password cannot be copied without a keyring, and then nothing is imported.
+	if code, out := with(locks, "import", "rust-microsip", "--apply", "--credential"); code != 1 || !strings.Contains(out, "nothing imported") {
+		t.Errorf("--credential without a keyring: %d %q", code, out)
+	}
+	if code, _ := with(locks, "config", "validate"); code != 1 {
+		t.Errorf("a refused import left a configuration: %d", code)
+	}
+	if code, out := with(locks, "import", "rust-microsip", "--apply"); code != 0 || !strings.Contains(out, "Imported from rust-microsip") {
+		t.Fatalf("apply: %d\n%s", code, out)
+	}
+	if code, out := with(locks, "config", "export"); code != 0 || !strings.Contains(out, `username = "1007"`) {
+		t.Errorf("export after the import: %d\n%s", code, out)
+	}
+	if after, _ := os.ReadFile(rust); string(after) != content {
+		t.Error("the rust-microsip file was modified")
+	}
+	// Without a runtime directory the applications cannot be kept out: the import refuses.
+	delete(env, "XDG_RUNTIME_DIR")
+	if code, out := with(locks, "import", "rust-microsip"); code != 1 || !strings.Contains(out, "XDG_RUNTIME_DIR") {
+		t.Errorf("no runtime directory: %d %q", code, out)
+	}
+	if code, _ := with(locks, "import"); code != 0 {
+		t.Errorf("import alone prints its help: %d", code)
+	}
+	if code, _ := with(locks, "import", "something-else"); code != 2 {
+		t.Errorf("an unknown source: %d", code)
 	}
 }
 

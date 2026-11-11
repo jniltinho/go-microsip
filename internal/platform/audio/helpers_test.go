@@ -187,6 +187,27 @@ func (m *meter) verdict(now time.Time, st, before Stats, micHasTone bool) (strin
 	return summary, bad
 }
 
+// speakerVerdict judges only what the speaker played, for a path whose capture side is another
+// process: the same threshold, at most 0.5 % of the 10 ms pieces missing and no gap over 60 ms.
+func (m *meter) speakerVerdict(now time.Time) (string, []string) {
+	expected := int(m.last.Sub(m.first) / (10 * time.Millisecond))
+	if !m.last.IsZero() {
+		m.arrivalGap = max(m.arrivalGap, now.Sub(m.last))
+	}
+	summary := fmt.Sprintf("speaker %d of %d 10 ms pieces (longest silence %d pieces, arrival gap %d ms)",
+		m.good, expected, m.maxBadRun, m.arrivalGap.Milliseconds())
+	var bad []string
+	if expected == 0 {
+		bad = append(bad, "playback: nothing was heard on the speaker")
+	} else if missing := expected - m.good; float64(missing) > 0.005*float64(expected) {
+		bad = append(bad, fmt.Sprintf("playback: %d of %d 10 ms pieces missing on the speaker, over 0.5 %%", missing, expected))
+	}
+	if m.maxBadRun > maxBadPieces || m.arrivalGap > maxInterval {
+		bad = append(bad, fmt.Sprintf("playback: gap over 60 ms (%d silent pieces in a row, %d ms without samples)", m.maxBadRun, m.arrivalGap.Milliseconds()))
+	}
+	return summary, bad
+}
+
 // mustCatch fails the test unless the verdict of a deliberately stalled run names both directions:
 // the proof that the threshold checks can fail.
 func mustCatch(t *testing.T, bad []string) {

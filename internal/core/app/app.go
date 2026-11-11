@@ -11,6 +11,7 @@ import (
 
 	"github.com/jniltinho/go-microsip/internal/core/config"
 	"github.com/jniltinho/go-microsip/internal/core/ports"
+	"github.com/jniltinho/go-microsip/internal/core/rustimport"
 	"github.com/jniltinho/go-microsip/internal/core/store"
 )
 
@@ -31,6 +32,12 @@ type Options struct {
 	Env map[string]string
 	// Warn receives a problem that does not stop the operation, such as an unreadable database.
 	Warn func(message string)
+	// Locks takes instance locks; nil when this build cannot.
+	Locks ports.Locker
+	// Secrets is the keyring; nil when this build has none.
+	Secrets ports.Secrets
+	// LegacySecrets reads the password the Rust application stored; nil when it cannot be read.
+	LegacySecrets rustimport.LegacySecrets
 }
 
 func (o Options) warn(message string) {

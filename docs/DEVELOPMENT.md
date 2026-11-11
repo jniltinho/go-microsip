@@ -49,23 +49,29 @@ them. See [architecture.md](architecture.md).
 ## Go application (migrate-to-go-wails)
 
 The Go rewrite lives beside the frozen Rust workspace: `main.go`, `cmd/`, `internal/`, `frontend/`,
-`build/`, `third_party/diago`. Everything runs in the Go build image (`build/linux.Dockerfile`,
-Debian 13) through `scripts/go-docker.sh`; the host needs only Docker and make. Module mode is
-forced (`-mod=readonly`) because of the Rust `vendor/` folder. Design and tasks are in
-`openspec/changes/migrate-to-go-wails/`.
+`build/`, `third_party/diago`; [architecture.md](architecture.md) describes its layers. Everything
+runs in the Go build image (`build/linux.Dockerfile`, Debian 13) through `scripts/go-docker.sh`;
+the host needs only Docker and make, never a Go or Node toolchain. Module mode is forced
+(`-mod=readonly`) because of the Rust `vendor/` folder; `make go-tidy` is the one target that
+changes `go.mod`. Design and tasks are in `openspec/changes/migrate-to-go-wails/`.
 
 | Target | What it does |
 |---|---|
 | `make go-image` | Build the build image. |
-| `make go-check` | gofmt and go vet for the CGO-free, cgo, no-window and Windows builds. |
-| `make go-test` | Unit tests with the race detector. |
+| `make go-check` | gofmt, and go vet for the CGO-free, cgo, no-window and Windows builds and for the core on macOS. |
+| `make go-test` | Unit tests with the race detector, including the layering rules. |
 | `make go-frontend` | Vue 3 + Vite Plus (`vp`) + Tailwind page into `internal/gui/dist`. |
 | `make go-build` | Linux binary into `dist/go/` (`GO_WINDOW=purego` default, `cgo` fallback). |
-| `make go-headless` | `version`, `doctor --json` and an MCP handshake with no display. |
+| `make go-headless` | With no display: `version`, `doctor`, an MCP handshake, the password-argument refusal and the configuration commands. |
 | `make go-self-test` | The window opens under Xvfb and the page calls the backend. |
-| `make go-audio` | Audio adapter against PipeWire with virtual sound cards (`SECONDS=300`). |
-| `make go-lab` | SIP/SRTP probes against the disposable Asterisk lab (`SCENARIO=prefix`). |
+| `make go-audio` | Audio adapter against PipeWire with virtual sound cards (`SECONDS=300` for the threshold run). |
+| `make go-lab` | The SIP/SRTP probes, the engine scenarios and the softphone without a window against the disposable Asterisk lab (`SCENARIO=engine/` runs one group). |
+| `make go-call` | A call placed by the built binary with real sound: PipeWire's virtual sound cards inside the lab network, plain and secure, with a microphone unplugged (`SECONDS=300` for the threshold run). |
 | `make go-dist` | Linux binary, AppImage, Windows `.exe` and `.zip`, notices, `SHA256SUMS`, manifest. |
+
+`go-lab` and `go-call` need the lab image once (`sh docker/asterisk/lab.sh build`) and cannot run
+at the same time: they share the lab's Compose project. Each run generates new fictional accounts
+and a new CA under the git-ignored `artifacts/`, and tears the PBX down.
 
 Desktop VM checks (VirtualBox through Vagrant; nothing is installed for go-microsip in the guests):
 
@@ -73,8 +79,27 @@ Desktop VM checks (VirtualBox through Vagrant; nothing is installed for go-micro
 build/vm/run.sh 0.2.0-g0 "$PWD/docs/receipts/go-g0" 300 ubuntu2604 debian13 windows11
 ```
 
-The command line is Cobra: `go-microsip` opens the window, `go-microsip version`,
-`go-microsip doctor [--json]`, `go-microsip mcp` (stdio MCP server).
+The command line is Cobra. Status 0 is done, 1 failed, 2 invalid usage; `run` exits 130 or 143
+after a signal.
+
+| Command | What it does |
+|---|---|
+| `go-microsip` | Open the window. |
+| `go-microsip version` | Version and commit. |
+| `go-microsip doctor [--json]` | Sanitized report: build, display, sound, and every setting with its source. Status 0 also when the configuration is invalid. |
+| `go-microsip config validate` | Check the effective configuration. |
+| `go-microsip config export` | Print it as TOML, without secrets. |
+| `go-microsip config import FILE [--apply]` | Preview a TOML file; with `--apply`, store it in the local database. |
+| `go-microsip import rust-microsip [--apply] [--credential]` | Preview what the Rust application holds; with `--apply`, bring its configuration file and database over (Linux). Its files are only read; an interrupted import is undone at the next start. |
+| `go-microsip run [--call N] [--hangup-after D] [--json] [--verbose]` | The softphone without a window: register, take calls, optionally place one. One per user. |
+| `go-microsip mcp` | stdio MCP server. |
+
+`--config FILE` and `--env-file FILE` apply to every command. Settings are read from flags, the
+environment (`GO_MICROSIP_ACCOUNT_SERVER`, ...), an explicit `.env`, one TOML file
+(`$XDG_CONFIG_HOME/go-microsip/config.toml`), the database
+(`$XDG_DATA_HOME/go-microsip/go-microsip.sqlite3`) and defaults, in that order. The password comes
+from the variable named by `account.password_env` (default `GO_MICROSIP_SIP_PASSWORD`) or from a
+private `account.password_file`; it is never an argument.
 
 ## Docker workflow
 

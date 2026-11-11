@@ -24,9 +24,10 @@ import (
 // unregistered.
 func (s *session) run() *cobra.Command {
 	var (
-		call   string
-		hangup time.Duration
-		asJSON bool
+		call    string
+		hangup  time.Duration
+		asJSON  bool
+		verbose bool
 	)
 	c := &cobra.Command{
 		Use:   "run",
@@ -55,9 +56,13 @@ opens no window.`,
 				case <-ctx.Done():
 				}
 			}()
+			level := slog.LevelWarn
+			if verbose {
+				level = slog.LevelInfo
+			}
 			err := app.Run(ctx, s.options(), app.RunOptions{
 				Audio: s.platform.Audio, Call: call, HangupAfter: hangup, UserAgent: "go-microsip/" + s.version,
-				Log: slog.New(slog.NewTextHandler(s.stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
+				Log: slog.New(slog.NewTextHandler(s.stderr, &slog.HandlerOptions{Level: level})),
 			}, printer(c.OutOrStdout(), asJSON))
 			switch code := int(signaled.Load()); {
 			case err != nil && app.IsConfiguration(err):
@@ -73,6 +78,7 @@ opens no window.`,
 	c.Flags().StringVar(&call, "call", "", "dial this `number` once registered and exit when the call has ended")
 	c.Flags().DurationVar(&hangup, "hangup-after", 0, "with --call: hang up this long after the answer (for example 10s)")
 	c.Flags().BoolVar(&asJSON, "json", false, "print each event as one JSON object")
+	c.Flags().BoolVar(&verbose, "verbose", false, "also log what the engine does, on standard error (never a password or a number)")
 	return c
 }
 

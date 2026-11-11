@@ -34,6 +34,9 @@ type RunOptions struct {
 // ErrNoPassword means no source provides the password and nothing can ask for it here.
 var ErrNoPassword = errors.New("no password is available: set account.password_env or a private account.password_file")
 
+// ErrRunning means another go-microsip of this user holds the instance lock.
+var ErrRunning = errors.New("go-microsip is already running")
+
 // ErrRegistration and ErrCall are how a Run with a call to place fails.
 var (
 	ErrRegistration = errors.New("the account did not register")
@@ -53,6 +56,21 @@ func (noAudio) Open(_, _ string) (ports.MediaIO, error) { return nil, ports.ErrN
 // the user can fix. The engine is always shut down first: calls end and the account unregisters
 // within the engine's bound.
 func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)) error {
+	// One softphone per user: two would fight over the account, the sound and the history.
+	if lock := InstanceLock(o.context().Env); o.Locks != nil && lock != "" {
+		unlock, err := o.Locks.Lock(lock)
+		if errors.Is(err, ports.ErrLocked) {
+			return ErrRunning
+		}
+		if err == nil {
+			defer unlock()
+		} else {
+			o.warn("single-instance protection is off: " + err.Error())
+		}
+	}
+	if err := RecoverImport(o); err != nil {
+		return err
+	}
 	c := o.context()
 	cfg, err := config.Resolve(c)
 	if err != nil {

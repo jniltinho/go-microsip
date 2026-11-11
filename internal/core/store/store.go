@@ -362,6 +362,35 @@ func (s *Store) SchemaVersion() (int64, error) {
 	return v, wrap(s.db.QueryRow("PRAGMA user_version").Scan(&v))
 }
 
+// CheckIntegrity runs SQLite's integrity check and reports a damaged database as Corrupt.
+func (s *Store) CheckIntegrity() error {
+	var result string
+	if err := s.db.QueryRow("PRAGMA integrity_check").Scan(&result); err != nil {
+		return wrap(err)
+	}
+	if result != "ok" {
+		return &Error{Kind: Corrupt}
+	}
+	return nil
+}
+
+// Checkpoint moves everything from the write-ahead log into the database file and empties the log,
+// so that after Close the database is one file.
+func (s *Store) Checkpoint() error {
+	var busy, logged, moved int
+	err := s.db.QueryRow("PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &logged, &moved)
+	if err == nil && busy != 0 {
+		return &Error{Kind: Busy}
+	}
+	return wrap(err)
+}
+
+// Counts returns how many contacts and how many finished calls are stored.
+func (s *Store) Counts() (contacts, calls int, err error) {
+	err = s.db.QueryRow("SELECT (SELECT count(*) FROM contacts), (SELECT count(*) FROM calls WHERE open = 0)").Scan(&contacts, &calls)
+	return contacts, calls, wrap(err)
+}
+
 // tx runs f in one transaction: committed when f returns nil, rolled back otherwise.
 func (s *Store) tx(f func(tx *sql.Tx) error) error {
 	tx, err := s.db.BeginTx(context.Background(), nil)

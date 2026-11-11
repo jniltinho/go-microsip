@@ -40,6 +40,7 @@ func EngineScenarios() []Scenario {
 		Scenario{"engine/dnd", engineDND},
 		Scenario{"engine/busy", engineBusy},
 		Scenario{"engine/cancel", engineCancel},
+		Scenario{"engine/microphone-lost", engineMicrophoneLost},
 		Scenario{"engine/secure/plain-offer-refused", enginePlainOffer},
 		Scenario{"engine/shutdown/established", engineShutdown("established")},
 		Scenario{"engine/shutdown/dialing", engineShutdown("dialing")},
@@ -588,6 +589,49 @@ func engineCancel(ctx context.Context, l *Lab) (map[string]any, error) {
 		return nil, err
 	}
 	return nil, stopAll(d.a, d.b)
+}
+
+// engineMicrophoneLost: when the microphone is unplugged during a call the loss is reported once,
+// the call stays up in silence, and no other microphone is opened.
+func engineMicrophoneLost(ctx context.Context, l *Lab) (map[string]any, error) {
+	p, err := l.phone(ctx, "1001", toneA)
+	if err != nil {
+		return nil, err
+	}
+	defer p.close()
+	c, err := p.dial(ctx, "600")
+	if err != nil {
+		return nil, err
+	}
+	before := listen(time.Second, p)[0]
+	p.sound.Last().Unplug()
+	if _, err := p.wait(ctx, "the microphone-lost notice", func(ev domain.Event) bool {
+		n, ok := ev.(domain.Noticed)
+		return ok && n.Notice == domain.NoticeMicrophoneLost
+	}); err != nil {
+		return nil, err
+	}
+	after := listen(1500*time.Millisecond, p)[0]
+	data := map[string]any{"heard_before": before.share[toneA], "heard_after": after.share[toneA], "frames_after": after.frames, "streams": p.sound.OpenStreams()}
+	switch {
+	case !before.has(toneA):
+		return data, errors.New("no audio before the microphone was unplugged")
+	case after.has(toneA):
+		return data, errors.New("the echo still carries the microphone after it was unplugged")
+	case after.frames == 0:
+		return data, errors.New("the call stopped receiving after the microphone was unplugged")
+	case p.sound.OpenStreams() != 1:
+		return data, fmt.Errorf("%d sound streams are open: another device was opened without the user", p.sound.OpenStreams())
+	}
+	// The loss is said once, and the call is still there to hang up.
+	if err := p.quiet(ctx, time.Second); err != nil {
+		return data, err
+	}
+	p.e.Send(domain.Hangup{Call: c.ID})
+	if _, err := p.ended(ctx, domain.EndNormal); err != nil {
+		return data, err
+	}
+	return data, stopAll(p)
 }
 
 // enginePlainOffer: 1302 gets plain RTP offers from the PBX. Configured with secure media, its engine

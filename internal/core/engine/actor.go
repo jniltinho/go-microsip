@@ -482,7 +482,12 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 		// The call stays up without sound; the user sees why and decides.
 		a.e.opts.Log.Warn("audio unavailable", "error", err)
 		a.notice(domain.NoticeAudioUnavailable)
-	} else if err := c.startAudio(med, audio, a.e.opts.Log); err != nil {
+	} else if err := c.startAudio(med, audio, a.e.opts.Log, func() {
+		a.e.post(func() {
+			a.e.opts.Log.Warn("the microphone stopped delivering")
+			a.notice(domain.NoticeMicrophoneLost)
+		})
+	}); err != nil {
 		audio.Close()
 		a.e.opts.Log.Warn("audio unavailable", "error", err)
 		a.notice(domain.NoticeAudioUnavailable)

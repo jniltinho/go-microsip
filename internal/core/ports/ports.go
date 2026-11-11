@@ -57,3 +57,28 @@ type FileAccess interface {
 	// Inspect returns the owner and the permission bits, as Unix mode bits, of a file.
 	Inspect(info os.FileInfo) (owner, mode uint32)
 }
+
+// ErrLocked means another process holds the lock.
+var ErrLocked = errors.New("the lock is held by another process")
+
+// Locker takes the advisory lock by which an application keeps one instance per user. The lock is
+// released by the returned function, and by the system when the process dies.
+type Locker interface {
+	// Lock takes the lock file at path, creating it and its private directory when missing. It
+	// does not wait: a lock held elsewhere is ErrLocked.
+	Lock(path string) (unlock func(), err error)
+}
+
+// ErrNoSecretService means the session offers no keyring this adapter can use.
+var ErrNoSecretService = errors.New("no secret service is reachable")
+
+// Secrets is the user's keyring: passwords are stored there and nowhere else, under a reference
+// that is not secret and is what the database keeps.
+type Secrets interface {
+	// Get returns the password stored under ref; ok is false when there is none.
+	Get(ref string) (password string, ok bool, err error)
+	// Set stores or replaces the password under ref.
+	Set(ref, password string) error
+	// Delete removes the entry; removing one that does not exist is not an error.
+	Delete(ref string) error
+}

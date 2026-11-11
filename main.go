@@ -4,7 +4,9 @@ package main
 
 import (
 	"github.com/jniltinho/go-microsip/cmd"
+	"github.com/jniltinho/go-microsip/internal/platform/audio"
 	"github.com/jniltinho/go-microsip/internal/platform/files"
+	"github.com/jniltinho/go-microsip/internal/platform/lock"
 )
 
 // version and commit are set at build time:
@@ -15,4 +17,6 @@ var (
 )
 
 // main is the only place that wires operating-system adapters into the front ends.
-func main() { cmd.Execute(cmd.Platform{Files: files.Access{}}, version, commit) }
+func main() {
+	cmd.Execute(cmd.Platform{Files: files.Access{}, Audio: &audio.Devices{}, Locks: lock.Files{}}, version, commit)
+}
