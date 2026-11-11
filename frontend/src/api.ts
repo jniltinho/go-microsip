@@ -284,33 +284,36 @@ function wails({ Call, Events }: Wails): Backend {
     }
   };
   // `--self-test` asks what its probe left in the page; a page that was navigated away is not
-  // here to answer. The probe's own questions are answered here, by a script of the page: what the
-  // window injects runs with more rights than the page has, so only this says what the content
-  // security policy and the webview allow the page.
+  // here to answer. The probe's own questions are answered here, by a script of the page and in a
+  // task of its own: what the window injects, this event's delivery included, runs with more
+  // rights than the page has, so only a later task says what the content security policy and the
+  // webview allow the page.
   Events.On("go-microsip:probe", () => {
-    let report = document.documentElement.dataset.probe ?? "";
-    if (report.includes('"inline"')) {
-      const probe = JSON.parse(report) as Record<string, unknown>;
-      try {
-        // The one eval of the page: it must throw, and the self-test fails when it does not.
-        // eslint-disable-next-line no-eval
-        probe.eval = globalThis.eval("1") === 1;
-      } catch {
-        probe.eval = false;
-      }
-      // Only where the window guards its webview: without a guard a new window really opens.
-      if (probe.guarded) {
+    setTimeout(() => {
+      let report = document.documentElement.dataset.probe ?? "";
+      if (report.includes('"inline"')) {
+        const probe = JSON.parse(report) as Record<string, unknown>;
         try {
-          const opened = window.open("https://example.invalid/new-window");
-          probe.opened = opened !== null;
-          opened?.close();
+          // The one eval of the page: it must throw, and the self-test fails when it does not.
+          // eslint-disable-next-line no-eval
+          probe.eval = globalThis.eval("1") === 1;
         } catch {
-          probe.opened = false;
+          probe.eval = false;
         }
+        // Only where the window guards its webview: without a guard a new window really opens.
+        if (probe.guarded) {
+          try {
+            const opened = window.open("https://example.invalid/new-window");
+            probe.opened = opened !== null;
+            opened?.close();
+          } catch {
+            probe.opened = false;
+          }
+        }
+        report = JSON.stringify(probe);
       }
-      report = JSON.stringify(probe);
-    }
-    return call("Probed", report);
+      void call("Probed", report);
+    }, 0);
   });
   return {
     version: () => call("Version"),
