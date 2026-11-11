@@ -59,6 +59,7 @@ const snapshotScript = `document.documentElement.dataset.probe = JSON.stringify(
   skin: document.documentElement.dataset.skin || "",
   theme: document.documentElement.dataset.theme || "",
   images: document.images.length,
+  height: innerHeight,
   buttons: [...document.querySelectorAll("button")].map((b) => {
     const r = b.getBoundingClientRect();
     return {

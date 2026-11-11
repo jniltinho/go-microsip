@@ -57,7 +57,7 @@ until session=$(pgrep -u "$(id -u)" -x gnome-shell | head -n 1) && [ -n "$sessio
 	sleep 2
 done
 sleep 10 # the shell finishes starting
-eval "$(tr '\0' '\n' <"/proc/$session/environ" | grep -E '^(DISPLAY|XAUTHORITY|WAYLAND_DISPLAY|XDG_SESSION_TYPE|XDG_CURRENT_DESKTOP)=' | sed "s/^/export /")"
+eval "$(tr '\0' '\n' <"/proc/$session/environ" | grep -E '^(DISPLAY|XAUTHORITY|WAYLAND_DISPLAY|XDG_SESSION_TYPE|XDG_CURRENT_DESKTOP|DBUS_SESSION_BUS_ADDRESS)=' | sed "s/^/export /")"
 echo "vm-check: desktop session: $XDG_CURRENT_DESKTOP on $XDG_SESSION_TYPE, $(gnome-shell --version)"
 
 # The shipped AppImage must open its window: as it starts by default, or with --safe-gpu, which a VM
@@ -89,6 +89,39 @@ if [ -z "$passed" ]; then
 	exit 1
 fi
 echo "vm-check: the AppImage window passed with $passed"
+
+# 4. The "System" skin follows the desktop (task 4.6): the window starts on System with a profile of
+# its own, the desktop is switched between dark and light, and what the page draws is read from the
+# window's own record (--ui-trace). Two seconds is the limit; the record is written every 250 ms.
+trace=$work/ui-trace.jsonl
+drawn() { grep '"page"' "$trace" 2>/dev/null | tail -n 1 | sed -n 's/.*"theme":"\([a-z0-9]*\)".*/\1/p'; }
+follows() { # <desktop color scheme> <skin the page must draw>: prints the milliseconds it took
+	gsettings set org.gnome.desktop.interface color-scheme "$1"
+	start=$(date +%s%N)
+	while [ "$(drawn)" != "$2" ]; do
+		[ $((($(date +%s%N) - start) / 1000000)) -lt 6000 ] || return 1
+		sleep 0.1
+	done
+	echo $((($(date +%s%N) - start) / 1000000))
+}
+gsettings set org.gnome.desktop.interface color-scheme default
+GO_MICROSIP_UI_THEME=system XDG_DATA_HOME="$work/data" XDG_CONFIG_HOME="$work/config" \
+	"$work/app.AppImage" --ui-trace "$trace" >"$work/system.log" 2>&1 &
+system=$!
+i=0
+until grep -q '"skin":"system"' "$trace" 2>/dev/null; do
+	i=$((i + 1))
+	[ "$i" -lt 150 ] || break
+	sleep 0.2
+done
+if dark=$(follows prefer-dark dark) && light=$(follows default light) && [ "$dark" -le 2000 ] && [ "$light" -le 2000 ]; then
+	echo "vm-check: system skin: followed the desktop to dark in $dark ms and back to light in $light ms"
+else
+	echo "vm-check: system skin: FAILED: the page draws \"$(drawn)\" (to dark: ${dark:-no} ms, to light: ${light:-no} ms; the limit is 2000)"
+	failed="$failed system-skin"
+fi
+gsettings set org.gnome.desktop.interface color-scheme default
+kill "$system" 2>/dev/null || :
 # Leave the application open for the screenshot the host takes of the VM's screen.
 (setsid "$work/app.AppImage" >/dev/null 2>&1 &)
 sleep 6

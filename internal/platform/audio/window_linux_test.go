@@ -45,6 +45,9 @@ type tracedCall struct {
 type tracedPage struct {
 	Text   string `json:"text"`
 	Images int    `json:"images"`
+	Skin   string `json:"skin"`   // the skin chosen in the settings
+	Theme  string `json:"theme"`  // the skin drawn: "system" resolved to light or dark
+	Height int    `json:"height"` // of the page's visible part
 	Fields []struct {
 		Label string `json:"label"`
 		X     int    `json:"x"`
@@ -218,6 +221,35 @@ func (w *window) fill(label, text string) {
 	w.write(text)
 }
 
+// choose clicks the field with this label (a radio button, say), scrolling the view to it first.
+func (w *window) choose(label string) {
+	w.t.Helper()
+	for range 20 {
+		var x, y int
+		w.until(5*time.Second, "field "+label, func() bool {
+			for _, f := range w.page.Fields {
+				if f.Label == label {
+					x, y = f.X, f.Y
+					return true
+				}
+			}
+			return false
+		})
+		// The view scrolls between the tabs and the status bar: well inside the page is in sight.
+		if y > 90 && y < w.page.Height-90 {
+			w.xdotool("mousemove", "--window", w.id, strconv.Itoa(x), strconv.Itoa(y), "click", "1")
+			return
+		}
+		wheel, seen := "5", w.pageAt // down
+		if y <= 90 {
+			wheel = "4"
+		}
+		w.xdotool("mousemove", "--window", w.id, strconv.Itoa(w.page.Height/2), strconv.Itoa(w.page.Height/2), "click", wheel)
+		w.until(5*time.Second, "the view scrolled", func() bool { return w.pageAt != seen })
+	}
+	w.t.Fatalf("the field %q could not be scrolled into view", label)
+}
+
 // click presses the button with this label where the page says it is. A button that holds more
 // than its label (the strip of a call on another tab) is found by how its text ends.
 func (w *window) click(label string) {
@@ -300,7 +332,7 @@ func softphone(t *testing.T, bin, dir, password string, args ...string) (*exec.C
 		"XDG_DATA_HOME=" + filepath.Join(dir, "data"), "XDG_CONFIG_HOME=" + filepath.Join(dir, "config"),
 		"GO_MICROSIP_SIP_PASSWORD=" + password,
 	}
-	log, err := os.Create(filepath.Join(dir, "output.log"))
+	log, err := os.CreateTemp(dir, "output-*.log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,6 +451,22 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	w.until(10*time.Second, "hold shown", func() bool { return w.call.Phase == "held" && w.shows("On hold") })
 	w.click("Resume")
 	w.until(10*time.Second, "resume shown", func() bool { return w.call.Phase == "established" && w.shows("Connected") })
+
+	// The skin changes during the call: the whole window at once, the call and its sound untouched.
+	w.click("Menu")
+	w.click("Settings")
+	w.choose("Windows XP")
+	w.until(10*time.Second, "the Windows XP skin drawn", func() bool { return w.page.Skin == "xp" && w.page.Theme == "xp" })
+	m, _ = sound.listen(3 * time.Second)
+	summary, bad = m.speakerVerdict(time.Now())
+	t.Logf("%s, 3 s after the skin changed during the call: %s", user, summary)
+	for _, b := range bad {
+		t.Error(b)
+	}
+	w.keys("Escape") // leaves the settings
+	w.until(10*time.Second, "the call still shown, in the new skin", func() bool {
+		return w.call.Phase == "established" && w.shows("Connected", "600") && w.page.Theme == "xp"
+	})
 
 	// Escape hangs up; the window goes back to the dialpad and lists the call in its history.
 	w.keys("Escape")
@@ -547,5 +595,13 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		t.Fatal("the window did not exit after the termination signal")
 	}
 	w.until(5*time.Second, "unregistration and stop in the trace", func() bool { return w.stopped && w.registered == "disabled" })
+
+	// The skin chosen in the window is the one the next start draws.
+	again := filepath.Join(dir, "ui-trace-2.jsonl")
+	softphone(t, bin, dir, password, "--config", file, "--ui-trace", again)
+	next := &window{t: t, lines: follow(t, again)}
+	next.until(60*time.Second, "the saved skin at the next start", func() bool {
+		return next.registered == "registered" && next.page.Skin == "xp" && next.page.Theme == "xp"
+	})
 	t.Logf("%s: %s", user, strings.Join(w.story, "; "))
 }
