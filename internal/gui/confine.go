@@ -28,11 +28,13 @@ const probeEvent = "go-microsip:probe"
 // probeScript is what a self-test runs in the page: what a script that got in would try. An inline
 // script must not run. With navigate set it then tries to leave the page; a page that is still
 // there to answer the probe event did not leave. The page adds to the report what its own scripts
-// may do (api.ts): eval must not run and a new window must not open. Those two are asked there
-// because a script the window injects runs with more rights than the page's own.
+// may do (api.ts): eval must not run and, where the webview is guarded, a new window must not open.
+// Those two are asked there because a script the window injects runs with more rights than the
+// page's own. Without a guard neither leaving the page nor a new window is tried: both would
+// happen, and the toolkit gives no way to refuse them on that platform.
 func probeScript(navigate bool) string {
 	js := `(() => {
-  const r = { inline: false };
+  const r = { inline: false, guarded: ` + fmt.Sprint(navigate) + ` };
   const s = document.createElement("script");
   s.textContent = "window.__goMicrosipInline = 1";
   document.head.appendChild(s);
@@ -51,7 +53,7 @@ func probeScript(navigate bool) string {
 func probeVerdict(result string, guarded bool, blocked int64, listening []string, listErr error) (summary string, err error) {
 	// The page must have answered every question: a missing answer is not a pass.
 	var r struct{ Inline, Eval, Opened *bool }
-	if jsonErr := json.Unmarshal([]byte(result), &r); jsonErr != nil || r.Inline == nil || r.Eval == nil || r.Opened == nil {
+	if jsonErr := json.Unmarshal([]byte(result), &r); jsonErr != nil || r.Inline == nil || r.Eval == nil || guarded && r.Opened == nil {
 		return "", fmt.Errorf("self-test: the page did not report the probe: %q", result)
 	}
 	var bad []error
@@ -61,17 +63,17 @@ func probeVerdict(result string, guarded bool, blocked int64, listening []string
 	if *r.Eval {
 		bad = append(bad, errors.New("eval ran"))
 	}
-	if *r.Opened {
+	if r.Opened != nil && *r.Opened {
 		bad = append(bad, errors.New("a new window opened"))
 	}
-	summary = "inline script, eval and a new window refused"
+	summary = "inline script and eval refused"
 	switch {
 	case !guarded:
-		summary += "; navigation not probed (no guard on this platform)"
+		summary += "; a new window and navigation not probed (no guard on this platform)"
 	case blocked < 1:
 		bad = append(bad, errors.New("the guard did not refuse the navigation attempt"))
 	default:
-		summary += "; navigation to another address refused and the page stayed"
+		summary += "; a new window and navigation to another address refused, and the page stayed"
 	}
 	switch {
 	case listErr != nil:

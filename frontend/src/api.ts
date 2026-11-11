@@ -298,12 +298,15 @@ function wails({ Call, Events }: Wails): Backend {
       } catch {
         probe.eval = false;
       }
-      try {
-        const opened = window.open("https://example.invalid/new-window");
-        probe.opened = opened !== null;
-        opened?.close();
-      } catch {
-        probe.opened = false;
+      // Only where the window guards its webview: without a guard a new window really opens.
+      if (probe.guarded) {
+        try {
+          const opened = window.open("https://example.invalid/new-window");
+          probe.opened = opened !== null;
+          opened?.close();
+        } catch {
+          probe.opened = false;
+        }
       }
       report = JSON.stringify(probe);
     }
