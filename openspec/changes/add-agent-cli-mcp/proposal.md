@@ -1,3 +1,5 @@
+> Superseded on 2026-11-11 by [migrate-to-go-wails](../migrate-to-go-wails/proposal.md): no further implementation happens in this Rust-era change. Its requirements and scenarios remain the behavior parity baseline for the Go rewrite, and its unchecked tasks stay unchecked.
+
 ## Why
 
 Operators and agents need to query/control rust-microsip without pixel automation. Local CLI/MCP clients must share desktop services/limits, avoiding duplicate SIP registration, direct database writes, and unexpected calls.

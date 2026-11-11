@@ -1,3 +1,5 @@
+> On hold since 2026-11-11: this plan assumes a Rust/WASM client and is to be re-planned for Go after [migrate-to-go-wails](../migrate-to-go-wails/proposal.md) completes. No task here is in progress.
+
 ## Why
 
 Users need calls without client installation. The user confirmed a complete web softphone in a later release, not a remote panel dependent on the installed Linux app.

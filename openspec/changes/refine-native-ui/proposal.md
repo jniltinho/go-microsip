@@ -1,3 +1,5 @@
+> Superseded on 2026-11-11 by [migrate-to-go-wails](../migrate-to-go-wails/proposal.md): no further implementation happens in this Rust-era change. Its requirements and scenarios remain the behavior parity baseline for the Go rewrite, and its unchecked tasks stay unchecked.
+
 ## Why
 
 The first desktop UI is functional and accessible but plain: default egui widgets, text-only toggles, rounded widget corners and no visual hierarchy beyond spacing. The owner asked for a refined, modern, premium-quality ("AAA+") interface: square corners, modern minimalist icons, and a layout that stays close to MicroSIP so existing MicroSIP users feel at home immediately.
