@@ -40,11 +40,15 @@ Every skin SHALL define the same set of design tokens, and screens SHALL take co
 - **THEN** it appears in settings and styles every screen without editing any screen
 
 ### Requirement: Legibility and call-state clarity in every skin
-In every skin, text and controls SHALL meet a 4.5:1 contrast ratio, focus SHALL be visible, and call states (ringing, active, on hold, muted, error) SHALL be distinguishable by more than color alone.
+In every skin, text and controls SHALL meet a 4.5:1 contrast ratio, focus SHALL be visible, and call states (ringing, active, on hold, muted, error) SHALL be distinguishable by more than color alone. In Light and Dark, text SHALL meet 7:1, and the boundaries of controls and the focus indicator SHALL meet 3:1 against what surrounds them.
 
 #### Scenario: Contrast audit
 - **WHEN** the automated contrast audit runs over each screen in each skin
 - **THEN** no text or control falls below 4.5:1
+
+#### Scenario: Contrast of the default skins
+- **WHEN** the automated contrast audit runs over each screen in Light and Dark
+- **THEN** no text falls below 7:1 and no control boundary or focus indicator falls below 3:1
 
 #### Scenario: Muted call in a retro skin
 - **WHEN** a call is muted with the Windows 98 skin selected
