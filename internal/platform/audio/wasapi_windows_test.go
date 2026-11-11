@@ -3,11 +3,38 @@ package audio
 import (
 	"fmt"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/go-ole/go-ole"
 	"github.com/moutend/go-wca/pkg/wca"
 )
+
+// The devices are listed from a thread that already has COM in the other threading mode, as the
+// thread of the command line and of the window does: `doctor` said "no audio service" there.
+func TestWASAPIFromAThreadWithCOMInAnotherMode(t *testing.T) {
+	needServer(t)
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if err := ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED); err != nil {
+		t.Fatalf("this thread could not get COM in apartment mode: %v", err)
+	}
+	defer ole.CoUninitialize()
+	c, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	inputs, err := c.Inputs()
+	if err != nil || len(inputs) == 0 {
+		t.Fatalf("inputs: %v %v", inputs, err)
+	}
+	outputs, err := c.Outputs()
+	if err != nil || len(outputs) == 0 {
+		t.Fatalf("outputs: %v %v", outputs, err)
+	}
+}
 
 // card disables or enables every sound card of the machine and reports whether Windows did it
 // (it needs an elevated session, and some virtual sound cards refuse).

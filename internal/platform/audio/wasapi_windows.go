@@ -32,13 +32,23 @@ var format = wca.WAVEFORMATEX{
 
 var zeros [ringSamples]int16
 
+// rpcEChangedMode is RPC_E_CHANGED_MODE: the thread already has COM in the other threading mode.
+const rpcEChangedMode = 0x80010106
+
 // onCOM runs f on one operating-system thread with COM initialized, as every WASAPI call needs.
 func onCOM(f func() error) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED); err != nil {
-		// S_FALSE: this thread already has COM; anything else is a failure.
-		if oe, ok := err.(*ole.OleError); !ok || oe.Code() != 1 {
+		oe, ok := err.(*ole.OleError)
+		switch {
+		case ok && oe.Code() == 1:
+			// S_FALSE: this thread already has COM in this mode; the call still counts.
+		case ok && oe.Code() == rpcEChangedMode:
+			// Whoever owns this thread set COM up the other way (the window's thread is one) and
+			// that cannot be changed. WASAPI works in either mode, and there is nothing to undo.
+			return f()
+		default:
 			return err
 		}
 	}
