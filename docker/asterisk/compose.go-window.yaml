@@ -9,7 +9,17 @@ services:
       - seccomp=unconfined
       - apparmor=unconfined
       - systempaths=unconfined
+    environment:
+      GO_MICROSIP_CALL_BIN: ${GO_CALL_BIN:-/spike/go-microsip}
+      GO_MICROSIP_PRINTS: /out
+    volumes:
+      - type: bind
+        source: ${GO_CALL_OUT:?run docker/asterisk/go-call.sh}
+        target: /out
+        bind:
+          create_host_path: false
     pids_limit: 1024
     mem_limit: 2g
+    # exec: an AppImage under test unpacks itself into /tmp and runs from there.
     tmpfs: !override
-      - /tmp:rw,nosuid,nodev,mode=1777,size=512m
+      - /tmp:rw,exec,nosuid,nodev,mode=1777,size=512m

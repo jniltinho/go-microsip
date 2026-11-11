@@ -197,6 +197,18 @@ func (w *window) keys(keys ...string) {
 	}
 }
 
+// shot keeps a picture of the display for the receipt, when the run asks for them.
+func (w *window) shot(name string) {
+	dir := os.Getenv("GO_MICROSIP_PRINTS")
+	if dir == "" {
+		return
+	}
+	time.Sleep(400 * time.Millisecond) // the page has drawn what it reported
+	if out, err := exec.Command("import", "-window", "root", filepath.Join(dir, name+".png")).CombinedOutput(); err != nil {
+		w.t.Errorf("screenshot %s: %v: %s", name, err, out)
+	}
+}
+
 // write types text in the window, as a person at the keyboard.
 func (w *window) write(text string) {
 	w.t.Helper()
@@ -324,6 +336,9 @@ func TestCallThroughTheWindow(t *testing.T) {
 func softphone(t *testing.T, bin, dir, password string, args ...string) (*exec.Cmd, chan error) {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
+	// A group of its own: an AppImage is a launcher with the softphone as its child, and a signal
+	// has to reach both.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Only what it needs: the display, the session's bus and audio service, a profile of its own,
 	// and the password.
 	cmd.Env = []string{
@@ -331,6 +346,7 @@ func softphone(t *testing.T, bin, dir, password string, args ...string) (*exec.C
 		"XDG_RUNTIME_DIR=" + os.Getenv("XDG_RUNTIME_DIR"), "HOME=" + dir,
 		"XDG_DATA_HOME=" + filepath.Join(dir, "data"), "XDG_CONFIG_HOME=" + filepath.Join(dir, "config"),
 		"GO_MICROSIP_SIP_PASSWORD=" + password,
+		"APPIMAGE_EXTRACT_AND_RUN=1", // an AppImage runs without FUSE here
 	}
 	log, err := os.CreateTemp(dir, "output-*.log")
 	if err != nil {
@@ -343,7 +359,7 @@ func softphone(t *testing.T, bin, dir, password string, args ...string) (*exec.C
 	exited := make(chan error, 1)
 	go func() { exited <- cmd.Wait() }()
 	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		log.Close()
 		if t.Failed() {
 			if text, err := os.ReadFile(log.Name()); err == nil {
@@ -386,13 +402,15 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	// The account registers on its own, and the window says so.
 	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered", user) })
 	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
-		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--pid", strconv.Itoa(cmd.Process.Pid)).Output()
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
 		if ids := strings.Fields(string(out)); len(ids) > 0 {
 			w.id = ids[len(ids)-1]
 		} else if time.Now().After(deadline) {
 			t.Fatal("the window was not found on the display")
 		}
 	}
+
+	w.shot(user + "-1-registered")
 
 	// A person dials the echo: Ctrl+L, the number, Enter.
 	w.keys("ctrl+l", "6", "0", "0", "Return")
@@ -406,6 +424,8 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	if w.call.Secure != secure {
 		t.Errorf("the call reports secure=%v, the account needs %v", w.call.Secure, secure)
 	}
+
+	w.shot(user + "-2-call-connected")
 
 	// The sound, with the page frozen for five seconds in the middle: the engine owns the call.
 	sound.listen(2 * time.Second) // the streams and the echo settle
@@ -449,6 +469,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 
 	w.click("Hold")
 	w.until(10*time.Second, "hold shown", func() bool { return w.call.Phase == "held" && w.shows("On hold") })
+	w.shot(user + "-3-call-on-hold")
 	w.click("Resume")
 	w.until(10*time.Second, "resume shown", func() bool { return w.call.Phase == "established" && w.shows("Connected") })
 
@@ -457,6 +478,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	w.click("Settings")
 	w.choose("Windows XP")
 	w.until(10*time.Second, "the Windows XP skin drawn", func() bool { return w.page.Skin == "xp" && w.page.Theme == "xp" })
+	w.shot(user + "-4-skin-changed-during-the-call")
 	m, _ = sound.listen(3 * time.Second)
 	summary, bad = m.speakerVerdict(time.Now())
 	t.Logf("%s, 3 s after the skin changed during the call: %s", user, summary)
@@ -478,6 +500,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	}
 	w.click("Calls")
 	w.until(10*time.Second, "the call in the history", func() bool { return w.shows("600", "Answered") })
+	w.shot(user + "-5-hung-up-history")
 
 	// What this build cannot do is said, not offered.
 	w.click("Menu")
@@ -514,6 +537,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	if w.page.Images != 0 {
 		t.Errorf("the page holds %d images: the contact's name became markup", w.page.Images)
 	}
+	w.shot(user + "-6-incoming-call")
 	w.keys("Return") // Answer has the focus
 	// On another tab the call is a strip with the name; "Show call" opens its panel.
 	w.until(15*time.Second, "the answered incoming call shown", func() bool {
@@ -521,6 +545,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	})
 	w.click("Show call")
 	w.until(10*time.Second, "the panel of the incoming call", func() bool { return w.shows("Connected", "From", hostile, protection) })
+	w.shot(user + "-7-incoming-call-answered")
 	// A blind transfer of the caller to the lab's tone, from the window.
 	w.click("Xfer")
 	w.fill("Transfer to", "602")
@@ -534,7 +559,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 
 	// The caller hangs up on the tone it was transferred to and unregisters: the PBX keeps one
 	// registration per extension.
-	_ = caller.Process.Signal(syscall.SIGINT)
+	_ = syscall.Kill(-caller.Process.Pid, syscall.SIGINT)
 	select {
 	case <-transferred:
 	case <-time.After(15 * time.Second):
@@ -561,6 +586,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	}
 	w.click("Calls")
 	w.until(10*time.Second, "the three calls in the history", func() bool { return w.shows("Out", "In", "Answered", "Rejected", hostile) })
+	w.shot(user + "-8-history")
 	if w.page.Images != 0 {
 		t.Errorf("the page holds %d images: the contact's name became markup", w.page.Images)
 	}
@@ -586,7 +612,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	}
 
 	// A termination signal: the account is unregistered and the engine stopped before the end.
-	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
 	select {
