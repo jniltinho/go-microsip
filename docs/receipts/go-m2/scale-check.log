@@ -1,0 +1,55 @@
+PASS  100 % light: the dialpad with a call
+PASS  100 % light: the contacts
+PASS  100 % light: the settings
+PASS  100 % dark: the dialpad with a call
+PASS  100 % dark: the contacts
+PASS  100 % dark: the settings
+PASS  100 % xp: the dialpad with a call
+PASS  100 % xp: the contacts
+PASS  100 % xp: the settings
+PASS  100 % macos: the dialpad with a call
+PASS  100 % macos: the contacts
+PASS  100 % macos: the settings
+PASS  100 % ubuntu: the dialpad with a call
+PASS  100 % ubuntu: the contacts
+PASS  100 % ubuntu: the settings
+PASS  100 % win98: the dialpad with a call
+PASS  100 % win98: the contacts
+PASS  100 % win98: the settings
+PASS  150 % light: the dialpad with a call
+PASS  150 % light: the contacts
+PASS  150 % light: the settings
+PASS  150 % dark: the dialpad with a call
+PASS  150 % dark: the contacts
+PASS  150 % dark: the settings
+PASS  150 % xp: the dialpad with a call
+PASS  150 % xp: the contacts
+PASS  150 % xp: the settings
+PASS  150 % macos: the dialpad with a call
+PASS  150 % macos: the contacts
+PASS  150 % macos: the settings
+PASS  150 % ubuntu: the dialpad with a call
+PASS  150 % ubuntu: the contacts
+PASS  150 % ubuntu: the settings
+PASS  150 % win98: the dialpad with a call
+PASS  150 % win98: the contacts
+PASS  150 % win98: the settings
+PASS  200 % light: the dialpad with a call
+PASS  200 % light: the contacts
+PASS  200 % light: the settings
+PASS  200 % dark: the dialpad with a call
+PASS  200 % dark: the contacts
+PASS  200 % dark: the settings
+PASS  200 % xp: the dialpad with a call
+PASS  200 % xp: the contacts
+PASS  200 % xp: the settings
+PASS  200 % macos: the dialpad with a call
+PASS  200 % macos: the contacts
+PASS  200 % macos: the settings
+PASS  200 % ubuntu: the dialpad with a call
+PASS  200 % ubuntu: the contacts
+PASS  200 % ubuntu: the settings
+PASS  200 % win98: the dialpad with a call
+PASS  200 % win98: the contacts
+PASS  200 % win98: the settings
+scale-check: all passed
