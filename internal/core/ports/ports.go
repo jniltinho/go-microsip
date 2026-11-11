@@ -1,0 +1,47 @@
+// Package ports holds the interfaces through which the core reaches the operating system. The core
+// owns them; internal/platform implements them per OS, and package memory implements them for
+// tests. A capability a system lacks is reported as unavailable, never simulated.
+package ports
+
+import "errors"
+
+// FrameSamples is one 20 ms frame of 8 kHz mono audio.
+const FrameSamples = 160
+
+// ErrNoAudioService means the session offers no audio service the adapter can reach.
+var ErrNoAudioService = errors.New("no audio service is reachable")
+
+// Device is one sound input or output.
+type Device struct {
+	// ID is stable for the device and is what settings store.
+	ID string
+	// Name is what the user sees.
+	Name string
+	// Default marks the device used when none is chosen.
+	Default bool
+}
+
+// MediaIO is the sound of one call. The engine calls Capture and Play once per 20 ms media tick;
+// neither may block or allocate.
+type MediaIO interface {
+	// Capture fills frame with the next 20 ms from the microphone and reports whether it had one.
+	Capture(frame *[FrameSamples]int16) bool
+	// Play queues 20 ms for the speaker.
+	Play(frame *[FrameSamples]int16)
+	// CaptureLost reports that the microphone stopped delivering (unplugged, or the service is
+	// gone). The call goes on; another microphone is the user's choice.
+	CaptureLost() bool
+	// Close releases the devices.
+	Close()
+}
+
+// AudioDevices is the session's sound devices.
+type AudioDevices interface {
+	// Inputs lists the capture devices.
+	Inputs() ([]Device, error)
+	// Outputs lists the playback devices.
+	Outputs() ([]Device, error)
+	// Open starts capture and playback on the devices with these IDs; an empty ID is the default
+	// device. It fails with ErrNoAudioService when the session has no audio service.
+	Open(input, output string) (MediaIO, error)
+}

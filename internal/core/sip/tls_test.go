@@ -1,4 +1,4 @@
-package g0
+package sip
 
 import (
 	"crypto/ecdsa"
@@ -107,7 +107,7 @@ func TestBundleReplacesSystemRoots(t *testing.T) {
 	if err := handshake(addr, &tls.Config{ServerName: "pbx"}); err != nil {
 		t.Fatalf("control failed, the server is not system-trusted: %v", err)
 	}
-	conf, err := TLSConfig(Account{Server: "pbx", Transport: "tls", CAFile: bundle})
+	conf, err := TLSConfig("pbx", bundle)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestTLSConfigNeedsABundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, file := range map[string]string{"none": "", "missing": empty + ".absent", "empty": empty} {
-		if _, err := TLSConfig(Account{Server: "pbx", CAFile: file}); err == nil {
+		if _, err := TLSConfig("pbx", file); err == nil {
 			t.Errorf("%s: a TLS configuration was built", name)
 		}
 	}

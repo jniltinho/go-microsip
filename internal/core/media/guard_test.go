@@ -1,4 +1,4 @@
-package g0
+package media
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/emiago/diago/media"
+	media "github.com/emiago/diago/media"
 	"github.com/emiago/diago/media/sdp"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"

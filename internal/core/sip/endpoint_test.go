@@ -1,8 +1,14 @@
-package g0
+package sip
 
 import (
+	"context"
+	"crypto/x509"
+	"errors"
+	"fmt"
 	"net"
 	"testing"
+
+	"github.com/jniltinho/go-microsip/internal/core/domain"
 )
 
 const (
@@ -43,7 +49,7 @@ func TestOffersSRTP(t *testing.T) {
 
 // A request is the registrar's only from its address and its port.
 func TestFromRegistrar(t *testing.T) {
-	e := &Endpoint{Account: Account{Port: 5060}, peers: []net.IP{net.ParseIP("192.0.2.10"), net.ParseIP("2001:db8::10")}}
+	e := &Endpoint{Account: Account{Settings: domain.AccountSettings{Port: 5060}}, peers: []net.IP{net.ParseIP("192.0.2.10"), net.ParseIP("2001:db8::10")}}
 	for source, want := range map[string]bool{
 		"192.0.2.10:5060":     true,
 		"[2001:db8::10]:5060": true,
@@ -55,6 +61,24 @@ func TestFromRegistrar(t *testing.T) {
 	} {
 		if got := e.fromRegistrar(source); got != want {
 			t.Errorf("fromRegistrar(%q) = %v, want %v", source, got, want)
+		}
+	}
+}
+
+func TestRegistrationFailure(t *testing.T) {
+	for name, c := range map[string]struct {
+		err  error
+		want domain.FailureKind
+	}{
+		"unknown authority": {fmt.Errorf("dial: %w", x509.UnknownAuthorityError{}), domain.Certificate},
+		"wrong host":        {fmt.Errorf("dial: %w", x509.HostnameError{Host: "pbx-alias", Certificate: &x509.Certificate{}}), domain.Certificate},
+		"untyped tls error": {errors.New("fail: tls: failed to verify certificate: x509: certificate signed by unknown authority"), domain.Certificate},
+		"deadline":          {fmt.Errorf("register: %w", context.DeadlineExceeded), domain.Timeout},
+		"refused":           {&net.OpError{Op: "dial", Err: errors.New("connection refused")}, domain.Network},
+		"no such host":      {&net.DNSError{Err: "no such host", Name: "pbx.invalid", IsNotFound: true}, domain.Network},
+	} {
+		if got := RegistrationFailure(c.err); got.Status != domain.RegistrationFailed || got.Failure != c.want {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
 		}
 	}
 }
