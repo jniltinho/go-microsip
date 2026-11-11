@@ -55,7 +55,7 @@ async function save() {
     <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
       <label>
         <span class="label">Name</span>
-        <input v-model="form.name" class="field" maxlength="64" autocomplete="off" autofocus />
+        <input v-model="form.name" class="field" maxlength="64" autocomplete="off" v-focus />
       </label>
       <fieldset class="group flex flex-col gap-1">
         <legend>Numbers</legend>

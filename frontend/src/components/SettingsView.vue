@@ -103,7 +103,7 @@ const saveAudio = () =>
               maxlength="64"
               autocomplete="off"
               spellcheck="false"
-              autofocus
+              v-focus
             />
           </label>
           <label>

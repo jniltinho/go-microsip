@@ -10,7 +10,8 @@ HOME=$(mktemp -d)
 XDG_RUNTIME_DIR=$(mktemp -d)
 DISPLAY=:59
 export HOME XDG_RUNTIME_DIR DISPLAY test_binary
-Xvfb "$DISPLAY" -screen 0 480x680x24 >/dev/null 2>&1 &
+# Large enough for the window at twice its size (the 200 % desktop of the scale check).
+Xvfb "$DISPLAY" -screen 0 1024x1400x24 >/dev/null 2>&1 &
 xvfb=$!
 trap 'kill $xvfb 2>/dev/null || :' EXIT
 sleep 1

@@ -51,8 +51,9 @@ func (t *trace) page(report string) {
 }
 
 // snapshotScript leaves in the page what it shows: its text, the skin, how many images it holds (the
-// page has none of its own: one would be markup that got in), and where its buttons and fields are
-// (so a test presses the button a person would, wherever a skin puts it). The page hands it over
+// page has none of its own: one would be markup that got in), its size and scale and whether
+// anything runs off its side, and where its buttons and fields are (so a test presses the button a
+// person would, wherever a skin puts it). The page hands it over
 // when it gets the probe event.
 const snapshotScript = `document.documentElement.dataset.probe = JSON.stringify({
   text: document.body.innerText,
@@ -60,6 +61,13 @@ const snapshotScript = `document.documentElement.dataset.probe = JSON.stringify(
   theme: document.documentElement.dataset.theme || "",
   images: document.images.length,
   height: innerHeight,
+  width: innerWidth,
+  scale: devicePixelRatio,
+  overflows: document.documentElement.scrollWidth > innerWidth,
+  clipped: [...document.querySelectorAll("button, input, select, [role=status]")].filter((e) => {
+    const r = e.getBoundingClientRect();
+    return r.width > 0 && (r.left < -1 || r.right > innerWidth + 1);
+  }).length,
   buttons: [...document.querySelectorAll("button")].map((b) => {
     const r = b.getBoundingClientRect();
     return {

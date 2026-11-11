@@ -48,7 +48,13 @@ type tracedPage struct {
 	Skin   string `json:"skin"`   // the skin chosen in the settings
 	Theme  string `json:"theme"`  // the skin drawn: "system" resolved to light or dark
 	Height int    `json:"height"` // of the page's visible part
-	Fields []struct {
+	Width  int    `json:"width"`
+	// Scale is the device pixels per CSS pixel; Overflows and Clipped say whether the page is wider
+	// than its window and how many of its controls run off its side.
+	Scale     float64 `json:"scale"`
+	Overflows bool    `json:"overflows"`
+	Clipped   int     `json:"clipped"`
+	Fields    []struct {
 		Label string `json:"label"`
 		X     int    `json:"x"`
 		Y     int    `json:"y"`
@@ -204,9 +210,21 @@ func (w *window) shot(name string) {
 		return
 	}
 	time.Sleep(400 * time.Millisecond) // the page has drawn what it reported
-	if out, err := exec.Command("import", "-window", "root", filepath.Join(dir, name+".png")).CombinedOutput(); err != nil {
+	// The display is larger than the window: the empty part around it is cut off.
+	if out, err := exec.Command("import", "-window", "root", "-trim", "+repage", filepath.Join(dir, name+".png")).CombinedOutput(); err != nil {
 		w.t.Errorf("screenshot %s: %v: %s", name, err, out)
 	}
+}
+
+// pointer presses a mouse button at a place of the page. The page counts in CSS pixels; the display
+// has Scale device pixels for each.
+func (w *window) pointer(x, y int, button string) {
+	w.t.Helper()
+	scale := w.page.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	w.xdotool("mousemove", "--window", w.id, strconv.Itoa(int(float64(x)*scale)), strconv.Itoa(int(float64(y)*scale)), "click", button)
 }
 
 // write types text in the window, as a person at the keyboard.
@@ -229,7 +247,7 @@ func (w *window) fill(label, text string) {
 	}
 	w.until(5*time.Second, "field "+label, func() bool { _, _, ok := found(); return ok })
 	x, y, _ := found()
-	w.xdotool("mousemove", "--window", w.id, strconv.Itoa(x), strconv.Itoa(y), "click", "1")
+	w.pointer(x, y, "1")
 	w.write(text)
 }
 
@@ -249,14 +267,14 @@ func (w *window) choose(label string) {
 		})
 		// The view scrolls between the tabs and the status bar: well inside the page is in sight.
 		if y > 90 && y < w.page.Height-90 {
-			w.xdotool("mousemove", "--window", w.id, strconv.Itoa(x), strconv.Itoa(y), "click", "1")
+			w.pointer(x, y, "1")
 			return
 		}
 		wheel, seen := "5", w.pageAt // down
 		if y <= 90 {
 			wheel = "4"
 		}
-		w.xdotool("mousemove", "--window", w.id, strconv.Itoa(w.page.Height/2), strconv.Itoa(w.page.Height/2), "click", wheel)
+		w.pointer(w.page.Height/2, w.page.Height/2, wheel)
 		w.until(5*time.Second, "the view scrolled", func() bool { return w.pageAt != seen })
 	}
 	w.t.Fatalf("the field %q could not be scrolled into view", label)
@@ -278,7 +296,7 @@ func (w *window) click(label string) {
 	}
 	w.until(5*time.Second, "enabled button "+label, func() bool { _, _, ok := find(); return ok })
 	x, y, _ := find()
-	w.xdotool("mousemove", "--window", w.id, strconv.Itoa(x), strconv.Itoa(y), "click", "1")
+	w.pointer(x, y, "1")
 }
 
 // webProcesses are the processes that draw the page.
@@ -329,11 +347,94 @@ func TestCallThroughTheWindow(t *testing.T) {
 		})
 	}
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
+	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
+	// whole numbers (GDK_SCALE); 150 % cannot be had here.
+	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98"} {
+		for _, desktop := range []struct {
+			name string
+			env  []string
+		}{
+			{"100", nil},
+			{"200", []string{"GDK_SCALE=2"}},
+		} {
+			t.Run(skin+" at "+desktop.name, func(t *testing.T) {
+				windowAtScale(t, bin, server, passwords["1002"], skin, desktop.name, append(desktop.env, "GO_MICROSIP_UI_THEME="+skin))
+			})
+		}
+	}
+}
+
+// At every desktop scale the window shows its screens whole: nothing wider than the window, no
+// control off its side, and the fictional account and the tabs readable.
+func windowAtScale(t *testing.T, bin, server, password, skin, name string, env []string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphoneWith(t, env, bin, dir, password, "--config", file, "--ui-trace", trace)
+	// The account is unregistered at the end: the PBX keeps one registration per extension, and the
+	// next scale uses the same one.
+	defer func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		select {
+		case <-exited:
+		case <-time.After(15 * time.Second):
+			t.Error("the window did not exit after the termination signal")
+		}
+	}()
+	w := &window{t: t, lines: follow(t, trace)}
+	whole := func(screen string) {
+		t.Helper()
+		time.Sleep(600 * time.Millisecond) // the screen has settled
+		w.until(5*time.Second, "a report of the "+screen, func() bool { return w.page.Width > 0 })
+		if w.page.Overflows || w.page.Clipped != 0 {
+			t.Errorf("%s in %s at %s %%: the page is wider than its window (%v) and %d controls run off its side; page %d px wide at scale %.2f",
+				screen, skin, name, w.page.Overflows, w.page.Clipped, w.page.Width, w.page.Scale)
+		}
+		if w.page.Theme != skin {
+			t.Errorf("%s at %s %%: the page draws the skin %q, want %q", screen, name, w.page.Theme, skin)
+		}
+		if name != "100" {
+			w.shot("scale-" + name + "-" + skin + "-" + screen)
+		}
+	}
+	w.until(60*time.Second, "the dialpad with the registered account", func() bool {
+		return w.registered == "registered" && w.shows("Dialpad", "Calls", "Contacts", "Registered", "1002@"+server)
+	})
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	if want := map[string]float64{"100": 1, "200": 2}[name]; w.page.Scale != want {
+		t.Errorf("at %s %%: the page has %.2f device pixels per CSS pixel, want %.0f: the desktop's scale did not reach it", name, w.page.Scale, want)
+	}
+	t.Logf("%s at %s %%: the page is %d by %d CSS pixels at %.2f device pixels each", skin, name, w.page.Width, w.page.Height, w.page.Scale)
+	whole("dialpad")
+	w.click("Contacts")
+	w.until(10*time.Second, "the contacts tab", func() bool { return w.shows("Add") })
+	whole("contacts")
+	w.click("Menu")
+	w.click("Settings")
+	w.until(10*time.Second, "the settings", func() bool { return w.shows("Account", "Appearance") })
+	whole("settings")
 }
 
 // softphone starts the binary with a profile of its own in dir and the password in the
 // environment; its output goes to a file that a failed test prints.
 func softphone(t *testing.T, bin, dir, password string, args ...string) (*exec.Cmd, chan error) {
+	t.Helper()
+	return softphoneWith(t, nil, bin, dir, password, args...)
+}
+
+// softphoneWith is softphone with more environment, such as the desktop's scale.
+func softphoneWith(t *testing.T, env []string, bin, dir, password string, args ...string) (*exec.Cmd, chan error) {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
 	// A group of its own: an AppImage is a launcher with the softphone as its child, and a signal
@@ -348,6 +449,7 @@ func softphone(t *testing.T, bin, dir, password string, args ...string) (*exec.C
 		"GO_MICROSIP_SIP_PASSWORD=" + password,
 		"APPIMAGE_EXTRACT_AND_RUN=1", // an AppImage runs without FUSE here
 	}
+	cmd.Env = append(cmd.Env, env...)
 	log, err := os.CreateTemp(dir, "output-*.log")
 	if err != nil {
 		t.Fatal(err)
@@ -515,7 +617,8 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	peer := user[:3] + "2"
 	w.click("Contacts")
 	w.click("Add")
-	w.fill("Name", hostile)
+	w.until(10*time.Second, "the contact form", func() bool { return w.shows("New contact") })
+	w.write(hostile) // the name field has the focus: nothing is clicked first
 	w.fill("Number 1", peer)
 	w.click("Save")
 	w.until(10*time.Second, "the contact listed with its name as text", func() bool { return w.shows(hostile, peer) })
@@ -548,7 +651,15 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	w.shot(user + "-7-incoming-call-answered")
 	// A blind transfer of the caller to the lab's tone, from the window.
 	w.click("Xfer")
-	w.fill("Transfer to", "602")
+	w.until(10*time.Second, "the transfer field", func() bool {
+		for _, f := range w.page.Fields {
+			if f.Label == "Transfer to" {
+				return true
+			}
+		}
+		return false
+	})
+	w.write("602") // the target field has the focus
 	w.keys("Return")
 	w.until(20*time.Second, "the transferred call ended", func() bool {
 		return w.call.Phase == "ended" && shownPhase(w.page.Text) == ""
@@ -624,10 +735,16 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 
 	// The skin chosen in the window is the one the next start draws.
 	again := filepath.Join(dir, "ui-trace-2.jsonl")
-	softphone(t, bin, dir, password, "--config", file, "--ui-trace", again)
+	restarted, gone := softphone(t, bin, dir, password, "--config", file, "--ui-trace", again)
 	next := &window{t: t, lines: follow(t, again)}
 	next.until(60*time.Second, "the saved skin at the next start", func() bool {
 		return next.registered == "registered" && next.page.Skin == "xp" && next.page.Theme == "xp"
 	})
+	_ = syscall.Kill(-restarted.Process.Pid, syscall.SIGTERM) // unregisters: the extension is free again
+	select {
+	case <-gone:
+	case <-time.After(15 * time.Second):
+		t.Error("the restarted window did not exit after the termination signal")
+	}
 	t.Logf("%s: %s", user, strings.Join(w.story, "; "))
 }

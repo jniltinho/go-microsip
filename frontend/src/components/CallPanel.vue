@@ -73,7 +73,7 @@ const elapsed = computed(() => {
         aria-label="Transfer to"
         autocomplete="off"
         spellcheck="false"
-        autofocus
+        v-focus
       />
       <button class="btn" type="submit">Transfer</button>
       <button class="btn" type="button" @click="ui.dispatch({ type: 'cancelTransfer' })">

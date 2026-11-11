@@ -66,9 +66,16 @@ type cards struct {
 
 func soundCards(t *testing.T, user string) *cards {
 	t.Helper()
-	fx, err := pulse.NewClient()
-	if err != nil {
-		t.Fatal(err)
+	// The sound service has its socket before it answers: a first connection may come too early.
+	var fx *pulse.Client
+	var err error
+	for deadline := time.Now().Add(15 * time.Second); ; time.Sleep(500 * time.Millisecond) {
+		if fx, err = pulse.NewClient(); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(err)
+		}
 	}
 	t.Cleanup(fx.Close) // runs after the sound cards are unloaded
 	c := &cards{spk: "gmspk" + user, mic: "gmmic" + user, heard: make(chan []int16, 4096)}
