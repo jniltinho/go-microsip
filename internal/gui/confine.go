@@ -47,10 +47,14 @@ func probeScript(navigate bool) string {
 	return js + "\n})()"
 }
 
-// probeVerdict judges a self-test's probe: what the page reported, how many navigations the guard
-// refused (guarded says whether there is a guard on this platform), and the listening TCP sockets
-// of this process (nil error when they could be listed).
-func probeVerdict(result string, guarded bool, blocked int64, listening []string, listErr error) (summary string, err error) {
+// probeVerdict judges a self-test's probe: what the page reported, whether this platform's webview
+// can be guarded (expected) and is (guarded), how many navigations the guard refused, and the
+// listening TCP sockets of this process (nil error when they could be listed). A guard that is
+// expected and not in place fails the self-test: the page could leave.
+func probeVerdict(result string, expected, guarded bool, blocked int64, listening []string, listErr error) (summary string, err error) {
+	if expected && !guarded {
+		return "", errors.New("self-test: the page is not confined: the navigation guard could not be installed")
+	}
 	// The page must have answered every question: a missing answer is not a pass.
 	var r struct{ Inline, Eval, Opened *bool }
 	if jsonErr := json.Unmarshal([]byte(result), &r); jsonErr != nil || r.Inline == nil || r.Eval == nil || guarded && r.Opened == nil {

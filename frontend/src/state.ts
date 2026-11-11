@@ -400,7 +400,8 @@ export class UiState {
     if (this.quitting) return;
     this.quitting = true;
     this.confirm = null;
-    await this.send({ type: "shutdown" }, now);
+    // Refused (the engine was busy): the notice says so, and Quit can be tried again.
+    if (!(await this.send({ type: "shutdown" }, now))) this.quitting = false;
   }
 
   private async runConfirm(now: number) {

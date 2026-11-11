@@ -2,6 +2,8 @@
 # Keyboard and behavior walkthrough of the window against the mock backend, driven with
 # agent-browser: every step is a key press, every check reads the page. Run with the dev server up:
 #   frontend/scripts/keyboard-check.sh [base URL]
+# The dev server restarts when a file under frontend/ changes, and the page reloads with it: do not
+# edit anything there while this runs, and wait a few seconds after an edit.
 set -eu
 base=${1:-http://127.0.0.1:5173}
 failed=0
@@ -21,6 +23,16 @@ check() {
 		echo "FAIL  $1"
 		failed=1
 	fi
+}
+# reach <description> <JavaScript expression>: press Tab until it is true, 25 times at most; the
+# control is then reached by the keyboard alone, not put in focus by the script.
+reach() {
+	i=0
+	while [ "$(agent-browser eval "Boolean($2)")" != true ] && [ "$i" -lt 25 ]; do
+		ab press Tab
+		i=$((i + 1))
+	done
+	check "$1" "$2"
 }
 focused='document.activeElement'
 call='document.querySelector("[aria-label=\"Current call\"]")'
@@ -66,6 +78,42 @@ keys Enter
 # The second row is the 35-minute-old call to 1002 (the first is the call this script just made).
 check "the row's Edit puts the number in the dialpad without dialing" \
 	"document.getElementById('number').value === '1002' && !$call"
+
+# The history's search, and the Contacts tab: list, favorites, a contact's actions, the editor and
+# the search, each reached with Tab and arrows from where the keyboard is.
+ab focus '.tab[aria-selected="true"]'
+keys ArrowRight # the row's Edit went to the dialpad: back to Calls
+reach "Tab reaches the history search" "$focused.getAttribute('aria-label') === 'Search calls'"
+ab keyboard type "1003"
+check "typing in it narrows the history" \
+	"[...document.querySelectorAll('.row')].length > 0 && [...document.querySelectorAll('.row')].every((r) => r.innerText.includes('1003') || r.innerText.includes('Bruno'))"
+ab focus '.tab[aria-selected="true"]'
+keys ArrowRight
+check "an arrow key moves to the Contacts tab" "document.querySelector('.tab[aria-selected=true]').innerText === 'Contacts'"
+reach "Tab reaches a contact's favorite mark" "($focused.getAttribute('aria-label') || '').startsWith('Favorite: ')"
+marked="document.querySelector('[aria-label=\"Favorite: Ana Lima\"]').getAttribute('aria-pressed')"
+was=$(agent-browser eval "$marked")
+keys Space
+ab wait 200
+check "Space marks or unmarks the favorite" "$marked !== '$was'"
+ab focus '[aria-label="Contact list"] .row'
+keys ArrowDown
+check "arrow keys move in the contact list" "$focused === document.querySelectorAll('[aria-label=\"Contact list\"] .row')[1]"
+keys Enter
+reach "Enter opens a contact and Tab reaches its Call" "$focused.innerText.trim().startsWith('Call')"
+reach "Tab reaches the contact search" "$focused.getAttribute('aria-label') === 'Search contacts'"
+ab keyboard type "bru"
+check "typing in it narrows the contacts" "document.querySelectorAll('[aria-label=\"Contact list\"] .row').length === 1"
+reach "Tab reaches Add" "$focused.innerText.trim() === 'Add'"
+keys Enter
+check "Add opens the editor with the focus in the name" \
+	"!!document.querySelector('form[aria-label=\"New contact\"]') && $focused.tagName === 'INPUT' && $focused.closest('label').innerText.includes('Name')"
+ab keyboard type "Dora Paz"
+keys Tab
+ab keyboard type "1005"
+keys Enter
+ab wait 300
+check "Enter saves the contact and leaves the editor" "!document.querySelector('form[aria-label=\"New contact\"]')"
 
 ab focus 'button[aria-haspopup="menu"]'
 keys Enter

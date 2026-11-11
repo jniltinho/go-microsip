@@ -10,6 +10,10 @@ import (
 	"github.com/ebitengine/purego"
 )
 
+// guardExpected: this platform's webview can be guarded, so a guard that is not in place is a
+// failure of the window, not a property of the platform.
+const guardExpected = true
+
 // guard is the navigation guard of the window's webview. There is one window, and a purego
 // callback cannot be freed, so this is process state.
 var guard struct {

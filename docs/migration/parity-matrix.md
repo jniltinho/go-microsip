@@ -88,11 +88,11 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 | A74 | create-native-rust-linux-release | config-storage | Migrations and failures preserve data | CFG-08 unavailable or future database | partial | `TestMigrationsAreIdempotentAndFutureSchemaIsRefusedUntouched`, `TestCorruptFileIsReportedAndPreserved`, `TestLockedDatabaseReportsBusyWithoutDataLoss`; what the window shows is M2 |
 | A75 | create-native-rust-linux-release | config-storage | Deliberate import and export | (requirement) | partial | `TestConfigImportPreviewsThenAppliesIntoSQLiteOnly`, `TestValidateAndExportUseTheEffectiveConfiguration` |
 | A76 | create-native-rust-linux-release | config-storage | Deliberate import and export | CFG-09 import without touching legacy data | partial | `TestImportPreviewIsValidatedSanitizedAndReadOnly`; `internal/core/rustimport` (the Rust profile is only read) |
-| A77 | create-native-rust-linux-release | contacts-history | Local contacts and favorites | (requirement) | partial | `TestContactsCRUDFavoritesAndLiteralSearch`; the Contacts screen is M2 |
+| A77 | create-native-rust-linux-release | contacts-history | Local contacts and favorites | (requirement) | partial | `TestContactsCRUDFavoritesAndLiteralSearch`, `TestPhoneContacts`; on the real window a contact is added by a person, listed, and named in an incoming call: `make go-window-call`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
 | A78 | create-native-rust-linux-release | contacts-history | Local contacts and favorites | CH-01 contact and favorite | partial | same as A77 |
 | A79 | create-native-rust-linux-release | contacts-history | Validated atomic CSV | (requirement) | partial | `TestCSVPreviewHandlesQuotesCRLFBOMDuplicatesAndIssues`, `TestCSVImportMergesByNameAndIsAtomic`, `TestCSVLimitsAndHeaderAreEnforced` |
 | A80 | create-native-rust-linux-release | contacts-history | Validated atomic CSV | CH-02 invalid and duplicate CSV | partial | same as A79 |
-| A81 | create-native-rust-linux-release | contacts-history | Coherent history | (requirement) | partial | `TestHistoryRoundTripDedupFiltersSearchAndRetention`, `TestKilledMidCallIsRecoveredOnceAsInterrupted`, `TestRunJournalsTheCallItPlaced`; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `app/run-call/*` |
+| A81 | create-native-rust-linux-release | contacts-history | Coherent history | (requirement) | partial | `TestHistoryRoundTripDedupFiltersSearchAndRetention`, `TestKilledMidCallIsRecoveredOnceAsInterrupted`, `TestRunJournalsTheCallItPlaced`, `TestPhoneRegistersJournalsAndCloses`; `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `app/run-call/*`; the Calls tab of the real window lists an answered outgoing, an answered incoming and a rejected call: `make go-window-call`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
 | A82 | create-native-rust-linux-release | contacts-history | Coherent history | CH-03 outcomes and recovery | partial | same as A81 |
 | A83 | create-native-rust-linux-release | contacts-history | Search and privacy | (requirement) | partial | `TestHistoryRoundTripDedupFiltersSearchAndRetention`, `TestContactsCRUDFavoritesAndLiteralSearch` |
 | A84 | create-native-rust-linux-release | contacts-history | Search and privacy | CH-04 search and retention | partial | same as A83 |
@@ -104,16 +104,16 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 | A90 | create-native-rust-linux-release | linux-integration | Local single instance | LIN-03 second instance |  |  |
 | A91 | create-native-rust-linux-release | linux-integration | Safe close and quit | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `engine/shutdown/*`; `make go-call` (interrupt: call ended, unregistered, status 130) |
 | A92 | create-native-rust-linux-release | linux-integration | Safe close and quit | LIN-04 exit during a call | partial | same as A91; the confirmation in the window is M2 |
-| A93 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | (requirement) |  |  |
-| A94 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | ND-01 comparable layout |  |  |
-| A95 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | ND-02 feature outside the release |  |  |
-| A96 | create-native-rust-linux-release | native-desktop | Persistent themes | (requirement) |  |  |
-| A97 | create-native-rust-linux-release | native-desktop | Persistent themes | ND-03 theme switching |  |  |
-| A98 | create-native-rust-linux-release | native-desktop | Persistent themes | ND-04 system theme |  |  |
-| A99 | create-native-rust-linux-release | native-desktop | Keyboard operation and scaling | (requirement) |  |  |
-| A100 | create-native-rust-linux-release | native-desktop | Keyboard operation and scaling | ND-05 keyboard and HiDPI |  |  |
-| A101 | create-native-rust-linux-release | native-desktop | Visible states and failures | (requirement) |  |  |
-| A102 | create-native-rust-linux-release | native-desktop | Visible states and failures | ND-06 registration failure |  |  |
+| A93 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | (requirement) | partial | The window on the engine: Dialpad, Calls and Contacts tabs, keypad, call controls, settings; a call placed, received, held, muted, transferred and ended from it: `make go-window-call`, `make go-appimage-call`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md). Comparison with MicroSIP is by layout description and screenshots only |
+| A94 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | ND-01 comparable layout | partial | same as A93 |
+| A95 | create-native-rust-linux-release | native-desktop | Native interface and reference layout | ND-02 feature outside the release | partial | The settings name what this build cannot do instead of offering it: `make go-window-call`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
+| A96 | create-native-rust-linux-release | native-desktop | Persistent themes | (requirement) | partial | Six skins and System; the skin changes during a lab call without touching it and is restored at the next start; `TestSkinsShareOneTokenContract`: [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
+| A97 | create-native-rust-linux-release | native-desktop | Persistent themes | ND-03 theme switching | partial | same as A96 |
+| A98 | create-native-rust-linux-release | native-desktop | Persistent themes | ND-04 system theme | partial | System follows the desktop to dark and back in under 400 ms on Ubuntu 26.04 and Debian 13 (GNOME): `make go-vm`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md). Not verified on KDE or Windows |
+| A99 | create-native-rust-linux-release | native-desktop | Keyboard operation and scaling | (requirement) | partial | Keyboard: 34 checks on the mock with `agent-browser` and a keyboard-only call on the real window. Scale: 100, 150 and 200 % in six skins on the mock, 100 and 200 % on the real window: [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
+| A100 | create-native-rust-linux-release | native-desktop | Keyboard operation and scaling | ND-05 keyboard and HiDPI | partial | same as A99; 150 % was not run on a real desktop |
+| A101 | create-native-rust-linux-release | native-desktop | Visible states and failures | (requirement) | partial | Every state on the page is compared with what the engine sent, in order, through a lab call: `make go-window-call`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
+| A102 | create-native-rust-linux-release | native-desktop | Visible states and failures | ND-06 registration failure | partial | A password the PBX refuses: the engine reports unauthorized and the window shows "Failed: wrong credentials": `make go-window-call`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
 | A103 | create-native-rust-linux-release | reproducible-distribution | Executable with embedded resources | (requirement) |  |  |
 | A104 | create-native-rust-linux-release | reproducible-distribution | Executable with embedded resources | DIST-01 clean machine |  |  |
 | A105 | create-native-rust-linux-release | reproducible-distribution | Additional AppImage does not hide dependencies | (requirement) |  |  |
@@ -142,16 +142,16 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 | A128 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | (requirement) | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `tls/*`, `secure/*`, `peer/sip-foreign-source-dropped`, `reregister/*` |
 | A129 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | SIP-09 invalid certificate | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `tls/unknown-ca-refused`, `tls/wrong-host-refused`, `engine/register/unknown-ca`; `TestBundleReplacesSystemRoots` |
 | A130 | create-native-rust-linux-release | sip-telephony | Signaling security and recovery | SIP-10 network and suspend | partial | `make go-lab`, [report](../receipts/go-m1/lab-report-engine.json): `reregister/*`; `TestRegistrationRecovers`; suspend and a network change during a call are not exercised |
-| A131 | refine-native-ui | native-ui-refinement | Square-cornered visual language | (requirement) |  |  |
-| A132 | refine-native-ui | native-ui-refinement | Square-cornered visual language | UIR-01 no rounded corners |  |  |
-| A133 | refine-native-ui | native-ui-refinement | Square-cornered visual language | UIR-02 token contrast |  |  |
+| A131 | refine-native-ui | native-ui-refinement | Square-cornered visual language | (requirement) | partial | The page's tests require `--radius` 0 in every skin (`make go-frontend-test`); a parallel task proposes a per-skin radius, not merged |
+| A132 | refine-native-ui | native-ui-refinement | Square-cornered visual language | UIR-01 no rounded corners | partial | same as A131 |
+| A133 | refine-native-ui | native-ui-refinement | Square-cornered visual language | UIR-02 token contrast | partial | Token and rendered contrast audits at 4.5:1 in six skins (`themes.test.ts`, `docs/prints/go/contrast.txt`); from the mock |
 | A134 | refine-native-ui | native-ui-refinement | Minimalist icons with labels | (requirement) |  |  |
-| A135 | refine-native-ui | native-ui-refinement | Minimalist icons with labels | UIR-03 icons present and accessible |  |  |
+| A135 | refine-native-ui | native-ui-refinement | Minimalist icons with labels | UIR-03 icons present and accessible | partial | Call states are an icon and a label in every screen (`CallPanel.vue`, `StatusBar.vue`); seen on the real window in `docs/prints/go/appimage/`. No accessibility-tree check: the page is not on the accessibility bus on the owner's desktop ([M2 receipt](../receipts/go-m2-window-2026-11-11.md)) |
 | A136 | refine-native-ui | native-ui-refinement | MicroSIP-compatible refined layout | (requirement) |  |  |
 | A137 | refine-native-ui | native-ui-refinement | MicroSIP-compatible refined layout | UIR-04 comparable to MicroSIP |  |  |
-| A138 | refine-native-ui | native-ui-refinement | MicroSIP-compatible refined layout | UIR-05 call security is always visible |  |  |
-| A139 | refine-native-ui | native-ui-refinement | Visual regression and scaling | (requirement) |  |  |
-| A140 | refine-native-ui | native-ui-refinement | Visual regression and scaling | UIR-06 snapshots and scale |  |  |
+| A138 | refine-native-ui | native-ui-refinement | MicroSIP-compatible refined layout | UIR-05 call security is always visible | partial | The call panel and the incoming-call dialog show "Encrypted (SRTP)" or "Unencrypted (RTP)" as the engine reports it, checked for a plain and a secure account: `make go-window-call`, [M2 receipt](../receipts/go-m2-window-2026-11-11.md) |
+| A139 | refine-native-ui | native-ui-refinement | Visual regression and scaling | (requirement) | partial | Screenshot matrix from the mock (`docs/prints/go/<skin>/`), of the real window (`docs/prints/go/appimage/`) and at scale (`docs/prints/go/scale/`); no automated image comparison |
+| A140 | refine-native-ui | native-ui-refinement | Visual regression and scaling | UIR-06 snapshots and scale | partial | same as A139 |
 
 ## Part B: code-surface inventory
 

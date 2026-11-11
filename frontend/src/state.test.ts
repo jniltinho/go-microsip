@@ -236,6 +236,18 @@ test("quitting during a call asks first and signals do not", async () => {
   expect(b.take()).toEqual(["shutdown()"]);
 });
 
+test("a refused shutdown can be tried again", async () => {
+  const [st, b] = fresh();
+  b.fail = "overloaded";
+  await run(st, ["quit"]);
+  expect(st.quitting, "the engine did not take the shutdown").toBe(false);
+  expect(st.notice(0)).toBe("Busy; the action was dropped, try again");
+  b.fail = null;
+  b.take();
+  await run(st, ["quit"]);
+  expect([st.quitting, b.take()]).toEqual([true, ["shutdown()"]]);
+});
+
 test("switching the skin during a call leaves the call alone", async () => {
   const [st, b] = fresh();
   call(st, snap(7, "outgoing", "established", 1));

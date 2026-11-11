@@ -1,4 +1,3 @@
-[agent-browser] launched browser
 PASS  Tab focuses a control and its focus ring is visible
 PASS  Ctrl+L focuses the number entry
 PASS  Enter dials: the call is ringing
@@ -11,6 +10,18 @@ PASS  an arrow key moves to the Calls tab
 PASS  arrow keys move in the history list
 PASS  Enter opens a row and Tab reaches its actions
 PASS  the row's Edit puts the number in the dialpad without dialing
+PASS  Tab reaches the history search
+PASS  typing in it narrows the history
+PASS  an arrow key moves to the Contacts tab
+PASS  Tab reaches a contact's favorite mark
+PASS  Space marks or unmarks the favorite
+PASS  arrow keys move in the contact list
+PASS  Enter opens a contact and Tab reaches its Call
+PASS  Tab reaches the contact search
+PASS  typing in it narrows the contacts
+PASS  Tab reaches Add
+PASS  Add opens the editor with the focus in the name
+PASS  Enter saves the contact and leaves the editor
 PASS  Enter opens the menu on its first item
 PASS  arrow keys move in the menu
 PASS  Escape closes the menu and returns the focus

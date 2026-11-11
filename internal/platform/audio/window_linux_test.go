@@ -555,20 +555,35 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	go func() {
 		time.Sleep(time.Duration(seconds) * time.Second / 4)
 		pids := webProcesses()
+		stopped := 0
 		for _, pid := range pids {
-			_ = syscall.Kill(pid, syscall.SIGSTOP)
+			if syscall.Kill(pid, syscall.SIGSTOP) != nil {
+				continue
+			}
+			// The kernel says the process is stopped ("T"), a moment after the signal.
+			for range 20 {
+				time.Sleep(10 * time.Millisecond)
+				stat, _ := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+				if i := strings.LastIndexByte(string(stat), ')'); i >= 0 && strings.HasPrefix(string(stat[i+1:]), " T") {
+					stopped++
+					break
+				}
+			}
 		}
 		time.Sleep(5 * time.Second)
 		for _, pid := range pids {
 			_ = syscall.Kill(pid, syscall.SIGCONT)
 		}
-		frozen <- len(pids)
+		if stopped != len(pids) {
+			stopped = 0 // a web process that kept running: the page was not frozen
+		}
+		frozen <- stopped
 	}()
 	silentSince := w.pageAt
 	m, _ := sound.listen(time.Duration(seconds) * time.Second)
 	summary, bad := m.speakerVerdict(time.Now())
 	if n := <-frozen; n == 0 {
-		t.Error("no web process was found to freeze: the freeze was not exercised")
+		t.Error("the page's processes were not all stopped for the five seconds: the freeze was not exercised")
 	}
 	t.Logf("%s, %d s through the window and the echo, the page frozen for 5 s of them: %s", user, seconds, summary)
 	for _, b := range bad {
@@ -715,7 +730,10 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		t.Error("the caller was not told that its call was refused")
 	}
 	w.click("Calls")
-	w.until(10*time.Second, "the three calls in the history", func() bool { return w.shows("Out", "In", "Answered", "Rejected", hostile) })
+	w.until(10*time.Second, "the three calls in the history", func() bool {
+		rows := func(what string) int { return strings.Count(w.page.Text, what) }
+		return rows("Out · Answered") == 1 && rows("In · Answered") == 1 && rows("In · Rejected") == 1 && w.shows(hostile)
+	})
 	w.shot(user + "-8-history")
 	if w.page.Images != 0 {
 		t.Errorf("the page holds %d images: the contact's name became markup", w.page.Images)

@@ -115,13 +115,9 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 		options.Input, options.Output = cfg.Config.Audio.InputDevice, cfg.Config.Audio.OutputDevice
 	}
 	p.engine = engine.Start(options)
-	if cfg != nil {
-		if cfg.Config.UI.DND {
-			p.engine.Send(domain.SetDND{On: true})
-		}
-		if cfg.PasswordSource != "" {
-			p.engine.Send(domain.Register{Settings: cfg.Config.Account, Password: cfg.Password})
-		}
+	draft, _, loaded, _ := config.Draft(p.context())
+	for _, c := range startup(draft, loaded, cfg) {
+		p.engine.Send(c)
 	}
 	// Every event is journaled before a reader sees it, and a reader that is behind keeps neither
 	// the engine nor the history waiting: the relay merges what a later event replaced and never
@@ -137,6 +133,21 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 		}
 	}()
 	return p, nil
+}
+
+// startup is what the engine is told when a phone opens. Do-not-disturb is a preference of its
+// own: it is applied whenever the settings could be read, whether or not an account is configured
+// yet, so a window that shows it on never lets a call ring. The account registers only from a
+// configuration that resolves and has a password.
+func startup(draft config.Stored, loaded bool, cfg *config.Effective) []domain.Command {
+	var commands []domain.Command
+	if loaded && draft.UI.DND {
+		commands = append(commands, domain.SetDND{On: true})
+	}
+	if cfg != nil && cfg.PasswordSource != "" {
+		commands = append(commands, domain.Register{Settings: cfg.Config.Account, Password: cfg.Password})
+	}
+	return commands
 }
 
 // context is the resolution context with the settings saved in this session's database.
@@ -226,12 +237,14 @@ func (p *Phone) SetDND(on bool) error {
 // Settings reads the saved configuration.
 func (p *Phone) Settings() Settings {
 	c := p.context()
-	draft, _, _ := config.Draft(c)
+	draft, _, _, draftErr := config.Draft(c)
 	s := Settings{
 		Theme: string(draft.UI.Theme), DND: draft.UI.DND,
 		AudioInput: draft.Audio.InputDevice, AudioOutput: draft.Audio.OutputDevice,
 	}
-	if draft.Account.Username != "" && draft.Account.Validate() == nil {
+	// An account is offered as configured only when the whole configuration resolves: a draft
+	// with an error holds defaults in place of what could not be read.
+	if draftErr == nil {
 		s.Account = &draft.Account
 	}
 	p.mu.Lock()
@@ -245,29 +258,44 @@ func (p *Phone) Settings() Settings {
 }
 
 // SaveSettings stores an edit in the database. A field that the configuration file, the
-// environment or a flag holds cannot be changed here: the error names it. The audio devices and the
+// environment or a flag holds cannot be changed here: the error names it. While a configuration
+// source cannot be read at all, nothing is saved. The audio devices and the
 // CA bundle of a running engine are those it started with; a change applies at the next start.
 func (p *Phone) SaveSettings(patch SettingsPatch) error {
 	s, err := p.storage()
 	if err != nil {
 		return err
 	}
-	before, sources, draftErr := config.Draft(p.context())
+	before, sources, loaded, draftErr := config.Draft(p.context())
+	if !loaded {
+		// A source could not be read: what it holds is unknown, so nothing is saved over it. The
+		// error names the file; the window shows it.
+		return draftErr
+	}
 	edits := map[string]*string{}
 	if patch.Account != nil {
 		after := before
 		after.Account = *patch.Account
-		start := &before
-		if draftErr != nil {
-			start = nil // nothing valid to compare with: every field of the account is an edit
-		}
-		if edits, err = config.SQLiteEdits(sources, start, after); err != nil {
+		// A field that a file, the environment or a flag holds is refused when the edit changes
+		// it, whether or not the rest of the configuration is complete yet.
+		if edits, err = config.SQLiteEdits(sources, &before, after); err != nil {
 			return err
+		}
+		if draftErr != nil {
+			// Nothing valid is stored yet: every field of the account is written, so a stored
+			// value that could not be read is replaced too. Fields a higher source holds are
+			// skipped; the check above has just shown that the edit agrees with them.
+			if edits, err = config.SQLiteEdits(sources, nil, after); err != nil {
+				return err
+			}
 		}
 	}
 	set := func(f config.Field, value *string, old string) error {
 		if value == nil || *value == old {
 			return nil
+		}
+		if (f == config.InputDevice || f == config.OutputDevice) && !config.ValidDevice(*value) {
+			return &config.Error{Kind: config.Invalid, Field: f, Origin: config.SQLite}
 		}
 		if source, held := sources[f]; held && source != config.SQLite && source != config.Default {
 			return &config.Error{Kind: config.Overridden, Field: f, Origin: source}
@@ -286,6 +314,27 @@ func (p *Phone) SaveSettings(patch SettingsPatch) error {
 	)
 	if err != nil || len(edits) == 0 {
 		return err
+	}
+	if patch.Account != nil {
+		// An account is saved only if the configuration resolves with it. Otherwise a value a
+		// file or the environment holds and that cannot be read would stay in the way: the edit
+		// would look saved, register from a default, and fail at the next start.
+		c := p.context()
+		if c.SQLite == nil {
+			c.SQLite = map[config.Field]string{}
+		}
+		for key, value := range edits {
+			if f, ok := config.FieldFromKey(key); !ok {
+				continue
+			} else if value == nil {
+				delete(c.SQLite, f)
+			} else {
+				c.SQLite[f] = *value
+			}
+		}
+		if _, _, _, err := config.Draft(c); err != nil {
+			return err
+		}
 	}
 	return s.SaveConfig(edits)
 }

@@ -239,6 +239,12 @@ func device(s string) (string, bool) {
 	return s, len(s) <= 256 && strings.IndexFunc(s, unicode.IsControl) < 0
 }
 
+// ValidDevice reports whether id can be stored as a sound device: empty is the system default.
+func ValidDevice(id string) bool {
+	_, ok := optional(device)(id)
+	return ok
+}
+
 func absPath(s string) (string, bool) { return s, filepath.IsAbs(s) }
 
 func envVarName(s string) (string, bool) { return s, len(s) <= 128 && identifier(s) }
@@ -343,12 +349,17 @@ func Resolve(c Context) (*Effective, error) {
 // and valid, defaults for the others, the source that holds each, and the error Resolve would give
 // (nil when the configuration is complete). Never register an account with a Draft that has an
 // error.
-func Draft(c Context) (Stored, map[Field]Source, error) {
+//
+// loaded is false when a source could not be read at all (a file with a syntax error, one that
+// cannot be opened): the draft is then empty, nobody knows which source holds what, and nothing may
+// be saved over it.
+func Draft(c Context) (draft Stored, sources map[Field]Source, loaded bool, err error) {
 	in, err := load(c)
 	if err != nil {
-		return Stored{UI: UI{Theme: ThemeDark}}, map[Field]Source{}, err
+		return Stored{UI: UI{Theme: ThemeDark}}, map[Field]Source{}, false, err
 	}
-	return build(in.layers)
+	draft, sources, err = build(in.layers)
+	return draft, sources, true, err
 }
 
 // SQLiteEdits returns the database writes for a settings edit, keyed as the store expects; a nil
@@ -364,6 +375,15 @@ func Draft(c Context) (Stored, map[Field]Source, error) {
 func SQLiteEdits(sources map[Field]Source, before *Stored, after Stored) (map[string]*string, error) {
 	if err := after.Account.Validate(); err != nil {
 		return nil, &Error{Kind: Validation, Err: err}
+	}
+	// What is stored must be what Resolve accepts, or the next start fails on it.
+	if _, ok := number(1, 86_400)(strconv.FormatUint(uint64(after.Account.Expires), 10)); !ok {
+		return nil, &Error{Kind: Invalid, Field: Expires, Origin: SQLite}
+	}
+	for f, id := range map[Field]string{InputDevice: after.Audio.InputDevice, OutputDevice: after.Audio.OutputDevice} {
+		if !ValidDevice(id) {
+			return nil, &Error{Kind: Invalid, Field: f, Origin: SQLite}
+		}
 	}
 	edits := map[string]*string{}
 	for _, f := range Fields() {
