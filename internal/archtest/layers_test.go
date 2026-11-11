@@ -32,8 +32,8 @@ func TestLayers(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(p, ".go") {
-			return nil
+		if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+			return nil // tests may use anything
 		}
 		f, err := parser.ParseFile(token.NewFileSet(), p, nil, parser.ImportsOnly|parser.ParseComments)
 		if err != nil {
