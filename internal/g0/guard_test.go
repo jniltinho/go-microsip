@@ -99,27 +99,27 @@ func packet(seq uint16) *rtp.Packet {
 	}
 }
 
-// next returns the sequence number of the next packet the session delivers; packets the guard
-// dropped come back empty and are skipped, as RTPSession.ReadRTP does.
-func next(t *testing.T, s *media.MediaSession) uint16 {
+// receiver is the receive path the engine uses: the RTP session and the packet reader that hands
+// payloads to the decoder. Nothing the guard drops may come out of it.
+func receiver(s *media.MediaSession) *media.RTPPacketReader {
+	return media.NewRTPPacketReaderSession(media.NewRTPSession(s))
+}
+
+// next returns the sequence number of the next payload the receive path delivers to the decoder.
+// Each test payload is its sequence number repeated, so an altered payload is detected.
+func next(t *testing.T, r *media.RTPPacketReader) uint16 {
 	t.Helper()
 	got := make(chan uint16, 1)
 	go func() {
 		buf := make([]byte, media.RTPBufSize)
-		for {
-			var p rtp.Packet
-			n, err := s.ReadRTP(buf, &p)
-			if err != nil {
-				return
-			}
-			if n > 0 && p.Version == 2 {
-				if !bytes.Equal(p.Payload, bytes.Repeat([]byte{byte(p.SequenceNumber)}, 160)) {
-					t.Errorf("packet %d was delivered with an altered payload", p.SequenceNumber)
-				}
-				got <- p.SequenceNumber
-				return
-			}
+		n, err := r.Read(buf)
+		if err != nil {
+			return
 		}
+		if n != 160 || !bytes.Equal(buf[:n], bytes.Repeat(buf[:1], 160)) {
+			t.Errorf("a payload of %d bytes was delivered altered", n)
+		}
+		got <- uint16(buf[0])
 	}()
 	select {
 	case seq := <-got:
@@ -147,6 +147,7 @@ func bRTCP(b *media.MediaSession) net.UDPAddr {
 func TestSRTPReplayAndTamperAreDropped(t *testing.T) {
 	guard(t, true, 64)
 	a, b, r := pair(t, 1)
+	rd := receiver(b)
 	dropped := media.DroppedUnauthenticated.Load()
 
 	if err := a.WriteRTP(packet(1)); err != nil {
@@ -157,7 +158,7 @@ func TestSRTPReplayAndTamperAreDropped(t *testing.T) {
 		t.Fatal("the payload crossed the wire in clear")
 	}
 	send(t, r.rtp, first, bRTP(b))
-	if seq := next(t, b); seq != 1 {
+	if seq := next(t, rd); seq != 1 {
 		t.Fatalf("delivered packet %d, want 1", seq)
 	}
 
@@ -166,7 +167,7 @@ func TestSRTPReplayAndTamperAreDropped(t *testing.T) {
 		t.Fatal(err)
 	}
 	send(t, r.rtp, take(t, r.rtp), bRTP(b))
-	if seq := next(t, b); seq != 2 {
+	if seq := next(t, rd); seq != 2 {
 		t.Fatalf("after a replay, delivered packet %d, want 2", seq)
 	}
 	if got := media.DroppedUnauthenticated.Load() - dropped; got != 1 {
@@ -181,7 +182,7 @@ func TestSRTPReplayAndTamperAreDropped(t *testing.T) {
 	altered[20] ^= 0x01 // one bit of the encrypted payload
 	send(t, r.rtp, altered, bRTP(b))
 	send(t, r.rtp, third, bRTP(b))
-	if seq := next(t, b); seq != 3 {
+	if seq := next(t, rd); seq != 3 {
 		t.Fatalf("after a tampered copy, delivered packet %d, want 3", seq)
 	}
 	if got := media.DroppedUnauthenticated.Load() - dropped; got != 2 {
@@ -240,6 +241,14 @@ func TestSRTCPReplayAndTamperAreDropped(t *testing.T) {
 	if got := media.DroppedUnauthenticated.Load() - dropped; got != 2 {
 		t.Fatalf("%d SRTCP packets counted as dropped, want 2", got)
 	}
+	// The stream survives: the next genuine report is still accepted.
+	if err := a.WriteRTCP(&rtcp.SenderReport{SSRC: 0x600d, PacketCount: 3}); err != nil {
+		t.Fatal(err)
+	}
+	send(t, r.rtc, take(t, r.rtc), bRTCP(b))
+	if n := read(); n != 1 {
+		t.Fatalf("genuine SRTCP after the attack delivered %d packets, want 1", n)
+	}
 }
 
 // RTP and RTCP from an address other than the negotiated one are dropped and counted, with plain
@@ -249,6 +258,7 @@ func TestForeignSourceIsDropped(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			guard(t, true, 64)
 			a, b, r := pair(t, secure)
+			rd := receiver(b)
 			foreign := media.DroppedForeignSource.Load()
 			intruder, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
 			if err != nil {
@@ -264,7 +274,7 @@ func TestForeignSourceIsDropped(t *testing.T) {
 			forged, _ := packet(9).Marshal()
 			send(t, intruder, forged, bRTP(b))
 			send(t, r.rtp, genuine, bRTP(b))
-			if seq := next(t, b); seq != 7 {
+			if seq := next(t, rd); seq != 7 {
 				t.Fatalf("delivered packet %d, want 7", seq)
 			}
 			if got := media.DroppedForeignSource.Load() - foreign; got != 2 {
@@ -289,13 +299,14 @@ func TestForeignSourceIsDropped(t *testing.T) {
 func TestWithoutGuardReplayIsAccepted(t *testing.T) {
 	guard(t, false, 0)
 	a, b, r := pair(t, 1)
+	rd := receiver(b)
 	if err := a.WriteRTP(packet(1)); err != nil {
 		t.Fatal(err)
 	}
 	first := take(t, r.rtp)
 	send(t, r.rtp, first, bRTP(b))
 	send(t, r.rtp, first, bRTP(b))
-	if next(t, b) != 1 || next(t, b) != 1 {
+	if next(t, rd) != 1 || next(t, rd) != 1 {
 		t.Fatal("the unguarded session did not deliver the replayed packet")
 	}
 }

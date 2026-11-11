@@ -312,6 +312,9 @@ func plainOfferRefused(ctx context.Context, l *Lab) (map[string]any, error) {
 		return nil, errors.New("the call was answered; a plain offer to a secure account must be refused")
 	}
 	data := map[string]any{"refused_offers": b.RefusedPlainOffers.Load(), "caller_saw": firstLine(err.Error())}
+	if !strings.Contains(err.Error(), " 488 ") {
+		return data, fmt.Errorf("the caller saw %q, want a 488", firstLine(err.Error()))
+	}
 	if b.RefusedPlainOffers.Load() != 1 {
 		return data, fmt.Errorf("the secure account refused %d offers, want 1 (caller: %v)", b.RefusedPlainOffers.Load(), err)
 	}

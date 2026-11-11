@@ -44,45 +44,51 @@ if [ "$audio" -ne 0 ]; then
 fi
 echo "vm-check: audio adapter OK on the distribution's audio service"
 
-# 3. The window on the distribution's own compositor: GNOME Shell, Wayland, headless.
-log=$work/shell.log
-gnome-shell --headless --wayland --wayland-display g0-wayland --virtual-monitor 1280x800 >"$log" 2>&1 &
-shell=$!
-trap 'kill $shell 2>/dev/null || :' EXIT
+# 3. The window in the distribution's own desktop session (GDM logs the user in automatically; the
+# provisioner set that up). The session's display variables are taken from the session itself.
 i=0
-until [ -S "$XDG_RUNTIME_DIR/g0-wayland" ]; do
+until session=$(pgrep -u "$(id -u)" -f gnome-session-binary | head -n 1) && [ -n "$session" ]; do
 	i=$((i + 1))
-	if [ "$i" -gt 100 ]; then
-		echo "vm-check: FAIL GNOME Shell did not start" >&2
-		tail -n 20 "$log" >&2
+	if [ "$i" -gt 60 ]; then
+		echo "vm-check: FAIL no desktop session" >&2
 		exit 1
 	fi
-	sleep 0.3
+	sleep 2
 done
-gnome-shell --version | sed 's/^/vm-check: /'
-# The default first; then the GPU-less start, which a VM without 3D may need; then the cgo window
-# backend, to tell a backend problem from a system one. Every result is printed.
+sleep 10 # the shell finishes starting
+eval "$(tr '\0' '\n' <"/proc/$session/environ" | grep -E '^(DISPLAY|XAUTHORITY|WAYLAND_DISPLAY|XDG_SESSION_TYPE|XDG_CURRENT_DESKTOP)=' | sed "s/^/export /")"
+echo "vm-check: desktop session: $XDG_CURRENT_DESKTOP on $XDG_SESSION_TYPE, $(gnome-shell --version)"
+
+# The shipped AppImage must open its window: as it starts by default, or with --safe-gpu, which a VM
+# without 3D acceleration may need. The cgo window backend is tried only to tell a backend problem
+# from a system one; it never makes the check pass.
 passed=
 try() {
 	label=$1
 	shift
-	if WAYLAND_DISPLAY=g0-wayland XDG_SESSION_TYPE=wayland timeout 60 "$@" --self-test >"$work/app.log" 2>&1; then
+	if timeout -k 5 60 "$@" --self-test >"$work/app.log" 2>&1; then
 		echo "vm-check: window: $label: opened and the page called the backend"
-		[ -n "$passed" ] || passed=$label
-	else
-		echo "vm-check: window: $label: FAILED (exit $?)"
-		tail -n 8 "$work/app.log" | sed 's/^/vm-check:   /'
+		return 0
 	fi
+	echo "vm-check: window: $label: FAILED (exit $?)"
+	tail -n 8 "$work/app.log" | sed 's/^/vm-check:   /'
+	return 1
 }
-try "AppImage" "$work/app.AppImage"
-try "AppImage --safe-gpu" "$work/app.AppImage" --safe-gpu
+if try "AppImage" "$work/app.AppImage"; then
+	passed="the default start"
+elif try "AppImage --safe-gpu" "$work/app.AppImage" --safe-gpu; then
+	passed="--safe-gpu only"
+fi
 if [ -x /dist/go-microsip-cgo ]; then
-	try "cgo backend" /dist/go-microsip-cgo
-	try "cgo backend --safe-gpu" /dist/go-microsip-cgo --safe-gpu
+	try "diagnostic: cgo backend" /dist/go-microsip-cgo || :
+	try "diagnostic: cgo backend --safe-gpu" /dist/go-microsip-cgo --safe-gpu || :
 fi
 if [ -z "$passed" ]; then
-	echo "vm-check: FAIL the window did not open in any configuration" >&2
+	echo "vm-check: FAIL the AppImage did not open its window" >&2
 	exit 1
 fi
-echo "vm-check: window passed first with: $passed"
+echo "vm-check: the AppImage window passed with $passed"
+# Leave the application open for the screenshot the host takes of the VM's screen.
+(setsid "$work/app.AppImage" >/dev/null 2>&1 &)
+sleep 6
 echo "vm-check: PASS $PRETTY_NAME"

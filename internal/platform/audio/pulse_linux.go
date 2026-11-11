@@ -122,6 +122,9 @@ func (s *Stream) CaptureLost() bool {
 	return s.rec.Closed() || s.stale()
 }
 
+// PlaybackLost reports that the speaker stream ended: the device or the service is gone.
+func (s *Stream) PlaybackLost() bool { return s.play.Closed() }
+
 // Close stops both streams.
 func (s *Stream) Close() {
 	s.rec.Close()

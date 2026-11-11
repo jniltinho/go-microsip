@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -139,8 +140,11 @@ func (e *Endpoint) Serve(ctx context.Context) error {
 	handler := func(d *diago.DialogServerSession) {
 		if e.Account.SecureMedia && !offersSRTP(d.InviteRequest.Body()) {
 			// Never fall back to plain audio on an account that requires secure media.
-			e.RefusedPlainOffers.Add(1)
-			_ = d.Respond(sip.StatusNotAcceptableHere, "Not Acceptable Here", nil)
+			if err := d.Respond(sip.StatusNotAcceptableHere, "Not Acceptable Here", nil); err != nil {
+				e.log.Warn("refusing a plaintext offer failed", "error", err)
+				return
+			}
+			e.RefusedPlainOffers.Add(1) // counted only once the 488 is out
 			return
 		}
 		select {
@@ -194,12 +198,25 @@ func (e *Endpoint) Dial(ctx context.Context, ext string) (*diago.DialogClientSes
 	uri := sip.Uri{User: ext, Host: e.Account.Server, Port: e.Account.Port}
 	uri.UriParams = sip.NewParams()
 	uri.UriParams.Add("transport", e.Account.Transport)
-	return e.dg.Invite(ctx, uri, diago.InviteOptions{
+	d, med, err := e.dg.Invite(ctx, uri, diago.InviteOptions{
 		Transport: e.Account.Transport,
 		Username:  e.Account.User, Password: e.Account.Password,
 		Headers: []sip.Header{},
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+	// The library accepts a plain answer to a secure offer; a secure-media account does not.
+	if e.Account.SecureMedia && (d.InviteResponse == nil || !offersSRTP(d.InviteResponse.Body())) {
+		hangup(d, med)
+		return nil, nil, ErrInsecureAnswer
+	}
+	return d, med, nil
 }
+
+// ErrInsecureAnswer means the peer answered a secure-media offer without SRTP; the call was ended
+// before any audio was exchanged.
+var ErrInsecureAnswer = errors.New("the peer answered without SRTP; the call was ended")
 
 // Close unregisters and releases the sockets.
 func (e *Endpoint) Close() {
@@ -228,8 +245,10 @@ func (e *Endpoint) registrarOnly(next sipgo.RequestHandler) sipgo.RequestHandler
 }
 
 func (e *Endpoint) fromRegistrar(source string) bool {
-	host, _, err := net.SplitHostPort(source)
-	if err != nil {
+	host, port, err := net.SplitHostPort(source)
+	// The registrar sends from the port the account talks to: its listening port over UDP, the
+	// far end of the account's own connection over TCP and TLS.
+	if err != nil || port != strconv.Itoa(e.Account.Port) {
 		return false
 	}
 	ip := net.ParseIP(host)
@@ -241,11 +260,27 @@ func (e *Endpoint) fromRegistrar(source string) bool {
 	return false
 }
 
-// offersSRTP reports whether a session description offers SDES-SRTP audio: the secure profile and
-// at least one crypto attribute.
+// offersSRTP reports whether a session description's audio stream is SDES-SRTP: its own media
+// line uses the secure profile and its own section carries a usable key for the one suite this
+// softphone supports. Attributes of other sections and session-level text do not count.
 func offersSRTP(sdp []byte) bool {
-	text := string(sdp)
-	return strings.Contains(text, " RTP/SAVP ") && strings.Contains(text, "a=crypto:")
+	inAudio, secure, keyed := false, false, false
+	for _, line := range strings.Split(string(sdp), "\n") {
+		line = strings.TrimRight(line, "\r")
+		switch {
+		case strings.HasPrefix(line, "m="):
+			if inAudio {
+				return secure && keyed // only the first audio stream is used
+			}
+			f := strings.Fields(line)
+			inAudio = len(f) >= 4 && f[0] == "m=audio"
+			secure = inAudio && f[2] == "RTP/SAVP"
+		case inAudio && strings.HasPrefix(line, "a=crypto:"):
+			f := strings.Fields(line)
+			keyed = keyed || (len(f) >= 3 && f[1] == "AES_CM_128_HMAC_SHA1_80" && len(f[2]) > len("inline:") && strings.HasPrefix(f[2], "inline:"))
+		}
+	}
+	return inAudio && secure && keyed
 }
 
 // DropTransport closes every connection of the account's transport, as a network loss would.

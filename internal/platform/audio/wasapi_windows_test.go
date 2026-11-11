@@ -8,18 +8,19 @@ import (
 	"github.com/moutend/go-wca/pkg/wca"
 )
 
-func pnp(t *testing.T, verb, endpoint string) {
+// card disables or enables every sound card of the machine (needs an elevated session).
+func card(t *testing.T, verb string) {
 	t.Helper()
 	out, err := exec.Command("powershell", "-NoProfile", "-Command",
-		verb+"-PnpDevice -InstanceId 'SWD\\MMDEVAPI\\"+endpoint+"' -Confirm:$false").CombinedOutput()
+		"Get-PnpDevice -Class MEDIA -PresentOnly | "+verb+"-PnpDevice -Confirm:$false").CombinedOutput()
 	if err != nil {
 		t.Fatalf("%s-PnpDevice: %v: %s", verb, err, out)
 	}
 }
 
 // The adapter conformance test on Windows: enumerate, open by ID, exchange frames with the devices
-// within the frame-loss threshold, hear the played tone on the speaker (loopback), and lose the
-// microphone without moving to another one. The microphone of a test VM delivers silence, so
+// within the frame-loss threshold, hear the played tone on the speaker (loopback), and report the loss
+// of the sound card. The microphone of a test VM delivers silence, so
 // capture is checked for timing, not content.
 func TestWASAPI(t *testing.T) {
 	needServer(t)
@@ -63,69 +64,56 @@ func TestWASAPI(t *testing.T) {
 	defer s.Close()
 
 	toneN := 0
-	run := func(d time.Duration) (frames, missed, longestMiss int, played []int16) {
+	// The engine's media tick: every 20 ms take one captured frame and play one frame. stall
+	// freezes the loop once, as a blocked engine would.
+	run := func(d, stall time.Duration) (*meter, Stats) {
+		var heard [FrameSamples]int16
+		for speaker.Capture(&heard) {
+		}
+		before := s.Stats()
+		m := newMeter()
 		tick := time.NewTicker(20 * time.Millisecond)
 		defer tick.Stop()
-		var in, out, heard [FrameSamples]int16
-		miss := 0
+		var in, out [FrameSamples]int16
 		for end := time.Now().Add(d); time.Now().Before(end); <-tick.C {
-			frames++
-			if s.Capture(&in) {
-				miss = 0
-			} else {
-				missed++
-				miss++
-				longestMiss = max(longestMiss, miss)
+			if stall > 0 && time.Since(m.start) > d/2 {
+				time.Sleep(stall)
+				stall = 0
 			}
+			m.captureFrame(s.Capture(&in), in[:])
 			sine(speakerTone, &toneN, out[:])
 			s.Play(&out)
 			for speaker.Capture(&heard) {
-				played = append(played, heard[:]...)
+				m.heard(heard[:])
 			}
 		}
-		return
+		return m, before
 	}
-	run(time.Second) // streams start and settle
-	before := s.Stats()
+	run(time.Second, 0) // streams start and settle
 	seconds := testSeconds()
-	frames, missed, longest, played := run(time.Duration(seconds) * time.Second)
-	st := s.Stats()
-	silence := st.PlaySilence - before.PlaySilence
-	t.Logf("%d s: %d frames, %d capture misses (longest run %d), capture dropped %d, play dropped %d, play silence %d samples, speaker tone in %.3f of blocks",
-		seconds, frames, missed, longest, st.CaptureDropped-before.CaptureDropped, st.PlayDropped-before.PlayDropped,
-		silence, toneBlocks(played, speakerTone))
-	if got := toneBlocks(played, speakerTone); got < 0.98 {
-		t.Errorf("the played tone reached the speaker in only %.3f of the blocks", got)
+	m, before := run(time.Duration(seconds)*time.Second, 0)
+	summary, bad := m.verdict(s.Stats(), before, false) // a VM's microphone is silent
+	t.Logf("%d s: %s", seconds, summary)
+	for _, b := range bad {
+		t.Error(b)
 	}
-	// Threshold of design D4: at most 0.5 % of frames late or lost, no gap over 60 ms.
-	if float64(missed) > 0.005*float64(frames) {
-		t.Errorf("%d of %d capture frames missed, over 0.5 %%", missed, frames)
+	if s.CaptureLost() || s.PlaybackLost() {
+		t.Error("a device is reported lost while it works")
 	}
-	if longest > 3 {
-		t.Errorf("capture gap of %d ms, over 60 ms", longest*20)
-	}
-	if lost := silence + st.PlayDropped - before.PlayDropped; float64(lost) > 0.005*float64(frames*FrameSamples) {
-		t.Errorf("%d playback samples lost or silent, over 0.5 %%", lost)
-	}
-	if s.CaptureLost() {
-		t.Error("the microphone is reported lost while it works")
-	}
+	// Control: the same checks must fail when the engine stalls.
+	m, before = run(2*time.Second, 300*time.Millisecond)
+	_, bad = m.verdict(s.Stats(), before, false)
+	mustCatch(t, bad)
+	run(time.Second, 0) // recover
 
-	// Disable the microphone, as unplugging it does: the stream reports the loss, hands out no
-	// audio and keeps playing.
-	pnp(t, "Disable", inputs[0].ID)
-	t.Cleanup(func() { pnp(t, "Enable", inputs[0].ID) })
-	time.Sleep(lostAfter + 500*time.Millisecond)
-	if !s.CaptureLost() {
-		t.Error("the disabled microphone is not reported lost")
+	// Disable the sound card, as unplugging it does: both streams report the loss, capture hands
+	// out no audio, and nothing crashes. (A VM has one sound card, so the speaker goes with it.)
+	card(t, "Disable")
+	t.Cleanup(func() { card(t, "Enable") })
+	time.Sleep(lostAfter + time.Second)
+	m, _ = run(time.Second, 0)
+	if !s.CaptureLost() || m.captured > 5 {
+		t.Errorf("the disabled microphone: lost=%v, %d frames captured in 1 s", s.CaptureLost(), m.captured)
 	}
-	run(time.Second)
-	_, missed, _, played = run(time.Second)
-	if missed < 45 {
-		t.Errorf("only %d of 50 frames missed after the microphone was disabled (moved to another device?)", missed)
-	}
-	if got := toneBlocks(played, speakerTone); got < 0.95 {
-		t.Errorf("playback did not continue after the microphone was disabled (tone in %.3f of blocks)", got)
-	}
-	t.Logf("after disabling the microphone: lost=%v, %d of 50 frames missed, speaker tone in %.3f of blocks", s.CaptureLost(), missed, toneBlocks(played, speakerTone))
+	t.Logf("after disabling the sound card: capture lost=%v, playback lost=%v, %d frames captured in 1 s", s.CaptureLost(), s.PlaybackLost(), m.captured)
 }

@@ -187,8 +187,8 @@ func openClient(flow uint32, id string, flags uint32) (*wca.IAudioClient, error)
 // to its endpoints: Windows never moves it to another device.
 type Stream struct {
 	*buffers
-	closed, lost atomic.Bool
-	wg           sync.WaitGroup
+	closed, lost, playLost atomic.Bool
+	wg                     sync.WaitGroup
 }
 
 // Open starts capture on the input and playback on the output, by device ID; an empty ID is the
@@ -321,8 +321,13 @@ func (s *Stream) render(id string, ready chan<- error) {
 	})
 	if !started {
 		ready <- err
+	} else if err != nil {
+		s.playLost.Store(true) // the device was unplugged or the service stopped
 	}
 }
+
+// PlaybackLost reports that the speaker stream ended: the device or the service is gone.
+func (s *Stream) PlaybackLost() bool { return s.playLost.Load() }
 
 // CaptureLost reports that the microphone stopped delivering: it was unplugged or disabled, or the
 // audio service is gone. The call goes on without it; choosing another microphone is the user's

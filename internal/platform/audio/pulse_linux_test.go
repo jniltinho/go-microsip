@@ -126,62 +126,46 @@ func TestPulseLoopback(t *testing.T) {
 
 	seconds := testSeconds()
 	toneN := 0
-	// The engine's media tick: every 20 ms take one captured frame and play one frame.
-	run := func(d time.Duration) (frames, missed, longestMiss int, captured []int16) {
+	// The engine's media tick: every 20 ms take one captured frame and play one frame. stall
+	// freezes the loop once, as a blocked engine would.
+	run := func(d, stall time.Duration) (*meter, Stats) {
+		for len(heard) > 0 {
+			<-heard
+		}
+		before := s.Stats()
+		m := newMeter()
 		tick := time.NewTicker(20 * time.Millisecond)
 		defer tick.Stop()
 		var in, out [FrameSamples]int16
-		run := 0
 		for end := time.Now().Add(d); time.Now().Before(end); <-tick.C {
-			frames++
-			if s.Capture(&in) {
-				run = 0
-				captured = append(captured, in[:]...)
-			} else {
-				missed++
-				run++
-				longestMiss = max(longestMiss, run)
+			if stall > 0 && time.Since(m.start) > d/2 {
+				time.Sleep(stall)
+				stall = 0
 			}
+			m.captureFrame(s.Capture(&in), in[:])
 			sine(speakerTone, &toneN, out[:])
 			s.Play(&out)
+			for len(heard) > 0 {
+				m.heard(<-heard)
+			}
 		}
-		return
+		return m, before
 	}
-	run(time.Second) // streams start and settle
-	before := s.Stats()
-	for len(heard) > 0 {
-		<-heard
+	run(time.Second, 0) // streams start and settle
+	m, before := run(time.Duration(seconds)*time.Second, 0)
+	summary, bad := m.verdict(s.Stats(), before, true)
+	t.Logf("%d s: %s", seconds, summary)
+	for _, b := range bad {
+		t.Error(b)
 	}
-	frames, missed, longest, captured := run(time.Duration(seconds) * time.Second)
-	st := s.Stats()
-	var played []int16
-	for len(heard) > 0 {
-		played = append(played, <-heard...)
+	if s.CaptureLost() || s.PlaybackLost() {
+		t.Error("a device is reported lost while it works")
 	}
-	silence := st.PlaySilence - before.PlaySilence
-	t.Logf("%d s: %d frames, %d capture misses (longest run %d), capture dropped %d, play dropped %d, play silence %d samples, mic tone in %.3f of blocks, speaker tone in %.3f of blocks",
-		seconds, frames, missed, longest, st.CaptureDropped-before.CaptureDropped, st.PlayDropped-before.PlayDropped,
-		silence, toneBlocks(captured, micTone), toneBlocks(played, speakerTone))
-
-	if got := toneBlocks(captured, micTone); got < 0.98 {
-		t.Errorf("the microphone tone was captured in only %.3f of the blocks", got)
-	}
-	if got := toneBlocks(played, speakerTone); got < 0.98 {
-		t.Errorf("the played tone reached the speaker in only %.3f of the blocks", got)
-	}
-	// Threshold of design D4: at most 0.5 % of frames late or lost, no gap over 60 ms.
-	if float64(missed) > 0.005*float64(frames) {
-		t.Errorf("%d of %d capture frames missed, over 0.5 %%", missed, frames)
-	}
-	if longest > 3 {
-		t.Errorf("capture gap of %d ms, over 60 ms", longest*20)
-	}
-	if lost := silence + st.PlayDropped - before.PlayDropped; float64(lost) > 0.005*float64(frames*FrameSamples) {
-		t.Errorf("%d playback samples lost or silent, over 0.5 %%", lost)
-	}
-	if s.CaptureLost() {
-		t.Error("the microphone is reported lost while it works")
-	}
+	// Control: the same checks must fail when the engine stalls.
+	m, before = run(2*time.Second, 300*time.Millisecond)
+	_, bad = m.verdict(s.Stats(), before, true)
+	mustCatch(t, bad)
+	run(time.Second, 0) // recover
 
 	// Unplug the microphone: the stream reports the loss, hands out no audio, keeps playing, and is
 	// not moved to the other microphone.
@@ -194,22 +178,15 @@ func TestPulseLoopback(t *testing.T) {
 		t.Error("the unplugged microphone is not reported lost")
 	}
 	// The audio graph may reconfigure when a device goes: give playback a second, then measure it.
-	_, missed, _, captured = run(time.Second)
+	m, _ = run(time.Second, 0)
 	// What was already queued may still come out; a stream moved to another device would bring a
-	// full second (8000 samples).
-	if len(captured) > SampleRate/10 {
-		t.Errorf("%d samples captured after the microphone was unplugged (moved to another device?)", len(captured))
+	// full second (50 frames).
+	if m.captured > 5 {
+		t.Errorf("%d frames captured after the microphone was unplugged (moved to another device?)", m.captured)
 	}
-	for len(heard) > 0 {
-		<-heard
+	m, _ = run(time.Second, 0)
+	if m.toneBlocks < 45 || m.playGap > maxGap || s.PlaybackLost() {
+		t.Errorf("playback did not continue after the microphone was unplugged: %d of 50 frames, gap %d ms", m.toneBlocks, m.playGap.Milliseconds())
 	}
-	run(time.Second)
-	played = played[:0]
-	for len(heard) > 0 {
-		played = append(played, <-heard...)
-	}
-	if got := toneBlocks(played, speakerTone); got < 0.95 {
-		t.Errorf("playback did not continue after the microphone was unplugged (tone in %.3f of blocks)", got)
-	}
-	t.Logf("after unplug: lost=%v, %d misses in 1 s, %d samples captured, speaker tone in %.3f of blocks", s.CaptureLost(), missed, len(captured), toneBlocks(played, speakerTone))
+	t.Logf("after unplug: lost=%v, %d frames captured in 1 s, speaker %d of 50 frames, gap %d ms", s.CaptureLost(), m.captured, m.toneBlocks, m.playGap.Milliseconds())
 }

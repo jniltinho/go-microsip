@@ -14,7 +14,9 @@ Vagrant.configure("2") do |config|
 
   # The distribution's default desktop, as its installer would put it. apt runs with the
   # distribution's own recommends, so the result is what a user has before installing anything.
-  { "ubuntu2604" => ["bento/ubuntu-26.04", "ubuntu-desktop-minimal"],
+  # Ubuntu's firefox package is a stub that installs a snap and fails when the snap store cannot be
+  # reached; the check does not need a browser, so it is left out ("firefox-").
+  { "ubuntu2604" => ["bento/ubuntu-26.04", "ubuntu-desktop-minimal firefox-"],
     "debian13" => ["bento/debian-13", "task-gnome-desktop"] }.each do |name, (box, desktop)|
     config.vm.define name do |vm|
       vm.vm.box = box
@@ -26,6 +28,10 @@ Vagrant.configure("2") do |config|
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -q
         apt-get install -y -q #{desktop}
+        # Log the test user in to the desktop, as a single-user installation does.
+        conf=/etc/gdm3/daemon.conf; [ -d /etc/gdm3 ] || conf=/etc/gdm3/custom.conf
+        printf '[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=vagrant\n' > "$conf"
+        systemctl restart gdm3 || systemctl start gdm3
       SH
     end
   end

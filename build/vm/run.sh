@@ -23,6 +23,9 @@ for vm in "$@"; do
 		echo "vm-check: FAIL $vm (see $log)"
 		tail -n 12 "$log" 2>/dev/null || tail -n 12 "$out/vm-$vm-provision.log"
 	fi
+	# What the VM's screen shows at the end, for the receipt.
+	id=$(cat ".vagrant/machines/$vm/virtualbox/id" 2>/dev/null) &&
+		VBoxManage controlvm "$id" screenshotpng "$out/vm-$vm-screen.png" 2>/dev/null || :
 	# KEEP=1 leaves the VM up for a closer look; destroy it with `vagrant destroy -f`.
 	[ -n "${KEEP:-}" ] || vagrant destroy -f "$vm" >/dev/null 2>&1 || :
 done

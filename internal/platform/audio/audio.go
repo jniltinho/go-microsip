@@ -29,6 +29,9 @@ const (
 	// playBacklog is the most the engine may be ahead of the device; beyond it new audio is dropped
 	// so delay cannot build up.
 	playBacklog = 4 * FrameSamples
+	// captureBacklog is the most captured audio kept waiting for the engine; beyond it the oldest is
+	// dropped, so a stalled engine does not turn into permanent microphone delay.
+	captureBacklog = 6 * FrameSamples
 	// lostAfter is how long capture may deliver nothing before the microphone counts as lost.
 	lostAfter = 300 * time.Millisecond
 )
@@ -126,6 +129,13 @@ func (b *buffers) stale() bool {
 // engine calls it once per media tick; on false it sends silence or nothing.
 func (b *buffers) Capture(frame *[FrameSamples]int16) bool {
 	have := b.in.len()
+	if have > captureBacklog {
+		// The engine fell behind (it is this ring's only reader, so it may skip).
+		skip := have - primeSamples
+		b.in.tail.Add(uint64(skip))
+		b.captureDropped.Add(uint64(skip))
+		have = primeSamples
+	}
 	if !b.primed {
 		if have < primeSamples {
 			return false
