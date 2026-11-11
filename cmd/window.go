@@ -13,7 +13,7 @@ import (
 func init() {
 	runWindow = func(_ *cobra.Command, s *session) error {
 		return gui.Run(gui.Options{
-			SafeGPU: safeGPU, SelfTest: selfTest,
+			SafeGPU: safeGPU, SelfTest: selfTest, Trace: uiTrace,
 			Core: s.options(), Audio: s.platform.Audio, UserAgent: "go-microsip/" + s.version,
 		})
 	}

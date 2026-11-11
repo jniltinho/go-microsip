@@ -27,7 +27,7 @@ GO_GUI     := GO_DOCKER_FLAGS="--init --security-opt seccomp=unconfined --securi
               --security-opt systempaths=unconfined -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
-	go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-vm go-shell
+	go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-vm go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
 	docker build -t $(GO_IMAGE) -f build/linux.Dockerfile build
@@ -67,6 +67,9 @@ go-audio: ## Go: the audio adapter against PipeWire with virtual sound cards (SE
 
 go-call: ## Go: a lab call through the binary with PipeWire's virtual sound cards (SECONDS=300 for the threshold run)
 	sh docker/asterisk/go-call.sh $(SECONDS)
+
+go-window-call: go-frontend ## Go: a lab call placed from the window with the keyboard and the mouse, the page frozen for 5 s of it
+	sh docker/asterisk/go-call.sh $(or $(SECONDS),10) window
 
 go-lab: ## Go: the SIP/SRTP probes and the engine scenarios against the disposable Asterisk lab (SCENARIO=prefix)
 	sh docker/asterisk/go-g0.sh $(SCENARIO)

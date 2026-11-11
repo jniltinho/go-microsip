@@ -67,6 +67,7 @@ changes `go.mod`. Design and tasks are in `openspec/changes/migrate-to-go-wails/
 | `make go-audio` | Audio adapter against PipeWire with virtual sound cards (`SECONDS=300` for the threshold run). |
 | `make go-lab` | The SIP/SRTP probes, the engine scenarios and the softphone without a window against the disposable Asterisk lab (`SCENARIO=engine/` runs one group). |
 | `make go-call` | A call placed by the built binary with real sound: PipeWire's virtual sound cards inside the lab network, plain and secure, with a microphone unplugged (`SECONDS=300` for the threshold run). |
+| `make go-window-call` | A call placed from the window in the lab: the built window registers, a person's keys dial the echo (`xdotool`), and what the page shows is compared with what the engine sent at every step; the sound is measured with the page frozen for 5 s; mute, hold, the end and the history come from the window; a termination signal unregisters. Plain and secure. |
 | `make go-dist` | Linux binary, AppImage, Windows `.exe` and `.zip`, notices, `SHA256SUMS`, manifest. |
 
 `go-lab` and `go-call` need the lab image once (`sh docker/asterisk/lab.sh build`) and cannot run

@@ -6,12 +6,13 @@ FROM debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b2
 ENV DEBIAN_FRONTEND=noninteractive
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries
 # The Wails window: GTK 4 and WebKitGTK 6.0 headers (cgo). Checks: Xvfb and a session bus for the
-# window, a window manager and ImageMagick for screenshots, PipeWire with its PulseAudio server for
-# the audio adapter tests. Packaging: zip, desktop-file-utils and appimagetool.
+# window, a window manager and ImageMagick for screenshots, xdotool for the keys of a call placed
+# from the window, PipeWire with its PulseAudio server for the audio adapter tests. Packaging: zip,
+# desktop-file-utils and appimagetool.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git zip unzip xz-utils file build-essential pkg-config \
       libgtk-4-dev libwebkitgtk-6.0-dev libx11-dev \
-      xvfb dbus dbus-x11 openbox imagemagick desktop-file-utils \
+      xvfb dbus dbus-x11 openbox imagemagick xdotool desktop-file-utils \
       pipewire pipewire-pulse wireplumber pulseaudio-utils \
     && rm -rf /var/lib/apt/lists/*
 ARG APPIMAGETOOL_VERSION=1.9.1

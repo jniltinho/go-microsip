@@ -54,6 +54,9 @@ type Options struct {
 	// confined, and exits 0. It starts no phone: nothing of the user's is read, written or
 	// registered.
 	SelfTest bool
+	// Trace is a file that receives every event sent to the page and what the page shows
+	// (--ui-trace, for tests of the built window); empty writes none.
+	Trace string
 	// Core are the core's options: where the configuration and the database are.
 	Core app.Options
 	// Audio opens the sound devices; nil when this build has no sound service.
@@ -125,11 +128,32 @@ func Run(o Options) error {
 			svc.unavailable = err.Error() // the window says so
 		} else {
 			svc.phone = phone
-			defer phone.Close()
-			go svc.forward()
+			forwarded := make(chan struct{})
+			go func() { defer close(forwarded); svc.forward() }()
+			// Leaving: the calls end and the account unregisters, and the last events are through.
+			defer func() { phone.Close(); <-forwarded }()
 		}
 	}
 	main = ui.Window.NewWithOptions(win)
+	pageGone := func(UIEvent) {} // where events go once the window has closed
+	if o.Trace != "" && !o.SelfTest {
+		record, err := openTrace(o.Trace)
+		if err != nil {
+			return err
+		}
+		svc.mu.Lock()
+		emit := svc.emit
+		svc.emit = func(ev UIEvent) { record.sent(ev); emit(ev) }
+		svc.probed = record.page
+		svc.mu.Unlock()
+		pageGone = record.sent
+		go func() {
+			for range time.Tick(snapshotEvery) {
+				main.ExecJS(snapshotScript)
+				ui.Event.Emit(probeEvent)
+			}
+		}()
+	}
 
 	// Once the page is loaded the webview is told to stay on it.
 	var guarding sync.Once
@@ -186,7 +210,11 @@ func Run(o Options) error {
 		})
 		defer timer.Stop()
 	}
-	if err := ui.Run(); err != nil {
+	err = ui.Run()
+	svc.mu.Lock()
+	svc.emit = pageGone
+	svc.mu.Unlock()
+	if err != nil {
 		return err
 	}
 	if o.SelfTest {

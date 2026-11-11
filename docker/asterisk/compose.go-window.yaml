@@ -1,0 +1,15 @@
+# The lab call placed from the window (openspec/changes/migrate-to-go-wails, task 4.4), on top of
+# compose.go-call.yaml: the runner also gets a display, and WebKit's own sandbox needs what the
+# window checks of `make go-self-test` need (user namespaces and an unmasked /proc).
+services:
+  test-runner:
+    entrypoint: ["/spike/window-call.sh", "/spike/audiocall.test"]
+    security_opt: !override
+      - no-new-privileges:true
+      - seccomp=unconfined
+      - apparmor=unconfined
+      - systempaths=unconfined
+    pids_limit: 1024
+    mem_limit: 2g
+    tmpfs: !override
+      - /tmp:rw,nosuid,nodev,mode=1777,size=512m

@@ -1,0 +1,8 @@
+window_linux_test.go:329: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 22 ms)
+window_linux_test.go:386: 1001: 297 ms: sent registration registered; 865 ms: sent call dialing ; 867 ms: sent call established ; 1003 ms: shown established; 13061 ms: sent call established ; 13252 ms: shown established; 16286 ms: sent call established ; 16505 ms: shown established; 19525 ms: sent call held ; 19754 ms: shown held; 19765 ms: sent call established ; 20006 ms: shown established; 20051 ms: sent call terminating ; 20053 ms: sent call ended normal; 20522 ms: sent registration disabled; 20522 ms: sent stopped
+window_linux_test.go:329: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 21 ms)
+window_linux_test.go:386: 1201: 261 ms: sent registration registered; 848 ms: sent call dialing ; 852 ms: sent call established ; 1003 ms: shown established; 13055 ms: sent call established ; 13253 ms: shown established; 16277 ms: sent call established ; 16505 ms: shown established; 19513 ms: sent call held ; 19753 ms: shown held; 19802 ms: sent call established ; 20003 ms: shown established; 20085 ms: sent call terminating ; 20088 ms: sent call ended normal; 20554 ms: sent registration disabled; 20554 ms: sent stopped
+--- PASS: TestCallThroughTheWindow (41.43s)
+--- PASS: TestCallThroughTheWindow/1001 (20.70s)
+--- PASS: TestCallThroughTheWindow/1201 (20.73s)
+PASS

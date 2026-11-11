@@ -30,6 +30,7 @@ type Platform struct {
 var (
 	safeGPU  bool
 	selfTest bool
+	uiTrace  string
 )
 
 // runWindow opens the desktop window. It is replaced by the build that links the GUI; a build
@@ -102,6 +103,8 @@ account.password_env, a private account.password_file, or the prompt of the wind
 	root.PersistentFlags().StringVar(&s.envFile, "env-file", "", "load settings from this .env `file` (never discovered implicitly)")
 	root.Flags().BoolVar(&safeGPU, "safe-gpu", false, "start the window without GPU acceleration")
 	root.Flags().BoolVar(&selfTest, "self-test", false, "open the window, wait for the page to load and exit 0")
+	root.Flags().StringVar(&uiTrace, "ui-trace", "", "write what is sent to the page and what it shows to this `file` (for tests)")
+	_ = root.Flags().MarkHidden("ui-trace")
 	root.Version = s.version
 	root.SetVersionTemplate("go-microsip {{.Version}} (" + s.commit + ")\n")
 	root.AddCommand(&cobra.Command{
