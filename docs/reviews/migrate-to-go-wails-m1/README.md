@@ -10,6 +10,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | 4 | `8483f9f` | UNSOUND: everything earlier resolved or accepted; 1 new major | [codex-round4.md](codex-round4.md) |
 | 5 | `cf8e470` | UNSOUND: everything earlier resolved; 1 new major, 1 minor | [codex-round5.md](codex-round5.md) |
 | 6 | `c2fe87a` | UNSOUND: everything earlier resolved; 1 new major | [codex-round6.md](codex-round6.md) |
+| 7 | `1d2ff41` | UNSOUND: round 6's fix partial (a hold or mute between two sender ticks); nothing else | [codex-round7.md](codex-round7.md) |
 
 ## What was done about round 1
 
@@ -81,3 +82,10 @@ Of the fourteen findings of round 1, after both rounds: thirteen are fixed in co
 | --- | --- | --- |
 | 1 | Microphone audio recorded during a hold can be sent after the resume | Fixed, for a mute too, which had the same gap in small. The sound port has a new call, `Discard`, that drops everything the microphone recorded and did not hand out; the engine calls it when a hold or a mute ends, after reading and dropping one frame per tick meanwhile. The decision is one small type (`microphone` in `call.go`) that the test drives with a microphone that records on its own, whether it is read or not: `TestNothingRecordedOnHoldIsEverSent` (hold and mute), and `TestDiscardDropsEverythingCaptured` for the real adapter's ring. A first attempt that drained by reading until nothing came was caught by the lab: a microphone that always has a frame never ran dry and the call stayed silent after the resume. |
 | - | Receipt | It now says that the lab's hold and mute scenarios use a microphone that produces audio only when asked, so they cannot see this; the unit tests above are what covers it. |
+
+## What was done about round 7
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | A hold or a mute entirely between two sender ticks is forgotten | Fixed. The actor counts every change of hold and mute, before and after it sets the flag; the send goroutine drops what the microphone holds whenever the count is one it has not acted on, whether or not it ever saw the flag set. `TestPrivacyBetweenTwoTicksIsNotMissed` mutes, records and unmutes (and the same with a hold) without a tick in between. The helper and the adapter's ring are tested each on its own; the two goroutines together are not driven by a test. |
+| - | Found by the lab while this was verified | The fix of round 1's finding 4 ended a call as failed when its audio stopped a moment before the dialog reported the other side's hang-up (one lab run in about ten). A dialog now has half a second to turn out ended before stopped audio counts as a failure; the shutdown scenarios then passed 6 runs of 3 and the pair scenarios 3 runs of 2. |

@@ -55,8 +55,8 @@
       "ok": true,
       "data": {
         "codec": "pcma",
-        "frames": 130,
-        "heard": 0.9998282223432319,
+        "frames": 131,
+        "heard": 0.9998282223432315,
         "proto": "RTP/AVP"
       }
     },
@@ -65,8 +65,8 @@
       "ok": true,
       "data": {
         "codec": "pcmu",
-        "frames": 131,
-        "heard": 0.9997953978185227,
+        "frames": 130,
+        "heard": 0.9997953978185251,
         "proto": "RTP/AVP"
       }
     },
@@ -137,8 +137,8 @@
         "callee_frames": 130,
         "callee_heard": 0.9998282223432319,
         "callee_proto": "RTP/AVP",
-        "caller_frames": 130,
-        "caller_heard": 0.999828222343211,
+        "caller_frames": 131,
+        "caller_heard": 0.9998282223432108,
         "caller_proto": "RTP/AVP",
         "codec": "pcma"
       }
@@ -150,8 +150,8 @@
         "callee_frames": 130,
         "callee_heard": 0.9997953978185251,
         "callee_proto": "RTP/AVP",
-        "caller_frames": 130,
-        "caller_heard": 0.9997953978185184,
+        "caller_frames": 131,
+        "caller_heard": 0.9997953978185162,
         "caller_proto": "RTP/AVP",
         "codec": "pcmu"
       }
@@ -163,8 +163,8 @@
         "callee_frames": 130,
         "callee_heard": 0.9998282223432319,
         "callee_proto": "RTP/AVP",
-        "caller_frames": 130,
-        "caller_heard": 0.999828222343211,
+        "caller_frames": 131,
+        "caller_heard": 0.9998282223432108,
         "caller_proto": "RTP/AVP",
         "codec": "pcma"
       }
@@ -272,7 +272,7 @@
       "ok": true,
       "data": {
         "held_heard": [
-          0.9998282223432108,
+          0.9998282223432094,
           0,
           0.9998282223432094
         ],
@@ -377,7 +377,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -407,7 +407,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 101,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -446,7 +446,7 @@
       "name": "engine/pair/1001-1002",
       "ok": true,
       "data": {
-        "answered_ms": 2405,
+        "answered_ms": 2402,
         "callee_heard": 1,
         "callee_secure": false,
         "caller_heard": 1,
@@ -472,7 +472,7 @@
           1,
           1
         ],
-        "other_side_frames": 76,
+        "other_side_frames": 75,
         "other_side_heard": [
           0,
           1
@@ -585,7 +585,7 @@
       "name": "engine/microphone-lost",
       "ok": true,
       "data": {
-        "frames_after": 75,
+        "frames_after": 76,
         "heard_after": 0,
         "heard_before": 1,
         "streams": 1
@@ -616,7 +616,7 @@
       "ok": true,
       "data": {
         "events": 3,
-        "took_ms": 1
+        "took_ms": 0
       }
     },
     {
@@ -647,7 +647,7 @@
         "events": 8,
         "frames": 149,
         "heard": 1,
-        "took_ms": 3026
+        "took_ms": 3025
       }
     },
     {
@@ -656,9 +656,9 @@
       "data": {
         "duration_ms": 3001,
         "events": 8,
-        "frames": 148,
+        "frames": 149,
         "heard": 1,
-        "took_ms": 3028
+        "took_ms": 3031
       }
     }
   ],

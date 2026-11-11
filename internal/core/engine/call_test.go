@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -211,8 +212,13 @@ func TestNothingRecordedOnHoldIsEverSent(t *testing.T) {
 	q := &queuedMicrophone{Stream: &memory.Stream{}}
 	mic := microphone{audio: q}
 	var sent []int16
+	changes := uint64(0) // moved by the actor at every change of hold or mute
+	was := [2]bool{}
 	tick := func(held, muted bool) {
-		if out, _ := mic.next(held, muted); out != nil {
+		if now := [2]bool{held, muted}; now != was {
+			was, changes = now, changes+2
+		}
+		if out, _ := mic.next(held, muted, changes); out != nil {
 			sent = append(sent, out[:]...)
 		}
 	}
@@ -264,5 +270,38 @@ func TestNothingRecordedOnHoldIsEverSent(t *testing.T) {
 	got := sent[before:]
 	if len(got) != 20*media.FrameSamples || slices.Contains(got, private) || got[len(got)-1] != talk || slices.Contains(got[:10*media.FrameSamples], talk) {
 		t.Errorf("mute and unmute: %d samples, private sent %v, last %d", len(got), slices.Contains(got, private), got[len(got)-1])
+	}
+}
+
+// A mute or a hold that begins and ends between two ticks of the sender is never seen as a flag:
+// the count of changes still makes the sender drop what was recorded meanwhile.
+func TestPrivacyBetweenTwoTicksIsNotMissed(t *testing.T) {
+	const talk, private = 1, 7
+	q := &queuedMicrophone{Stream: &memory.Stream{}}
+	mic := microphone{audio: q}
+	c := &call{}
+	var sent []int16
+	tick := func() {
+		if out, _ := mic.next(c.held.Load(), c.muted.Load(), c.privacy.Load()); out != nil {
+			sent = append(sent, out[:]...)
+		}
+	}
+	q.record(talk, media.FrameSamples)
+	tick()
+	for _, flag := range []*atomic.Bool{&c.muted, &c.held} {
+		// The sender is busy elsewhere (a DTMF key, say) while the user mutes, speaks and unmutes.
+		c.private(flag, true)
+		q.record(private, 3*media.FrameSamples+40)
+		c.private(flag, false)
+		for range 6 {
+			q.record(talk, media.FrameSamples)
+			tick()
+		}
+	}
+	if slices.Contains(sent, private) {
+		t.Fatal("audio recorded during a mute or a hold the sender never saw was sent")
+	}
+	if n := len(sent) / media.FrameSamples; n != 13 || sent[len(sent)-1] != talk {
+		t.Errorf("%d frames sent, the last one %d", n, sent[len(sent)-1])
 	}
 }

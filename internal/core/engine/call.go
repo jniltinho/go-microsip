@@ -51,7 +51,10 @@ type call struct {
 	stop        context.CancelFunc
 	pumps       sync.WaitGroup
 	held, muted atomic.Bool
-	keys        chan domain.DTMFKey
+	// privacy counts the changes of held and muted. The send goroutine reads the flags only once
+	// per tick; the count tells it that a hold or a mute began and ended in between.
+	privacy atomic.Uint64
+	keys    chan domain.DTMFKey
 	// released is closed once the audio is stopped and the sound devices are closed; nil until the
 	// call's audio was told to stop.
 	released chan struct{}
@@ -113,7 +116,7 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 				continue
 			default:
 			}
-			out, fed := mic.next(c.held.Load(), c.muted.Load())
+			out, fed := mic.next(c.held.Load(), c.muted.Load(), c.privacy.Load())
 			if out == nil {
 				// On hold nothing is sent: the library would keep the stream going.
 				time.Sleep(20 * time.Millisecond)
@@ -185,11 +188,14 @@ type microphone struct {
 	frame, silence [media.FrameSamples]int16
 	// private: the call was held or muted at the previous tick.
 	private bool
+	// changes is the count of hold and mute changes this microphone has acted on.
+	changes uint64
 }
 
 // next returns the frame to send, or nil when nothing is sent this tick. fed is false when the
-// frame is silence because the microphone had nothing.
-func (m *microphone) next(held, muted bool) (out *[media.FrameSamples]int16, fed bool) {
+// frame is silence because the microphone had nothing. changes is the call's count of hold and
+// mute changes, read after the two flags.
+func (m *microphone) next(held, muted bool, changes uint64) (out *[media.FrameSamples]int16, fed bool) {
 	if held || muted {
 		m.audio.Capture(&m.frame) // read and dropped, so the device's queue does not fill up
 		m.private = true
@@ -198,10 +204,12 @@ func (m *microphone) next(held, muted bool) (out *[media.FrameSamples]int16, fed
 		}
 		return &m.silence, true // muted: silence keeps the stream alive
 	}
-	if m.private {
-		// Resumed or unmuted. Whatever the device still holds was recorded before: it is dropped
-		// at the source, so the frames from here on are made only of what is recorded from now.
-		m.private = false
+	if m.private || changes != m.changes {
+		// Resumed or unmuted, seen at a tick or not: a hold or a mute that began and ended between
+		// two ticks shows only in the count. Whatever the device still holds may have been
+		// recorded then: it is dropped at the source, so the frames from here on are made only of
+		// what is recorded from now.
+		m.private, m.changes = false, changes
 		m.audio.Discard()
 		return &m.silence, true
 	}
@@ -209,6 +217,14 @@ func (m *microphone) next(held, muted bool) (out *[media.FrameSamples]int16, fed
 		return &m.silence, false // no frame yet: silence keeps the stream alive
 	}
 	return &m.frame, true
+}
+
+// private sets held or muted, for the actor. The count moves before and after the flag, so the
+// send goroutine, whenever it looks, sees the flag set or a count it has not acted on.
+func (c *call) private(flag *atomic.Bool, on bool) {
+	c.privacy.Add(1)
+	flag.Store(on)
+	c.privacy.Add(1)
 }
 
 // stopAudio stops the call's audio and closes the sound devices, beside the caller. It is safe to

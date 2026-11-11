@@ -566,14 +566,32 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 	}()
 }
 
+// mediaGrace is how long a dialog has to turn out ended after its audio stopped: when the other
+// side hangs up, the audio may end a moment before the dialog says so.
+const mediaGrace = 500 * time.Millisecond
+
 // mediaFailed ends a call whose audio stopped on its own in one direction: a call that looks
-// established and carries nothing is worse than one that ends.
+// established and carries nothing is worse than one that ends. Audio that stops because the other
+// side hung up is not a failure: the dialog ends within a moment and the call ends as it should.
 func (a *actor) mediaFailed(c *call, direction string, cause error) {
 	if k := c.snap.Phase.Kind; k != domain.Established && k != domain.Held {
 		return
 	}
-	a.e.opts.Log.Warn("the call's audio failed", "direction", direction, "error", cause)
-	a.terminate(c, domain.EndFailed)
+	gone := c.dialog.Context().Done()
+	go func() {
+		select {
+		case <-gone:
+			return // the dialog ended: whoever watches it ends the call
+		case <-time.After(mediaGrace):
+		}
+		a.e.post(func() {
+			if k := c.snap.Phase.Kind; k != domain.Established && k != domain.Held {
+				return
+			}
+			a.e.opts.Log.Warn("the call's audio failed", "direction", direction, "error", cause)
+			a.terminate(c, domain.EndFailed)
+		})
+	}()
 }
 
 // terminate hangs an answered call up and ends it for this reason, also when the other side never
@@ -669,7 +687,7 @@ func (a *actor) hold(id domain.CallID, hold bool) {
 	}
 	c.busy = true
 	if hold {
-		c.held.Store(true) // the microphone stops before the other side is told
+		c.private(&c.held, true) // the microphone stops before the other side is told
 	}
 	d := c.dialog
 	go func() {
@@ -688,11 +706,11 @@ func (a *actor) hold(id domain.CallID, hold bool) {
 			}
 			if err != nil {
 				a.e.opts.Log.Warn("hold or resume failed", "error", err)
-				c.held.Store(!hold)
+				c.private(&c.held, !hold)
 				a.notice(domain.NoticeInvalidState)
 				return
 			}
-			c.held.Store(hold)
+			c.private(&c.held, hold)
 			if hold {
 				a.move(c, domain.CallPhase{Kind: domain.Held})
 			} else {
@@ -713,7 +731,7 @@ func (a *actor) mute(id domain.CallID, muted bool) {
 	}
 	if c.snap.Muted != muted {
 		c.snap.Muted = muted
-		c.muted.Store(muted)
+		c.private(&c.muted, muted)
 		a.publish(c)
 	}
 }
