@@ -257,17 +257,26 @@ func (p *Phone) SaveSettings(patch SettingsPatch) error {
 	if patch.Account != nil {
 		after := before
 		after.Account = *patch.Account
-		start := &before
-		if draftErr != nil {
-			start = nil // nothing valid to compare with: every field of the account is an edit
-		}
-		if edits, err = config.SQLiteEdits(sources, start, after); err != nil {
+		// A field that a file, the environment or a flag holds is refused when the edit changes
+		// it, whether or not the rest of the configuration is complete yet.
+		if edits, err = config.SQLiteEdits(sources, &before, after); err != nil {
 			return err
+		}
+		if draftErr != nil {
+			// Nothing valid is stored yet: every field of the account is written, so a stored
+			// value that could not be read is replaced too. Fields a higher source holds are
+			// skipped; the check above has just shown that the edit agrees with them.
+			if edits, err = config.SQLiteEdits(sources, nil, after); err != nil {
+				return err
+			}
 		}
 	}
 	set := func(f config.Field, value *string, old string) error {
 		if value == nil || *value == old {
 			return nil
+		}
+		if (f == config.InputDevice || f == config.OutputDevice) && !config.ValidDevice(*value) {
+			return &config.Error{Kind: config.Invalid, Field: f, Origin: config.SQLite}
 		}
 		if source, held := sources[f]; held && source != config.SQLite && source != config.Default {
 			return &config.Error{Kind: config.Overridden, Field: f, Origin: source}

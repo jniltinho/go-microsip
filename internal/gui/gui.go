@@ -166,7 +166,11 @@ func Run(o Options) error {
 		guarding.Do(func() {
 			go func() {
 				ok := application.InvokeSyncWithResult(func() bool { return guardNavigation(main.NativeWindow()) })
-				if !ok {
+				switch {
+				case ok:
+				case guardExpected:
+					slog.Error("the navigation guard could not be installed: the content security policy alone confines the page")
+				default:
 					slog.Warn("no navigation guard on this platform: the content security policy alone confines the page")
 				}
 				guarded <- ok
@@ -203,7 +207,7 @@ func Run(o Options) error {
 		}
 		svc.probed = func(report string) {
 			listening, err := listeningSockets()
-			summary, err := probeVerdict(report, isGuarded, navigationsBlocked(), listening, err)
+			summary, err := probeVerdict(report, guardExpected, isGuarded, navigationsBlocked(), listening, err)
 			if err == nil {
 				fmt.Println("self-test:", summary)
 			}

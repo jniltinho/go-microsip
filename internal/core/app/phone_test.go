@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -214,5 +215,55 @@ func TestPhoneContacts(t *testing.T) {
 	}
 	if left, _ := p.Contacts(""); len(left) != 1 {
 		t.Errorf("after the delete: %+v", left)
+	}
+}
+
+// A configuration that is not complete yet still protects what a file or the environment holds:
+// the window cannot register one account and leave another one configured.
+func TestPhoneKeepsOverridesOfAnIncompleteConfiguration(t *testing.T) {
+	port := registrar(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(file, []byte("schema = 1\n[account]\nusername = \"1001\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o := Options{ConfigPath: file, Files: own{}, Env: map[string]string{
+		"XDG_DATA_HOME": filepath.Join(dir, "data"), "GO_MICROSIP_ACCOUNT_TRANSPORT": "tcp",
+	}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if s := p.Settings(); s.Account != nil {
+		t.Fatalf("an account without a domain is offered as configured: %+v", s.Account)
+	}
+	account := domain.AccountSettings{Username: "1002", Domain: "127.0.0.1", Server: "127.0.0.1", Port: uint16(port), Transport: domain.TCP, Expires: 60}
+	var held *config.Error
+	if err := p.SaveSettings(SettingsPatch{Account: &account}); !errors.As(err, &held) || held.Kind != config.Overridden || held.Field != config.Username {
+		t.Errorf("another username than the file's: %v, want the override refused", err)
+	}
+	account.Username, account.Transport = "1001", domain.UDP
+	if err := p.SaveSettings(SettingsPatch{Account: &account}); !errors.As(err, &held) || held.Kind != config.Overridden || held.Field != config.Transport {
+		t.Errorf("another transport than the environment's: %v, want the override refused", err)
+	}
+	if values, _ := p.journal.store.LoadConfig(); len(values) != 0 {
+		t.Errorf("a refused edit stored %v", values)
+	}
+	account.Transport = domain.TCP
+	if err := p.SaveSettings(SettingsPatch{Account: &account}); err != nil {
+		t.Fatalf("the account that agrees with the file and the environment: %v", err)
+	}
+	if s := p.Settings(); s.Account == nil || s.Account.Username != "1001" || s.Account.Domain != "127.0.0.1" || s.Account.Transport != domain.TCP {
+		t.Errorf("settings after the save: %+v", s.Account)
+	}
+	// Values the reader refuses are not stored either.
+	never := account
+	never.Expires = 0
+	if err := p.SaveSettings(SettingsPatch{Account: &never}); err == nil {
+		t.Error("a registration that never expires was saved")
+	}
+	if s := p.Settings(); s.Account == nil || s.Account.Expires != 60 {
+		t.Errorf("after the refused edit: %+v", s.Account)
 	}
 }

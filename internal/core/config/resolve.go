@@ -239,6 +239,12 @@ func device(s string) (string, bool) {
 	return s, len(s) <= 256 && strings.IndexFunc(s, unicode.IsControl) < 0
 }
 
+// ValidDevice reports whether id can be stored as a sound device: empty is the system default.
+func ValidDevice(id string) bool {
+	_, ok := optional(device)(id)
+	return ok
+}
+
 func absPath(s string) (string, bool) { return s, filepath.IsAbs(s) }
 
 func envVarName(s string) (string, bool) { return s, len(s) <= 128 && identifier(s) }
@@ -364,6 +370,15 @@ func Draft(c Context) (Stored, map[Field]Source, error) {
 func SQLiteEdits(sources map[Field]Source, before *Stored, after Stored) (map[string]*string, error) {
 	if err := after.Account.Validate(); err != nil {
 		return nil, &Error{Kind: Validation, Err: err}
+	}
+	// What is stored must be what Resolve accepts, or the next start fails on it.
+	if _, ok := number(1, 86_400)(strconv.FormatUint(uint64(after.Account.Expires), 10)); !ok {
+		return nil, &Error{Kind: Invalid, Field: Expires, Origin: SQLite}
+	}
+	for f, id := range map[Field]string{InputDevice: after.Audio.InputDevice, OutputDevice: after.Audio.OutputDevice} {
+		if !ValidDevice(id) {
+			return nil, &Error{Kind: Invalid, Field: f, Origin: SQLite}
+		}
 	}
 	edits := map[string]*string{}
 	for _, f := range Fields() {

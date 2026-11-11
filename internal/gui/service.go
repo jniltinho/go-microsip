@@ -232,9 +232,26 @@ func (a *App) SetDnd(on bool) error {
 // Shutdown ends the calls, unregisters and stops the engine; the application quits when it has.
 func (a *App) Shutdown() error {
 	a.mu.Lock()
-	a.quitting = true
+	stopped := a.stopped
+	a.quitting = true // before the command: Stopped may arrive at once
 	a.mu.Unlock()
-	return a.send(domain.Shutdown{})
+	if stopped {
+		a.quit() // the engine has already ended: there is nothing left to wait for
+		return nil
+	}
+	err := a.send(domain.Shutdown{})
+	if err != nil {
+		// Not taken (the queue was full): the page may ask again, and nothing quits meanwhile.
+		a.mu.Lock()
+		a.quitting = false
+		stopped = a.stopped
+		a.mu.Unlock()
+		if stopped { // it ended on its own while this was refused
+			a.quit()
+			return nil
+		}
+	}
+	return err
 }
 
 // Settings returns the saved settings, never a password.

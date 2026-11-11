@@ -112,7 +112,8 @@ func TestThePageDrivesThePhone(t *testing.T) {
 	defer phone.Close()
 	var seen page
 	quit := make(chan struct{})
-	svc := &App{phone: phone, emit: seen.receive, quit: func() { close(quit) }}
+	var once sync.Once
+	svc := &App{phone: phone, emit: seen.receive, quit: func() { once.Do(func() { close(quit) }) }}
 	go svc.forward()
 
 	if err := svc.Dial("1002"); err != nil { // queued; the engine refuses it, before any page listens
@@ -173,6 +174,27 @@ func TestThePageDrivesThePhone(t *testing.T) {
 		t.Error("an agent request was approved in a build without agent control")
 	}
 
+	// Values the configuration reader would refuse at the next start are refused here, and
+	// nothing of them is stored.
+	newline := "mic\nwith a newline"
+	account := Account{Username: "1001", Domain: "pbx.invalid", Server: "pbx.invalid", Port: 5060, Transport: "udp", Media: "rtp", Expires: 300}
+	never := account
+	never.Expires = 0
+	for name, patch := range map[string]SettingsPatch{
+		"a registration that never expires":      {Account: &never},
+		"a device name with a control character": {AudioInput: &newline},
+	} {
+		if err := svc.SaveSettings(patch); err == nil {
+			t.Errorf("%s was saved", name)
+		}
+	}
+	if s, _ := svc.Settings(); s.Account != nil || s.AudioInput != "" {
+		t.Errorf("a refused edit left something behind: %+v", s)
+	}
+	if err := svc.SaveSettings(SettingsPatch{Account: &account}); err != nil {
+		t.Errorf("a valid account: %v", err)
+	}
+
 	if err := svc.Shutdown(); err != nil {
 		t.Fatal(err)
 	}
@@ -181,6 +203,11 @@ func TestThePageDrivesThePhone(t *testing.T) {
 	case <-quit:
 	case <-time.After(5 * time.Second):
 		t.Error("the application was not asked to quit after the shutdown the page requested")
+	}
+	// Asked again once the engine has stopped: there is nothing to wait for, and it is not an
+	// error the page would show as a failed engine.
+	if err := svc.Shutdown(); err != nil {
+		t.Errorf("Shutdown after the engine stopped: %v", err)
 	}
 	if err := svc.Unregister(); err == nil || err.Error() != "engine_failed" {
 		t.Errorf("a command after the engine stopped: %v, want engine_failed", err)
@@ -261,23 +288,24 @@ func TestAssetsCarryTheContentSecurityPolicy(t *testing.T) {
 // no new window opened, the guard refused the navigation, and the process listens nowhere.
 func TestProbeVerdict(t *testing.T) {
 	const clean = `{"inline":false,"eval":false,"opened":false}`
-	if summary, err := probeVerdict(clean, true, 1, nil, nil); err != nil || !strings.Contains(summary, "a new window and navigation to another address refused") || !strings.Contains(summary, "no listening socket") {
+	if summary, err := probeVerdict(clean, true, true, 1, nil, nil); err != nil || !strings.Contains(summary, "a new window and navigation to another address refused") || !strings.Contains(summary, "no listening socket") {
 		t.Errorf("a confined page: %q, %v", summary, err)
 	}
-	if summary, err := probeVerdict(`{"inline":false,"guarded":false,"eval":false}`, false, 0, nil, os.ErrInvalid); err != nil || !strings.Contains(summary, "not probed") || !strings.Contains(summary, "not checked") {
+	if summary, err := probeVerdict(`{"inline":false,"guarded":false,"eval":false}`, false, false, 0, nil, os.ErrInvalid); err != nil || !strings.Contains(summary, "not probed") || !strings.Contains(summary, "not checked") {
 		t.Errorf("a platform without a guard: %q, %v", summary, err)
 	}
 	for name, err := range map[string]error{
-		"an inline script ran":                         second(probeVerdict(`{"inline":true,"eval":false,"opened":false}`, true, 1, nil, nil)),
-		"eval ran":                                     second(probeVerdict(`{"inline":false,"eval":true,"opened":false}`, true, 1, nil, nil)),
-		"a new window opened":                          second(probeVerdict(`{"inline":false,"eval":false,"opened":true}`, true, 1, nil, nil)),
-		"the navigation went on":                       second(probeVerdict(clean, true, 0, nil, nil)),
-		"a listening socket":                           second(probeVerdict(clean, true, 1, []string{"00000000:1F90"}, nil)),
-		"no report from the page":                      second(probeVerdict("", true, 1, nil, nil)),
-		"a report that is not JSON":                    second(probeVerdict("<html>", true, 1, nil, nil)),
-		"a report without the page's own answers":      second(probeVerdict(`{"inline":false}`, true, 1, nil, nil)),
-		"a guarded page that did not try a new window": second(probeVerdict(`{"inline":false,"eval":false}`, true, 1, nil, nil)),
-		"an unguarded page without the eval answer":    second(probeVerdict(`{"inline":false,"guarded":false}`, false, 0, nil, nil)),
+		"an inline script ran":                         second(probeVerdict(`{"inline":true,"eval":false,"opened":false}`, true, true, 1, nil, nil)),
+		"eval ran":                                     second(probeVerdict(`{"inline":false,"eval":true,"opened":false}`, true, true, 1, nil, nil)),
+		"a new window opened":                          second(probeVerdict(`{"inline":false,"eval":false,"opened":true}`, true, true, 1, nil, nil)),
+		"the navigation went on":                       second(probeVerdict(clean, true, true, 0, nil, nil)),
+		"a listening socket":                           second(probeVerdict(clean, true, true, 1, []string{"00000000:1F90"}, nil)),
+		"no report from the page":                      second(probeVerdict("", true, true, 1, nil, nil)),
+		"a guard that is expected and not installed":   second(probeVerdict(`{"inline":false,"guarded":false,"eval":false}`, true, false, 0, nil, nil)),
+		"a report that is not JSON":                    second(probeVerdict("<html>", true, true, 1, nil, nil)),
+		"a report without the page's own answers":      second(probeVerdict(`{"inline":false}`, true, true, 1, nil, nil)),
+		"a guarded page that did not try a new window": second(probeVerdict(`{"inline":false,"eval":false}`, true, true, 1, nil, nil)),
+		"an unguarded page without the eval answer":    second(probeVerdict(`{"inline":false,"guarded":false}`, false, false, 0, nil, nil)),
 	} {
 		if err == nil {
 			t.Errorf("%s: the self-test passed", name)
