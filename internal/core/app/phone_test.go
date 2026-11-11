@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -304,5 +305,86 @@ func TestPhoneSavesNothingOverAnUnreadableConfiguration(t *testing.T) {
 	}
 	if _, err := config.Resolve(p.context()); err != nil {
 		t.Errorf("the saved configuration does not resolve: %v", err)
+	}
+}
+
+// Do-not-disturb saved before any account exists is applied at the next start, account or not:
+// the window shows it on, so the engine must have it on.
+func TestSavedDoNotDisturbIsAppliedWithoutAnAccount(t *testing.T) {
+	dnd := config.Stored{UI: config.UI{DND: true}}
+	for name, c := range map[string]struct {
+		draft  config.Stored
+		loaded bool
+		cfg    *config.Effective
+		want   []domain.Command
+	}{
+		"saved, no account yet":            {dnd, true, nil, []domain.Command{domain.SetDND{On: true}}},
+		"not saved":                        {config.Stored{}, true, nil, nil},
+		"the settings could not be read":   {dnd, false, nil, nil},
+		"saved, an account and a password": {dnd, true, &config.Effective{PasswordSource: config.PasswordFromEnv}, []domain.Command{domain.SetDND{On: true}, domain.Register{}}},
+		"an account without a password":    {config.Stored{}, true, &config.Effective{}, nil},
+	} {
+		got := startup(c.draft, c.loaded, c.cfg)
+		if len(got) != len(c.want) {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
+			continue
+		}
+		for i := range got {
+			if fmt.Sprintf("%T", got[i]) != fmt.Sprintf("%T", c.want[i]) {
+				t.Errorf("%s: command %d is %T, want %T", name, i, got[i], c.want[i])
+			}
+		}
+	}
+
+	// And through a real start: saved with no account, the next phone on the same profile reads it
+	// back as on.
+	dir := t.TempDir()
+	o := Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	first, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.SetDND(true); err != nil {
+		t.Fatal(err)
+	}
+	first.Close()
+	second, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	if s := second.Settings(); !s.DND || s.Account != nil {
+		t.Errorf("settings at the second start: %+v", s)
+	}
+}
+
+// A value in the configuration file that cannot be read (a transport in capitals) is not an
+// account the window may complete: the account is not offered as configured, saving one is
+// refused with the file's error, and nothing is stored.
+func TestPhoneRefusesAnAccountOverAnInvalidFileValue(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := "schema = 1\n[account]\nusername = \"1001\"\ndomain = \"pbx.invalid\"\ntransport = \"UDP\"\n"
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o := Options{ConfigPath: file, Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if s := p.Settings(); s.Account != nil {
+		t.Fatalf("a configuration that does not resolve offers an account: %+v", s.Account)
+	}
+	// What the form would send: the file's account with the default the draft put in place of the
+	// transport it could not read.
+	account := domain.AccountSettings{Username: "1001", Domain: "pbx.invalid", Server: "pbx.invalid", Port: 5060, Transport: domain.UDP, Expires: config.DefaultExpires}
+	var invalid *config.Error
+	if err := p.SaveSettings(SettingsPatch{Account: &account}); !errors.As(err, &invalid) || invalid.Kind != config.Invalid || invalid.Field != config.Transport {
+		t.Errorf("saving over the unreadable transport: %v, want it refused by name", err)
+	}
+	if values, err := p.journal.store.LoadConfig(); err != nil || len(values) != 0 {
+		t.Errorf("the database holds %v (%v) after the refused save", values, err)
 	}
 }

@@ -6,6 +6,7 @@ Each round reviews a sanitized extract made with `git archive` (no engine, no th
 | --- | --- | --- | --- |
 | 1 | `b33616c` | SOUND WITH CHANGES: 4 major | [codex-round1.md](codex-round1.md) |
 | 2 | `c12b375` | SOUND WITH CHANGES: 3 of the 4 resolved, 1 partially; 1 new major | [codex-round2.md](codex-round2.md) |
+| 3 | `74e73d7` | SOUND WITH CHANGES: both open items resolved; 2 new major | [codex-round3.md](codex-round3.md) |
 
 ## What was done about round 1
 
@@ -26,3 +27,12 @@ The receipt's wording was narrowed where the report found a claim stronger than 
 | 1 | Saving an account while a configuration source cannot be read (a file with a syntax error) stored an empty `account.password_env`, which then made the next start fail even after the file was fixed | Fixed. `config.Draft` says whether the sources were read at all; when they were not, nothing is saved, the account and the skin alike, and the error names the file. `TestPhoneSavesNothingOverAnUnreadableConfiguration` checks the database stays empty and that the same edit resolves once the file is fixed; `TestSavingOverAnUnreadableConfigurationStoresNothing` does it through the bound method. The window does not yet say on its own that the configuration could not be read: it shows no account, and the error appears when something is saved (`doctor` reports it). |
 
 Receipt: the page's test count is 27 (18 of the reducer and validation, 9 of the skins); the keyboard checks are described as what they are, with the places where the script still puts the focus itself; the runs in the receipt are attributed to the commit they ran on.
+
+## What was done about round 3
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | Do-not-disturb saved before an account existed was shown on at the next start while the engine had it off | Fixed. What the engine is told at start is one function: do-not-disturb is applied whenever the settings could be read, account or not; the account registers only from a configuration that resolves. `TestSavedDoNotDisturbIsAppliedWithoutAnAccount` checks the commands for each case and a real second start on the same profile. It does not send a call to see it refused: the lab's engine scenarios cover the engine's refusal itself. |
+| 2 | A value a file holds and that cannot be read (a transport in capitals) became a default: the account was offered as configured, saved "successfully", and registered from the default | Fixed. An account is offered as configured only when the whole configuration resolves, and an account is saved only if the configuration resolves with it; otherwise the save is refused with the file's error and nothing is stored. `TestPhoneRefusesAnAccountOverAnInvalidFileValue`. A form that completes an incomplete account, and one that repairs a value stored in the database, still go through. |
+
+Receipt: the wrong-password check is described as the separate run it is, and the AppImage's figures are those of its log.
