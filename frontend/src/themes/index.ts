@@ -22,6 +22,9 @@ const CACHE = "go-microsip.skin";
 const os =
   typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : undefined;
 let chosen = SYSTEM;
+// What the backend says of the desktop: some webviews (WebKitGTK in a plain GTK window) do not pass
+// the desktop's dark preference on to prefers-color-scheme.
+let desktopDark = false;
 
 /** The setting's value for a stored id: unknown or removed skins resolve to "system". */
 export const knownSkin = (id: string | null | undefined) =>
@@ -34,7 +37,7 @@ export function effectiveSkin(id: string, prefersDark: boolean): Skin {
 
 function paint() {
   const el = document.documentElement;
-  el.dataset.theme = effectiveSkin(chosen, os?.matches ?? false).id;
+  el.dataset.theme = effectiveSkin(chosen, (os?.matches ?? false) || desktopDark).id;
   el.dataset.skin = chosen;
 }
 
@@ -56,6 +59,12 @@ export function cachedSkin(): string {
   } catch {
     return SYSTEM;
   }
+}
+
+/** The desktop's dark preference as the backend sees it; "system" follows it at once. */
+export function setDesktopDark(dark: boolean) {
+  desktopDark = dark;
+  if (chosen === SYSTEM) paint();
 }
 
 os?.addEventListener("change", () => {

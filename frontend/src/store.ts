@@ -2,7 +2,7 @@
 import { reactive, ref, watch } from "vue";
 import * as api from "./api";
 import { UiState } from "./state";
-import { applySkin, cachedSkin } from "./themes";
+import { applySkin, cachedSkin, setDesktopDark } from "./themes";
 
 export const ui = reactive(new UiState(api)) as UiState;
 /** Wall clock for durations, ages and the notice's lifetime. */
@@ -44,7 +44,9 @@ export async function start() {
   try {
     about.value = await api.version();
     await loadSettings();
-    await api.subscribe((event) => ui.applyEvent(event));
+    await api.subscribe((event) =>
+      event.type === "desktop" ? setDesktopDark(event.dark) : ui.applyEvent(event),
+    );
     ui.contactsRevision++;
   } catch (e) {
     unavailable.value = String(e);

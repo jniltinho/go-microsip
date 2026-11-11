@@ -120,6 +120,10 @@ func Run(o Options) error {
 	ui := application.New(opts) // a second instance ends here, after waking the first one
 	svc.emit = func(ev UIEvent) { ui.Event.Emit(EventName, ev) }
 	svc.quit = ui.Quit
+	// The System skin follows the desktop. WebKitGTK in a plain GTK window does not pass the
+	// desktop's dark preference on to the page, so the page is told, at once and on every change.
+	svc.dark = ui.Env.IsDarkMode
+	ui.Event.OnApplicationEvent(events.Common.ThemeChanged, func(*application.ApplicationEvent) { svc.desktopChanged() })
 	if !o.SelfTest {
 		// The phone holds the instance lock of the database until the window is gone: calls are
 		// ended and the account unregistered, within the engine's bound, before Run returns.

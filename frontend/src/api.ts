@@ -120,6 +120,9 @@ export type UiEvent =
   /** The complete list of pending agent requests, oldest first. */
   | { type: "approvals"; approvals: Approval[] };
 
+/** What a subscriber receives: the engine's events and the desktop's light or dark preference. */
+export type BackendEvent = UiEvent | { type: "desktop"; dark: boolean };
+
 /** A request to the engine (B1.1-B1.13). */
 export type Command =
   /** Persisted password is used when `password` is null. */
@@ -217,7 +220,7 @@ export interface Backend {
   /** Tells the backend the page has drawn; `--self-test` then exits 0. */
   ready(): Promise<void>;
   /** Starts event delivery; the current registration, call and approvals are replayed first. */
-  subscribe(handler: (event: UiEvent) => void): Promise<() => void>;
+  subscribe(handler: (event: BackendEvent) => void): Promise<() => void>;
   send(command: Command): Promise<void>;
   settings(): Promise<Settings>;
   saveSettings(patch: SettingsPatch): Promise<void>;
@@ -289,7 +292,7 @@ function wails({ Call, Events }: Wails): Backend {
     version: () => call("Version"),
     ready: () => call("Ready"),
     subscribe: async (handler) => {
-      const off = Events.On(EVENT_NAME, (e: { data: UiEvent }) => handler(e.data));
+      const off = Events.On(EVENT_NAME, (e: { data: BackendEvent }) => handler(e.data));
       await call("Subscribe");
       return off;
     },

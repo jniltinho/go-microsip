@@ -128,6 +128,7 @@ One Wails event, `go-microsip:event`, whose data is one `UiEvent`:
 | `notice` | `notice`: one of the names above | B2.3 |
 | `stopped` | | B2.4 |
 | `approvals` | `approvals: [{id, requester, description, deadline}]`, the complete pending list, oldest first; `deadline` in Unix milliseconds | agent control |
+| `desktop` | `dark`: the desktop prefers a dark appearance. Sent when the page subscribes and at every change; the System skin is dark when this or the webview's own `prefers-color-scheme` says so. Added in M2: WebKitGTK in a plain GTK window does not pass the desktop's preference on. | the desktop |
 
 Rules the page relies on:
 

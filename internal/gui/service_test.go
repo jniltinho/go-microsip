@@ -187,6 +187,42 @@ func TestThePageDrivesThePhone(t *testing.T) {
 	}
 }
 
+// The page is told whether the desktop prefers dark when it subscribes and at every change: the
+// System skin follows that, whatever the webview makes of the desktop.
+func TestThePageIsToldTheDesktopsPreference(t *testing.T) {
+	dir := t.TempDir()
+	core := app.Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	phone, err := app.OpenPhone(core, app.PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer phone.Close()
+	var seen page
+	dark := true
+	svc := &App{phone: phone, emit: seen.receive, quit: func() {}, dark: func() bool { return dark }}
+	svc.desktopChanged() // nobody listens yet
+	if early := seen.all(); len(early) != 0 {
+		t.Fatalf("events before the page subscribed: %+v", early)
+	}
+	if err := svc.Subscribe(); err != nil {
+		t.Fatal(err)
+	}
+	dark = false
+	svc.desktopChanged()
+	var told []bool
+	for _, ev := range seen.all() {
+		if ev.Type == "desktop" {
+			told = append(told, *ev.Dark)
+		}
+	}
+	if len(told) != 2 || !told[0] || told[1] {
+		t.Errorf("what the page was told of the desktop: %v, want dark then light", told)
+	}
+	if got, _ := json.Marshal(UIEvent{Type: "desktop", Dark: &dark}); string(got) != `{"type":"desktop","dark":false}` {
+		t.Errorf("the desktop event: %s", got)
+	}
+}
+
 // Without a phone the window still opens: every method says why there is none.
 func TestWithoutAPhoneEveryMethodSaysWhy(t *testing.T) {
 	svc := &App{unavailable: "go-microsip is already running"}

@@ -23,6 +23,8 @@ type App struct {
 	unavailable string
 	emit        func(UIEvent)
 	quit        func()
+	// dark reports the desktop's dark preference; nil when it cannot be told.
+	dark func() bool
 
 	mu           sync.Mutex
 	ready        func()
@@ -120,11 +122,30 @@ func (a *App) Subscribe() error {
 		a.emit(uiEvent(domain.CallChanged{Call: *a.call}))
 	}
 	a.emit(UIEvent{Type: "approvals", Approvals: &[]Approval{}}) // agent control arrives with M4
+	a.emitDesktop()
 	if a.stopped {
 		a.emit(UIEvent{Type: "stopped"})
 	}
 	a.subscribed = true
 	return nil
+}
+
+// emitDesktop tells the page whether the desktop prefers dark. The caller holds a.mu.
+func (a *App) emitDesktop() {
+	if a.dark != nil {
+		dark := a.dark()
+		a.emit(UIEvent{Type: "desktop", Dark: &dark})
+	}
+}
+
+// desktopChanged passes a change of the desktop's light or dark preference on to the page: the
+// webview does not always do it, and the System skin follows it.
+func (a *App) desktopChanged() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.subscribed {
+		a.emitDesktop()
+	}
 }
 
 // Register registers the account; a null password means the one the backend has.
@@ -493,6 +514,8 @@ type UIEvent struct {
 	Call         *Call         `json:"call,omitempty"`
 	Notice       string        `json:"notice,omitempty"`
 	Approvals    *[]Approval   `json:"approvals,omitempty"`
+	// Dark, of the "desktop" event: the desktop prefers a dark appearance.
+	Dark *bool `json:"dark,omitempty"`
 }
 
 // uiEvent is an engine event as the page receives it.
