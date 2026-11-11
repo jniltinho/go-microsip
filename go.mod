@@ -11,8 +11,10 @@ require (
 	github.com/moutend/go-wca v0.3.0
 	github.com/pion/rtcp v1.2.16
 	github.com/pion/rtp v1.10.1
+	github.com/pion/srtp/v3 v3.0.10
 	github.com/spf13/cobra v1.10.2
 	github.com/wailsapp/wails/v3 v3.1.0
+	github.com/zaf/g711 v1.4.0
 )
 
 require (
@@ -34,7 +36,6 @@ require (
 	github.com/pion/mdns/v2 v2.1.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/sdp/v3 v3.0.18 // indirect
-	github.com/pion/srtp/v3 v3.0.10 // indirect
 	github.com/pion/stun/v3 v3.1.6 // indirect
 	github.com/pion/transport/v4 v4.0.2 // indirect
 	github.com/pion/turn/v5 v5.0.12 // indirect
@@ -43,7 +44,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	github.com/zaf/g711 v1.4.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
