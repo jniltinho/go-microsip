@@ -46,6 +46,36 @@ Layering is enforced by `crates/core/tests/layering.rs` (from `cargo metadata`):
 no infrastructure crate, SQL/SIP/audio/D-Bus each live in one crate, and the UI module never names
 them. See [architecture.md](architecture.md).
 
+## Go application (migrate-to-go-wails)
+
+The Go rewrite lives beside the frozen Rust workspace: `main.go`, `cmd/`, `internal/`, `frontend/`,
+`build/`, `third_party/diago`. Everything runs in the Go build image (`build/linux.Dockerfile`,
+Debian 13) through `scripts/go-docker.sh`; the host needs only Docker and make. Module mode is
+forced (`-mod=readonly`) because of the Rust `vendor/` folder. Design and tasks are in
+`openspec/changes/migrate-to-go-wails/`.
+
+| Target | What it does |
+|---|---|
+| `make go-image` | Build the build image. |
+| `make go-check` | gofmt and go vet for the CGO-free, cgo, no-window and Windows builds. |
+| `make go-test` | Unit tests with the race detector. |
+| `make go-frontend` | Vue 3 + Vite Plus (`vp`) + Tailwind page into `internal/gui/dist`. |
+| `make go-build` | Linux binary into `dist/go/` (`GO_WINDOW=purego` default, `cgo` fallback). |
+| `make go-headless` | `version`, `doctor --json` and an MCP handshake with no display. |
+| `make go-self-test` | The window opens under Xvfb and the page calls the backend. |
+| `make go-audio` | Audio adapter against PipeWire with virtual sound cards (`SECONDS=300`). |
+| `make go-lab` | SIP/SRTP probes against the disposable Asterisk lab (`SCENARIO=prefix`). |
+| `make go-dist` | Linux binary, AppImage, Windows `.exe` and `.zip`, notices, `SHA256SUMS`, manifest. |
+
+Desktop VM checks (VirtualBox through Vagrant; nothing is installed for go-microsip in the guests):
+
+```sh
+build/vm/run.sh 0.2.0-g0 "$PWD/docs/receipts/go-g0" 300 ubuntu2604 debian13 windows11
+```
+
+The command line is Cobra: `go-microsip` opens the window, `go-microsip version`,
+`go-microsip doctor [--json]`, `go-microsip mcp` (stdio MCP server).
+
 ## Docker workflow
 
 `scripts/cargo-docker.sh` runs cargo (or any command) in the toolchain image, building the image on

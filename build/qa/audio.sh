@@ -14,11 +14,10 @@ exec dbus-run-session -- sh -c '
 	p3=$!
 	trap "kill $p1 $p2 $p3 2>/dev/null" EXIT
 	i=0
-	until pactl info >/dev/null 2>&1; do
+	until [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; do
 		i=$((i + 1))
 		[ "$i" -lt 50 ] || { echo "audio: the audio service did not start" >&2; exit 1; }
 		sleep 0.2
 	done
-	pactl info | grep -E "^Server (Name|Version)"
 	CGO_ENABLED=0 go test -count=1 -v -timeout 20m -run "TestPulseLoopback|TestNoService|TestRing" ./internal/platform/audio
 '

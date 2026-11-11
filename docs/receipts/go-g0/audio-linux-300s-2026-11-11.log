@@ -1,0 +1,12 @@
+Server Name: PulseAudio (on PipeWire 1.4.2)
+Server Version: 15.0.0
+=== RUN   TestRing
+--- PASS: TestRing (0.00s)
+=== RUN   TestNoService
+--- PASS: TestNoService (0.00s)
+=== RUN   TestPulseLoopback
+    pulse_linux_test.go:219: 300 s: 15000 frames, 0 capture misses (longest run 0), capture dropped 0, play dropped 0, play silence 32 samples, mic tone in 1.000 of blocks, speaker tone in 1.000 of blocks
+    pulse_linux_test.go:271: after unplug: lost=true, 47 misses in 1 s, 480 samples captured, speaker tone in 1.000 of blocks
+--- PASS: TestPulseLoopback (303.71s)
+PASS
+ok  	github.com/jniltinho/go-microsip/internal/platform/audio	303.717s

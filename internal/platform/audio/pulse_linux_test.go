@@ -2,92 +2,33 @@ package audio
 
 import (
 	"errors"
-	"math"
-	"os"
-	"os/exec"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/jfreymuth/pulse"
+	"github.com/jfreymuth/pulse/proto"
 )
 
-// These tests need a PulseAudio-protocol server (build/qa/audio.sh starts PipeWire in the build
-// container) and are skipped without GO_MICROSIP_AUDIO_TEST=1.
-
-const (
-	micTone     = 700.0
-	speakerTone = 1300.0
-)
-
-func needServer(t *testing.T) {
+// nullSink adds a virtual sound card (a sink and its monitor source) through the protocol itself,
+// so the test needs no tool on the machine.
+func nullSink(t *testing.T, c *pulse.Client, name string) (unload func()) {
 	t.Helper()
-	if os.Getenv("GO_MICROSIP_AUDIO_TEST") != "1" {
-		t.Skip("set GO_MICROSIP_AUDIO_TEST=1 with an audio service running (build/qa/audio.sh)")
-	}
-}
-
-func pactl(t *testing.T, args ...string) string {
-	t.Helper()
-	out, err := exec.Command("pactl", args...).CombinedOutput()
+	var loaded proto.LoadModuleReply
+	err := c.RawRequest(&proto.LoadModule{Name: "module-null-sink", Args: "sink_name=" + name + " rate=48000 channels=2"}, &loaded)
 	if err != nil {
-		t.Fatalf("pactl %v: %v: %s", args, err, out)
+		t.Fatalf("load a virtual sound card: %v", err)
 	}
-	return strings.TrimSpace(string(out))
-}
-
-// nullSink adds a virtual sound card: a sink and its monitor source.
-func nullSink(t *testing.T, name string) (unload func()) {
-	t.Helper()
-	id := pactl(t, "load-module", "module-null-sink", "sink_name="+name, "rate=48000", "channels=2")
 	done := false
 	unload = func() {
 		if !done {
 			done = true
-			pactl(t, "unload-module", id)
+			if err := c.RawRequest(&proto.UnloadModule{ModuleIndex: loaded.ModuleIndex}, nil); err != nil {
+				t.Errorf("unload the virtual sound card: %v", err)
+			}
 		}
 	}
 	t.Cleanup(unload)
 	return unload
-}
-
-func sine(freq float64, n *int, p []int16) {
-	for i := range p {
-		p[i] = int16(12000 * math.Sin(2*math.Pi*freq*float64(*n)/SampleRate))
-		*n++
-	}
-}
-
-// share is the part of the signal's energy at freq (Goertzel); 1 is a pure tone.
-func share(samples []int16, freq float64) float64 {
-	coeff := 2 * math.Cos(2*math.Pi*freq/SampleRate)
-	var s1, s2, total float64
-	for _, v := range samples {
-		x := float64(v)
-		total += x * x
-		s1, s2 = x+coeff*s1-s2, s1
-	}
-	if total == 0 {
-		return 0
-	}
-	return (s1*s1 + s2*s2 - coeff*s1*s2) / (float64(len(samples)) / 2 * total)
-}
-
-// toneBlocks is the fraction of 20 ms blocks that carry freq. Unlike share over the whole signal, it
-// does not collapse when the tone's phase jumps once.
-func toneBlocks(samples []int16, freq float64) float64 {
-	blocks, good := 0, 0
-	for ; len(samples) >= FrameSamples; samples = samples[FrameSamples:] {
-		blocks++
-		if share(samples[:FrameSamples], freq) > 0.9 {
-			good++
-		}
-	}
-	if blocks == 0 {
-		return 0
-	}
-	return float64(good) / float64(blocks)
 }
 
 // A session without an audio service is reported as such.
@@ -102,9 +43,21 @@ func TestNoService(t *testing.T) {
 // frame-loss threshold, and lose the microphone without switching to another one.
 func TestPulseLoopback(t *testing.T) {
 	needServer(t)
-	nullSink(t, "g0spk")
-	unplugMic := nullSink(t, "g0mic")
-	nullSink(t, "g0other") // another microphone the stream must never move to
+	// Test fixtures on their own connection: virtual sound cards, a "voice" into the virtual
+	// microphone and a listener on the virtual speaker.
+	fx, err := pulse.NewClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(fx.Close) // runs after the sound cards are unloaded
+	var server proto.GetServerInfoReply
+	if err := fx.RawRequest(&proto.GetServerInfo{}, &server); err == nil {
+		t.Logf("audio service: %s %s", server.PackageName, server.PackageVersion)
+	}
+	nullSink(t, fx, "g0spk")
+	unplugMic := nullSink(t, fx, "g0mic")
+	nullSink(t, fx, "g0other")         // another microphone the stream must never move to
+	time.Sleep(300 * time.Millisecond) // the service publishes the new devices
 
 	c, err := Connect()
 	if err != nil {
@@ -135,13 +88,6 @@ func TestPulseLoopback(t *testing.T) {
 		t.Fatal("opening an unknown input succeeded")
 	}
 
-	// Test fixtures on a second connection: a "voice" into the virtual microphone and a listener
-	// on the virtual speaker.
-	fx, err := pulse.NewClient()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fx.Close()
 	micSink, err := fx.SinkByID("g0mic")
 	if err != nil {
 		t.Fatal(err)
@@ -178,10 +124,7 @@ func TestPulseLoopback(t *testing.T) {
 	}
 	defer s.Close()
 
-	seconds := 10
-	if v, err := strconv.Atoi(os.Getenv("GO_MICROSIP_AUDIO_SECONDS")); err == nil && v > 0 {
-		seconds = v
-	}
+	seconds := testSeconds()
 	toneN := 0
 	// The engine's media tick: every 20 ms take one captured frame and play one frame.
 	run := func(d time.Duration) (frames, missed, longestMiss int, captured []int16) {

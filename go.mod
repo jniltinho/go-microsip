@@ -5,8 +5,10 @@ go 1.27
 require (
 	github.com/emiago/diago v0.42.0
 	github.com/emiago/sipgo v1.7.0
+	github.com/go-ole/go-ole v1.3.0
 	github.com/jfreymuth/pulse v0.1.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/moutend/go-wca v0.3.0
 	github.com/pion/rtcp v1.2.16
 	github.com/pion/rtp v1.10.1
 	github.com/spf13/cobra v1.10.2
@@ -18,7 +20,6 @@ require (
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/emiago/dtls/v3 v3.0.0-20260122183559-8b8d23e359c0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
-	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect

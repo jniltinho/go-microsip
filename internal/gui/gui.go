@@ -28,6 +28,15 @@ import (
 //go:embed all:dist
 var assets embed.FS
 
+// icon is the application's logo: the window and taskbar icon, and the desktop entry's.
+//
+//go:embed icon.png
+var icon []byte
+
+// appID is the GTK application id: Wayland compositors match it to the .desktop file for the
+// window's icon, and the single-instance lock is named after it.
+const appID = "io.github.jniltinho.go-microsip"
+
 // Options are the window's flags.
 type Options struct {
 	// SafeGPU starts the webview with GPU acceleration off (--safe-gpu, GO_MICROSIP_SAFE_GPU=1).
@@ -68,13 +77,19 @@ func Run(o Options) error {
 		return err
 	}
 	svc := &App{}
+	if !o.SelfTest { // a self-test leaves nothing behind in the user's profile
+		if _, err := installDesktopEntry(icon); err != nil {
+			slog.Warn("desktop entry not installed", "error", err) // only the Linux title-bar icon depends on it
+		}
+	}
 	opts := application.Options{
 		Name:        "go-microsip",
 		Description: "Compact SIP softphone",
+		Icon:        icon,
 		LogLevel:    slog.LevelInfo, // never Debug: Wails logs binding arguments there
 		Services:    []application.Service{application.NewService(svc)},
 		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(dist), DisableLogging: true},
-		Linux:       application.LinuxOptions{ProgramName: "go-microsip"},
+		Linux:       application.LinuxOptions{ApplicationID: appID}, // the program name follows it
 	}
 	win := application.WebviewWindowOptions{
 		Title: "go-microsip", Width: 360, Height: 560, MinWidth: 320, MinHeight: 480,
@@ -94,7 +109,7 @@ func Run(o Options) error {
 	var main *application.WebviewWindow
 	if !o.SelfTest {
 		opts.SingleInstance = &application.SingleInstanceOptions{
-			UniqueID: "io.github.jniltinho.go-microsip",
+			UniqueID: appID,
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 				if main != nil {
 					main.Restore()

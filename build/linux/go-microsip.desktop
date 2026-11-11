@@ -4,6 +4,6 @@ Name=go-microsip
 Comment=Compact SIP softphone
 Exec=go-microsip
 Icon=go-microsip
-StartupWMClass=go-microsip
+StartupWMClass=io.github.jniltinho.go-microsip
 Terminal=false
 Categories=Network;Telephony;

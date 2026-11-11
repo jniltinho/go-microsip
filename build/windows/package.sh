@@ -7,6 +7,8 @@ dist=$1
 name=$2
 ldflags=$3
 exe=$dist/$name-windows-amd64.exe
+# rsrc_windows_amd64.syso (git-ignored) puts the app icon into the .exe; only GOOS=windows builds link it.
+go run ./build/winicon -icon build/linux/go-microsip.png -out rsrc_windows_amd64.syso
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags production -trimpath \
 	-ldflags "$ldflags -H windowsgui" -o "$exe" .
 stage=$(mktemp -d)

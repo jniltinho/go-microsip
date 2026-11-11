@@ -1,13 +1,11 @@
 # Disposable Linux desktop VMs for milestone checks (openspec/changes/migrate-to-go-wails): the two
 # supported distributions with their own default GNOME desktop and nothing added for go-microsip.
 #
-#   make go-vm-check            both VMs: provision, run check.sh, destroy
+#   build/vm/run.sh <version> <receipt dir> [audio seconds] [ubuntu2604 debian13 windows11]
 #
-# Only two folders are shared, read-only: this one (/vagrant) and the artifacts (/dist). The VMs use
+# Only two folders are shared: this one (/vagrant) and the artifacts (/dist), read-only on Linux. The VMs use
 # VirtualBox NAT, change nothing on the host, and are destroyed after the run.
 Vagrant.configure("2") do |config|
-  config.vm.synced_folder ".", "/vagrant", mount_options: ["ro"]
-  config.vm.synced_folder "../../dist/go", "/dist", mount_options: ["ro"]
   config.vm.provider "virtualbox" do |vb|
     vb.memory = 4096
     vb.cpus = 2
@@ -21,12 +19,30 @@ Vagrant.configure("2") do |config|
     config.vm.define name do |vm|
       vm.vm.box = box
       vm.vm.hostname = name
+      vm.vm.synced_folder ".", "/vagrant", mount_options: ["ro"]
+      vm.vm.synced_folder "../../dist/go", "/dist", mount_options: ["ro"]
       vm.vm.provision "shell", inline: <<~SH
         set -eu
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -q
         apt-get install -y -q #{desktop}
       SH
+    end
+  end
+
+  # Windows 11 evaluation box (accept Microsoft's evaluation terms yourself; never used in CI). The
+  # emulated sound card has no host backend: the microphone delivers silence and the speaker goes
+  # nowhere, which is enough to exercise the audio adapter. Nothing is installed in the guest.
+  config.vm.define "windows11", autostart: false do |vm|
+    vm.vm.box = "gusztavvargadr/windows-11"
+    vm.vm.communicator = "winrm"
+    vm.vm.boot_timeout = 900
+    vm.vm.synced_folder ".", "C:/vagrant"
+    vm.vm.synced_folder "../../dist/go", "C:/dist"
+    vm.vm.provider "virtualbox" do |vb|
+      vb.memory = 6144
+      vb.customize ["modifyvm", :id, "--audio-enabled", "on", "--audio-driver", "null",
+                    "--audio-controller", "hda", "--audio-in", "on", "--audio-out", "on"]
     end
   end
 end

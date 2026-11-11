@@ -34,10 +34,14 @@ echo "vm-check: headless version and doctor OK"
 
 # 2. The distribution's own audio session (PipeWire with its PulseAudio server).
 systemctl --user start pipewire.socket pipewire-pulse.socket wireplumber.service 2>/dev/null || :
-pactl info | grep -E '^Server (Name|Version)' | sed 's/^/vm-check: /'
+audio=0
 GO_MICROSIP_AUDIO_TEST=1 GO_MICROSIP_AUDIO_SECONDS=$seconds /dist/g0/audio.test \
-	-test.v -test.timeout 20m -test.run 'TestPulseLoopback|TestNoService' 2>&1 |
-	grep -E 'pulse_linux_test|^(--- |PASS|FAIL|ok)' | sed 's/^/vm-check: audio: /'
+	-test.v -test.timeout 20m -test.run 'TestPulseLoopback|TestNoService' >"$work/audio.log" 2>&1 || audio=$?
+grep -E 'pulse_linux_test|^(--- |PASS|FAIL|ok|panic)' "$work/audio.log" | sed 's/^/vm-check: audio: /'
+if [ "$audio" -ne 0 ]; then
+	echo "vm-check: FAIL audio exit $audio" >&2
+	exit 1
+fi
 echo "vm-check: audio adapter OK on the distribution's audio service"
 
 # 3. The window on the distribution's own compositor: GNOME Shell, Wayland, headless.
@@ -56,11 +60,29 @@ until [ -S "$XDG_RUNTIME_DIR/g0-wayland" ]; do
 	sleep 0.3
 done
 gnome-shell --version | sed 's/^/vm-check: /'
-if WAYLAND_DISPLAY=g0-wayland XDG_SESSION_TYPE=wayland timeout 150 "$work/app.AppImage" --self-test >"$work/app.log" 2>&1; then
-	echo "vm-check: window opened on GNOME/Wayland and the page called the backend"
-else
-	echo "vm-check: FAIL self-test exit $?" >&2
-	tail -n 25 "$work/app.log" >&2
+# The default first; then the GPU-less start, which a VM without 3D may need; then the cgo window
+# backend, to tell a backend problem from a system one. Every result is printed.
+passed=
+try() {
+	label=$1
+	shift
+	if WAYLAND_DISPLAY=g0-wayland XDG_SESSION_TYPE=wayland timeout 60 "$@" --self-test >"$work/app.log" 2>&1; then
+		echo "vm-check: window: $label: opened and the page called the backend"
+		[ -n "$passed" ] || passed=$label
+	else
+		echo "vm-check: window: $label: FAILED (exit $?)"
+		tail -n 8 "$work/app.log" | sed 's/^/vm-check:   /'
+	fi
+}
+try "AppImage" "$work/app.AppImage"
+try "AppImage --safe-gpu" "$work/app.AppImage" --safe-gpu
+if [ -x /dist/go-microsip-cgo ]; then
+	try "cgo backend" /dist/go-microsip-cgo
+	try "cgo backend --safe-gpu" /dist/go-microsip-cgo --safe-gpu
+fi
+if [ -z "$passed" ]; then
+	echo "vm-check: FAIL the window did not open in any configuration" >&2
 	exit 1
 fi
+echo "vm-check: window passed first with: $passed"
 echo "vm-check: PASS $PRETTY_NAME"

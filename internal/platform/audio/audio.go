@@ -10,6 +10,7 @@ package audio
 import (
 	"errors"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -17,6 +18,19 @@ const (
 	SampleRate = 8000
 	// FrameSamples is one 20 ms frame.
 	FrameSamples = 160
+)
+
+const (
+	// ringSamples holds half a second: far more than the engine and the device ever drift apart.
+	ringSamples = 4096
+	// primeSamples is the backlog capture builds before it hands out frames, so a fragment that
+	// arrives just after a tick does not become a missed frame. It costs 20 ms of delay.
+	primeSamples = 2 * FrameSamples
+	// playBacklog is the most the engine may be ahead of the device; beyond it new audio is dropped
+	// so delay cannot build up.
+	playBacklog = 4 * FrameSamples
+	// lostAfter is how long capture may deliver nothing before the microphone counts as lost.
+	lostAfter = 300 * time.Millisecond
 )
 
 // ErrNoService means the session offers no audio service this backend can reach. It is reported to
@@ -77,4 +91,66 @@ func (r *ring) read(p []int16) int {
 	}
 	r.tail.Store(tail + uint64(n))
 	return n
+}
+
+// buffers is what every backend's stream shares: the two rings, the counters, and the engine side
+// of the stream. The backend adds the device side.
+type buffers struct {
+	in, out *ring
+	primed  bool // engine side only
+
+	lastCapture                          atomic.Int64 // UnixNano of the last captured fragment
+	captureDropped, playDropped, silence atomic.Uint64
+}
+
+func newBuffers() *buffers {
+	b := &buffers{in: newRing(ringSamples), out: newRing(ringSamples)}
+	b.lastCapture.Store(time.Now().UnixNano())
+	return b
+}
+
+// captured is the device side of capture: it only copies into the ring.
+func (b *buffers) captured(p []int16) {
+	b.lastCapture.Store(time.Now().UnixNano())
+	if n := b.in.write(p); n < len(p) {
+		b.captureDropped.Add(uint64(len(p) - n))
+	}
+}
+
+// stale reports that capture has delivered nothing for lostAfter.
+func (b *buffers) stale() bool {
+	return time.Since(time.Unix(0, b.lastCapture.Load())) > lostAfter
+}
+
+// Capture fills frame with the next 20 ms from the microphone and reports whether it had one. The
+// engine calls it once per media tick; on false it sends silence or nothing.
+func (b *buffers) Capture(frame *[FrameSamples]int16) bool {
+	have := b.in.len()
+	if !b.primed {
+		if have < primeSamples {
+			return false
+		}
+		b.primed = true
+	}
+	if have < FrameSamples {
+		b.primed = false
+		return false
+	}
+	b.in.read(frame[:])
+	return true
+}
+
+// Play queues 20 ms for the speaker. It never blocks: when the device is behind by more than
+// playBacklog, the frame is dropped so delay cannot build up.
+func (b *buffers) Play(frame *[FrameSamples]int16) {
+	if b.out.len() > playBacklog-FrameSamples {
+		b.playDropped.Add(FrameSamples)
+		return
+	}
+	b.out.write(frame[:])
+}
+
+// Stats returns the counters.
+func (b *buffers) Stats() Stats {
+	return Stats{CaptureDropped: b.captureDropped.Load(), PlayDropped: b.playDropped.Load(), PlaySilence: b.silence.Load()}
 }
