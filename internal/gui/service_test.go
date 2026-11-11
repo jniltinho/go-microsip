@@ -268,13 +268,14 @@ func TestProbeVerdict(t *testing.T) {
 		t.Errorf("a platform without a guard: %q, %v", summary, err)
 	}
 	for name, err := range map[string]error{
-		"an inline script ran":      second(probeVerdict(`{"inline":true,"eval":false,"opened":false}`, true, 1, nil, nil)),
-		"eval ran":                  second(probeVerdict(`{"inline":false,"eval":true,"opened":false}`, true, 1, nil, nil)),
-		"a new window opened":       second(probeVerdict(`{"inline":false,"eval":false,"opened":true}`, true, 1, nil, nil)),
-		"the navigation went on":    second(probeVerdict(clean, true, 0, nil, nil)),
-		"a listening socket":        second(probeVerdict(clean, true, 1, []string{"00000000:1F90"}, nil)),
-		"no report from the page":   second(probeVerdict("", true, 1, nil, nil)),
-		"a report that is not JSON": second(probeVerdict("<html>", true, 1, nil, nil)),
+		"an inline script ran":                    second(probeVerdict(`{"inline":true,"eval":false,"opened":false}`, true, 1, nil, nil)),
+		"eval ran":                                second(probeVerdict(`{"inline":false,"eval":true,"opened":false}`, true, 1, nil, nil)),
+		"a new window opened":                     second(probeVerdict(`{"inline":false,"eval":false,"opened":true}`, true, 1, nil, nil)),
+		"the navigation went on":                  second(probeVerdict(clean, true, 0, nil, nil)),
+		"a listening socket":                      second(probeVerdict(clean, true, 1, []string{"00000000:1F90"}, nil)),
+		"no report from the page":                 second(probeVerdict("", true, 1, nil, nil)),
+		"a report that is not JSON":               second(probeVerdict("<html>", true, 1, nil, nil)),
+		"a report without the page's own answers": second(probeVerdict(`{"inline":false}`, true, 1, nil, nil)),
 	} {
 		if err == nil {
 			t.Errorf("%s: the self-test passed", name)

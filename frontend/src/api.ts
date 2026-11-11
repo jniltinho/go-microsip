@@ -284,10 +284,31 @@ function wails({ Call, Events }: Wails): Backend {
     }
   };
   // `--self-test` asks what its probe left in the page; a page that was navigated away is not
-  // here to answer.
-  Events.On("go-microsip:probe", () =>
-    call("Probed", document.documentElement.dataset.probe ?? ""),
-  );
+  // here to answer. The probe's own questions are answered here, by a script of the page: what the
+  // window injects runs with more rights than the page has, so only this says what the content
+  // security policy and the webview allow the page.
+  Events.On("go-microsip:probe", () => {
+    let report = document.documentElement.dataset.probe ?? "";
+    if (report.includes('"inline"')) {
+      const probe = JSON.parse(report) as Record<string, unknown>;
+      try {
+        // The one eval of the page: it must throw, and the self-test fails when it does not.
+        // eslint-disable-next-line no-eval
+        probe.eval = globalThis.eval("1") === 1;
+      } catch {
+        probe.eval = false;
+      }
+      try {
+        const opened = window.open("https://example.invalid/new-window");
+        probe.opened = opened !== null;
+        opened?.close();
+      } catch {
+        probe.opened = false;
+      }
+      report = JSON.stringify(probe);
+    }
+    return call("Probed", report);
+  });
   return {
     version: () => call("Version"),
     ready: () => call("Ready"),

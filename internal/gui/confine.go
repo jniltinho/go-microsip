@@ -26,18 +26,17 @@ func confine(next http.Handler) http.Handler {
 const probeEvent = "go-microsip:probe"
 
 // probeScript is what a self-test runs in the page: what a script that got in would try. An inline
-// script and eval must not run, and a new window must not open (the webview refuses one that no
-// person asked for before any policy is consulted). With navigate set it then tries to leave the
-// page; a page that is still there to answer the probe event did not leave.
+// script must not run. With navigate set it then tries to leave the page; a page that is still
+// there to answer the probe event did not leave. The page adds to the report what its own scripts
+// may do (api.ts): eval must not run and a new window must not open. Those two are asked there
+// because a script the window injects runs with more rights than the page's own.
 func probeScript(navigate bool) string {
 	js := `(() => {
-  const r = { inline: false, eval: false, opened: false };
+  const r = { inline: false };
   const s = document.createElement("script");
   s.textContent = "window.__goMicrosipInline = 1";
   document.head.appendChild(s);
   r.inline = window.__goMicrosipInline === 1;
-  try { r.eval = (0, eval)("1") === 1; } catch (e) {}
-  try { r.opened = !!window.open("https://example.invalid/new-window"); } catch (e) {}
   document.documentElement.dataset.probe = JSON.stringify(r);`
 	if navigate {
 		js += `
@@ -50,18 +49,19 @@ func probeScript(navigate bool) string {
 // refused (guarded says whether there is a guard on this platform), and the listening TCP sockets
 // of this process (nil error when they could be listed).
 func probeVerdict(result string, guarded bool, blocked int64, listening []string, listErr error) (summary string, err error) {
-	var r struct{ Inline, Eval, Opened bool }
-	if jsonErr := json.Unmarshal([]byte(result), &r); jsonErr != nil {
+	// The page must have answered every question: a missing answer is not a pass.
+	var r struct{ Inline, Eval, Opened *bool }
+	if jsonErr := json.Unmarshal([]byte(result), &r); jsonErr != nil || r.Inline == nil || r.Eval == nil || r.Opened == nil {
 		return "", fmt.Errorf("self-test: the page did not report the probe: %q", result)
 	}
 	var bad []error
-	if r.Inline {
+	if *r.Inline {
 		bad = append(bad, errors.New("an inline script ran"))
 	}
-	if r.Eval {
+	if *r.Eval {
 		bad = append(bad, errors.New("eval ran"))
 	}
-	if r.Opened {
+	if *r.Opened {
 		bad = append(bad, errors.New("a new window opened"))
 	}
 	summary = "inline script, eval and a new window refused"

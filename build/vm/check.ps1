@@ -34,7 +34,16 @@ function Invoke-Desktop([string]$Name, [string[]]$Lines, [int]$Timeout) {
     if ($LASTEXITCODE -ne 0) { return -2 }
     cmd /c "schtasks /run /tn g0-$Name >nul 2>&1"
     $deadline = (Get-Date).AddSeconds($Timeout)
-    while (-not (Test-Path $rc) -and (Get-Date) -lt $deadline) { Start-Sleep 1 }
+    while (-not (Test-Path $rc) -and (Get-Date) -lt $deadline) {
+        # While it runs: the TCP ports the softphone itself listens on (the window needs none).
+        foreach ($p in @(Get-Process go-microsip -ErrorAction SilentlyContinue)) {
+            $script:Samples++
+            foreach ($l in @(Get-NetTCPConnection -State Listen -OwningProcess $p.Id -ErrorAction SilentlyContinue)) {
+                $script:Listening["$($l.LocalAddress):$($l.LocalPort)"] = $true
+            }
+        }
+        Start-Sleep -Milliseconds 300
+    }
     cmd /c "schtasks /delete /tn g0-$Name /f >nul 2>&1"
     if (-not (Test-Path $rc)) { return -1 }
     return [int]((Get-Content $rc) -join '').Trim()
@@ -48,7 +57,9 @@ $failed = ''
 if ($code -ne 0) { "vm-check: audio: FAILED (exit $code); the window is still checked"; $failed = 'audio' }
 else { 'vm-check: audio adapter OK on the Windows audio service' }
 
-# 3. The window on WebView2.
+# 3. The window on WebView2, and the page's confinement as the self-test finds it.
+$script:Samples = 0
+$script:Listening = @{}
 $code = Invoke-Desktop 'selftest' @("`"$work\go-microsip.exe`" --self-test") 150
 if ($code -ne 0) {
     "vm-check: FAIL self-test exit $code"
@@ -56,5 +67,9 @@ if ($code -ne 0) {
     exit 1
 }
 'vm-check: window opened on WebView2 and the page called the backend'
+Get-Content "$work\selftest.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^self-test:' } | ForEach-Object { "vm-check: $_" }
+if ($script:Samples -eq 0) { 'vm-check: listening ports: the softphone was not seen running, so not checked' }
+elseif ($script:Listening.Count -gt 0) { "vm-check: listening ports: the softphone listens on $($script:Listening.Keys -join ', ')"; $failed = "$failed listening" }
+else { "vm-check: listening ports: none in $($script:Samples) looks at the running softphone" }
 if ($failed) { "vm-check: FAIL $($os.Caption): $failed"; exit 1 }
 "vm-check: PASS $($os.Caption)"
