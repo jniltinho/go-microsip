@@ -161,7 +161,7 @@ func Import(o Options, file string, apply bool) (string, error) {
 	}
 	// An import from the Rust application that was interrupted is undone before the database is
 	// written: what is stored now must not be replaced by that recovery later.
-	if err := RecoverImport(o); err != nil {
+	if err := recoverImport(o); err != nil && !errors.Is(err, rustimport.ErrCredentialCleanup) {
 		return "", &ImportError{Preview: text, Err: err}
 	}
 	s, err := store.Open(path)

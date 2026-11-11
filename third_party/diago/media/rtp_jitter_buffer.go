@@ -441,8 +441,11 @@ func (j *RTPJitterBuffer) startPlayout() {
 func (j *RTPJitterBuffer) resetPlayoutTimer() {
 	now := time.Now()
 	j.nextPlayout = j.nextPlayout.Add(j.packetDuration)
+	// Catching up takes a packet that is there. One that is missing keeps its full time to arrive:
+	// packets queued behind it are no reason to give it up early.
+	next := j.sequence[int(j.expectedSeq)%j.maxPackets]
 	switch {
-	case j.queued > j.delayPackets+1:
+	case j.queued > j.delayPackets+1 && next >= 0 && j.slots[next].seq == j.expectedSeq:
 		j.nextPlayout = now // the source runs ahead of this clock: catch up
 	case now.Sub(j.nextPlayout) > j.packetDuration:
 		j.nextPlayout = now.Add(j.packetDuration) // the consumer was away: start the timetable again

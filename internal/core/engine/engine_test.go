@@ -218,3 +218,34 @@ func TestRetryDelayIsBounded(t *testing.T) {
 		t.Errorf("delays %v %v %v", retryDelay(0), retryDelay(3), retryDelay(30))
 	}
 }
+
+// A result that reaches the engine while it stops, or after it stopped, is still applied: it may
+// own a socket, a dialog or a sound device that only its callback releases.
+func TestResultsAreNeverDropped(t *testing.T) {
+	e := Start(Options{Audio: &memory.Audio{}})
+	var early, late bool
+	e.post(func() { early = true })
+	e.Send(domain.Shutdown{})
+	drain(t, e.Events())
+	<-e.Done()
+	e.post(func() { late = true })
+	if !early || !late {
+		t.Errorf("results applied: before the stop %v, after it %v", early, late)
+	}
+	// A failure in a late result is contained.
+	e.post(func() { panic("late") })
+}
+
+// Nothing follows Stopped, whatever arrives afterwards.
+func TestNothingFollowsStopped(t *testing.T) {
+	o := newOutbox()
+	o.emit(domain.Noticed{Notice: domain.NoticeBusy})
+	o.emit(domain.Stopped{})
+	o.emit(domain.Noticed{Notice: domain.NoticeMicrophoneLost})
+	o.emit(snapshot(1, 1, domain.EndedWith(domain.EndNormal)))
+	o.close()
+	got := drain(t, o.out)
+	if _, stopped := got[len(got)-1].(domain.Stopped); len(got) != 2 || !stopped {
+		t.Errorf("events %v, want one notice and Stopped", got)
+	}
+}

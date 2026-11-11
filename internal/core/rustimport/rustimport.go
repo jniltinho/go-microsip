@@ -79,6 +79,10 @@ var (
 	// ErrNoCredential: the password was asked for and cannot be copied.
 	ErrNoCredential = errors.New("the password cannot be copied: no keyring is available here, or rust-microsip stored none")
 
+	// ErrCredentialCleanup: the files are back as they were, but the password staged for the
+	// unfinished import is still in the keyring; the next recovery tries again.
+	ErrCredentialCleanup = errors.New("the password staged for an unfinished import could not be removed from the keyring yet")
+
 	errKilled = errors.New("killed") // the test's stand-in for a killed process
 )
 
@@ -288,7 +292,18 @@ const (
 	stepStaging = "staging"
 	stepCommit  = "commit"
 	stepDone    = "done"
+	// stepCleanup: the files are settled; only the staged password is still to be removed.
+	stepCleanup = "cleanup"
 )
+
+// syncDirs makes the renames in go-microsip's two directories durable.
+func (i *Importer) syncDirs() error {
+	err := syncDir(filepath.Dir(i.Paths.DB))
+	if config := filepath.Dir(i.Paths.Config); exists(config) {
+		err = errors.Join(err, syncDir(config))
+	}
+	return err
+}
 
 func (i *Importer) writeJournal(j journal) error {
 	path := i.Paths.journal()
@@ -332,11 +347,30 @@ func removeDatabase(path string) error {
 	return all
 }
 
+// Pending reports whether an import was begun and is neither finished nor undone.
+func (i *Importer) Pending() bool { return exists(i.Paths.journal()) }
+
 // Recover finishes or undoes an import that did not end. An import interrupted before its commit is
 // discarded; one interrupted during its commit is undone, so the previous database and the previous
 // configuration file are in use together again. Either way the password staged for it is removed
 // from the keyring. Without a journal it does nothing: a first start imports nothing.
+//
+// It takes go-microsip's instance lock for itself, so it cannot run beside an import, another
+// recovery or a running go-microsip; a caller that holds the lock uses RecoverLocked.
 func (i *Importer) Recover() error {
+	unlock, err := i.Locks.Lock(i.Paths.Lock)
+	if errors.Is(err, ports.ErrLocked) {
+		return ErrRunning
+	}
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return i.RecoverLocked()
+}
+
+// RecoverLocked is Recover for a caller that holds go-microsip's instance lock.
+func (i *Importer) RecoverLocked() error {
 	raw, err := os.ReadFile(i.Paths.journal())
 	if errors.Is(err, fs.ErrNotExist) {
 		_ = os.Remove(i.Paths.journal() + ".tmp")
@@ -360,6 +394,9 @@ func (i *Importer) Recover() error {
 		} else if err := removeDatabase(i.Paths.DB); err != nil {
 			return err
 		}
+		if err := i.kill("recover-db-restored"); err != nil {
+			return err
+		}
 		if j.HadConfig {
 			if exists(j.ConfigBackup) {
 				_ = os.Remove(i.Paths.Config)
@@ -373,13 +410,29 @@ func (i *Importer) Recover() error {
 			}
 		}
 	}
-	if j.Step != stepDone && j.Credential != "" && i.Secrets != nil {
-		if err := i.Secrets.Delete(j.Credential); err != nil {
-			return fmt.Errorf("the password staged for the import could not be removed from the keyring: %w", err)
-		}
-	}
 	if err := os.RemoveAll(i.Paths.staging()); err != nil {
 		return err
+	}
+	// The files are settled; that must be on disk before the journal that says how to settle them
+	// is changed or removed.
+	if err := i.syncDirs(); err != nil {
+		return err
+	}
+	if err := i.kill("recover-files-restored"); err != nil {
+		return err
+	}
+	if j.Step != stepDone && j.Credential != "" {
+		err := ports.ErrNoSecretService
+		if i.Secrets != nil {
+			err = i.Secrets.Delete(j.Credential)
+		}
+		if err != nil {
+			// The reference is the only way to find the entry again: it stays on record.
+			if werr := i.writeJournal(journal{Step: stepCleanup, Credential: j.Credential}); werr != nil {
+				return errors.Join(ErrCredentialCleanup, err, werr)
+			}
+			return fmt.Errorf("%w: %v", ErrCredentialCleanup, err)
+		}
 	}
 	if err := os.Remove(i.Paths.journal()); err != nil {
 		return err
@@ -389,35 +442,37 @@ func (i *Importer) Recover() error {
 
 // Apply imports what confirmed describes. With credential it also copies the password from the Rust
 // application's keyring into go-microsip's. On any failure go-microsip's previous data is what
-// remains, and the import can be run again.
+// remains, and the import can be run again. go-microsip's instance lock is held from before the
+// recovery of an earlier attempt until after the cleanup of this one.
 func (i *Importer) Apply(confirmed Preview, credential bool) error {
 	if err := os.MkdirAll(filepath.Dir(i.Paths.DB), 0o700); err != nil {
 		return err
 	}
-	if err := i.Recover(); err != nil {
-		return err
-	}
-	err := i.apply(confirmed, credential)
-	if err != nil && !errors.Is(err, errKilled) {
-		// One way back for every failure: the same recovery a restart would run.
-		if rerr := i.Recover(); rerr != nil {
-			return errors.Join(err, rerr)
-		}
-	}
-	return err
-}
-
-func (i *Importer) apply(confirmed Preview, credential bool) error {
-	p := i.Paths
-	// 1. Quiesce both sides. go-microsip's own lock is held to the end; its store is closed.
-	unlockOwn, err := i.Locks.Lock(p.Lock)
+	unlock, err := i.Locks.Lock(i.Paths.Lock)
 	if errors.Is(err, ports.ErrLocked) {
 		return ErrRunning
 	}
 	if err != nil {
 		return err
 	}
-	defer unlockOwn()
+	defer unlock()
+	if err := i.RecoverLocked(); err != nil {
+		return err
+	}
+	err = i.apply(confirmed, credential)
+	if err != nil && !errors.Is(err, errKilled) {
+		// One way back for every failure: the same recovery a restart would run.
+		if rerr := i.RecoverLocked(); rerr != nil {
+			return errors.Join(err, rerr)
+		}
+	}
+	return err
+}
+
+func (i *Importer) apply(confirmed Preview, credential bool) (err error) {
+	p := i.Paths
+	// 1. Quiesce both sides. go-microsip's own lock is already held, to the end; its store is
+	// closed.
 	unlockRust, err := i.Locks.Lock(p.SourceLock)
 	if errors.Is(err, ports.ErrLocked) {
 		return ErrRustRunning
@@ -471,7 +526,11 @@ func (i *Importer) apply(confirmed Preview, credential bool) error {
 		s = nil
 		return err
 	}
-	defer closeStore()
+	defer func() {
+		if !errors.Is(err, errKilled) { // a killed process closes nothing
+			_ = closeStore()
+		}
+	}()
 	if found != confirmed {
 		return ErrChanged
 	}
@@ -610,6 +669,10 @@ func (i *Importer) apply(confirmed Preview, credential bool) error {
 	if err := i.kill("config-in-place"); err != nil {
 		return err
 	}
+	// Every rename, in both directories, is on disk before the journal says the import is done.
+	if err := i.syncDirs(); err != nil {
+		return err
+	}
 	j.Step = stepDone
 	if err := i.writeJournal(j); err != nil {
 		return err
@@ -617,5 +680,5 @@ func (i *Importer) apply(confirmed Preview, credential bool) error {
 	if err := i.kill("done-journaled"); err != nil {
 		return err
 	}
-	return i.Recover() // done: this only removes the staging directory and the journal
+	return i.RecoverLocked() // done: this only removes the staging directory and the journal
 }

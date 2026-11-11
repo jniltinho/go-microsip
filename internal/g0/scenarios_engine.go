@@ -153,14 +153,22 @@ func (p *phone) ended(ctx context.Context, want domain.EndReason) (domain.CallSn
 	return c, err
 }
 
-// quiet checks that no call is reported for a while.
-func (p *phone) quiet(ctx context.Context, d time.Duration) error {
+// absent checks that no event that matches is reported for a while.
+func (p *phone) absent(ctx context.Context, d time.Duration, what string, match func(domain.Event) bool) error {
 	ctx, cancel := context.WithTimeout(ctx, d)
 	defer cancel()
-	if c, err := p.snapshot(ctx, "", func(domain.CallSnapshot) bool { return true }); err == nil {
-		return fmt.Errorf("%s: an unexpected call was reported: %v", p.user, c)
+	if ev, err := p.wait(ctx, "", match); err == nil {
+		return fmt.Errorf("%s: %s was reported: %v", p.user, what, ev)
 	}
 	return nil
+}
+
+// quiet checks that no call is reported for a while.
+func (p *phone) quiet(ctx context.Context, d time.Duration) error {
+	return p.absent(ctx, d, "an unexpected call", func(ev domain.Event) bool {
+		_, call := ev.(domain.CallChanged)
+		return call
+	})
 }
 
 // dial sends Dial and waits for the answer.
@@ -186,9 +194,10 @@ func (p *phone) send(number string) error {
 // stop shuts the engine down and checks what every shutdown owes: Stopped is the last event, the
 // stream closes after it and no sound stream stays open. It returns the events of the shutdown.
 func (p *phone) stop() ([]domain.Event, error) {
+	start := time.Now()
 	p.e.Send(domain.Shutdown{})
 	var got []domain.Event
-	timeout := time.After(8 * time.Second)
+	timeout := time.After(6 * time.Second)
 	for {
 		select {
 		case ev, ok := <-p.e.Events():
@@ -202,11 +211,13 @@ func (p *phone) stop() ([]domain.Event, error) {
 			if _, stopped := got[len(got)-1].(domain.Stopped); !stopped {
 				return got, fmt.Errorf("%s: the last event is %T, want Stopped", p.user, got[len(got)-1])
 			}
-			// The sound is released beside the actor: give it a moment.
-			for wait := time.Now().Add(3 * time.Second); p.sound.OpenStreams() > 0; time.Sleep(20 * time.Millisecond) {
-				if time.Now().After(wait) {
-					return got, fmt.Errorf("%s: %d sound streams stayed open after Stopped", p.user, p.sound.OpenStreams())
-				}
+			// Stopped means stopped: the sound devices are closed by now, not a moment later, and
+			// all of it inside the engine's five seconds.
+			if open := p.sound.OpenStreams(); open > 0 {
+				return got, fmt.Errorf("%s: %d sound streams are still open when Stopped is reported", p.user, open)
+			}
+			if took := time.Since(start); took > 5500*time.Millisecond {
+				return got, fmt.Errorf("%s: the shutdown took %v", p.user, took)
 			}
 			return got, nil
 		case <-timeout:
@@ -242,6 +253,9 @@ type heard struct {
 }
 
 func (h heard) has(freq float64) bool { return h.share[freq] > 0.5 }
+
+// silent reports that the tone is in none of the frames, give or take one in fifty at an edge.
+func (h heard) silent(freq float64) bool { return h.share[freq] < 0.02 }
 
 // listen measures what the phones play during dur, after 400 ms for the stream to settle.
 func listen(dur time.Duration, phones ...*phone) []heard {
@@ -414,14 +428,16 @@ func engineHoldMute(caller, callee string) func(context.Context, *Lab) (map[stri
 		switch {
 		case !before[0].has(toneB) || !before[1].has(toneA):
 			return data, errors.New("no two-way audio before the hold")
-		case during[0].has(toneB):
+		case !during[0].silent(toneB):
 			return data, errors.New("the holder still heard the other party during the hold")
-		case during[1].has(toneA):
+		case !during[1].silent(toneA):
 			return data, errors.New("the held party still heard the holder during the hold")
 		case !after[0].has(toneB) || !after[1].has(toneA):
 			return data, errors.New("two-way audio did not come back after the resume")
-		case muted[1].has(toneA):
+		case !muted[1].silent(toneA):
 			return data, errors.New("the other party still heard a muted microphone")
+		case muted[1].frames == 0:
+			return data, errors.New("a muted call stopped sending: silence must keep the stream alive")
 		case !muted[0].has(toneB):
 			return data, errors.New("the muted side stopped hearing the other party")
 		case !unmuted[0].has(toneB) || !unmuted[1].has(toneA):
@@ -605,18 +621,23 @@ func engineMicrophoneLost(ctx context.Context, l *Lab) (map[string]any, error) {
 	}
 	before := listen(time.Second, p)[0]
 	p.sound.Last().Unplug()
-	if _, err := p.wait(ctx, "the microphone-lost notice", func(ev domain.Event) bool {
+	lost := func(ev domain.Event) bool {
 		n, ok := ev.(domain.Noticed)
 		return ok && n.Notice == domain.NoticeMicrophoneLost
-	}); err != nil {
+	}
+	if _, err := p.wait(ctx, "the microphone-lost notice", lost); err != nil {
 		return nil, err
 	}
 	after := listen(1500*time.Millisecond, p)[0]
+	// Said once: nothing more about it in the second and a half that just passed, nor later.
+	if err := p.absent(ctx, 500*time.Millisecond, "the loss of the microphone, a second time,", lost); err != nil {
+		return nil, err
+	}
 	data := map[string]any{"heard_before": before.share[toneA], "heard_after": after.share[toneA], "frames_after": after.frames, "streams": p.sound.OpenStreams()}
 	switch {
 	case !before.has(toneA):
 		return data, errors.New("no audio before the microphone was unplugged")
-	case after.has(toneA):
+	case !after.silent(toneA):
 		return data, errors.New("the echo still carries the microphone after it was unplugged")
 	case after.frames == 0:
 		return data, errors.New("the call stopped receiving after the microphone was unplugged")

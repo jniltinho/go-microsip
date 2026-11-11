@@ -203,6 +203,9 @@ func (w *world) clean() {
 			w.t.Errorf("left in the data directory: %s", name)
 		}
 	}
+	if w.importer().Pending() {
+		w.t.Error("an import journal is still there")
+	}
 	if w.locks.Held(w.paths.SourceLock) || w.locks.Held(w.paths.Lock) {
 		w.t.Error("an instance lock is still held")
 	}
@@ -539,4 +542,100 @@ func TestSourceThatChangedOrIsMissingIsRefused(t *testing.T) {
 		t.Error("preview of a corrupt database succeeded")
 	}
 	w.previousIntact(before)
+}
+
+// midCommit leaves an import killed in the middle of its commit, with a password staged.
+func midCommit(t *testing.T) (*world, map[string]string, Preview) {
+	t.Helper()
+	w := newWorld(t)
+	write(t, w.paths.SourceConfig, rustTOML)
+	w.rustDatabase(nil, 2, 1, legacyRef, false)
+	check(t, w.legacy.Set(legacyRef, password))
+	w.previous()
+	before := fingerprint(t, filepath.Dir(w.paths.Config))
+	killed := w.importer()
+	p, err := killed.Preview()
+	check(t, err)
+	killed.killAt = "db-in-place"
+	if err := killed.Apply(p, true); !errors.Is(err, errKilled) {
+		t.Fatal(err)
+	}
+	return w, before, p
+}
+
+// Recovery needs go-microsip's instance lock: it never runs beside an import, another recovery or
+// a running softphone, and while it cannot run nothing is touched.
+func TestRecoveryNeedsTheInstanceLock(t *testing.T) {
+	w, before, _ := midCommit(t)
+	state := fingerprint(t, filepath.Dir(filepath.Dir(w.paths.DB)))
+	held, err := w.locks.Lock(w.paths.Lock)
+	check(t, err)
+	i := w.importer()
+	if err := i.Recover(); !errors.Is(err, ErrRunning) || !i.Pending() {
+		t.Errorf("recovery under another instance's lock: %v, pending %v", err, i.Pending())
+	}
+	if now := fingerprint(t, filepath.Dir(filepath.Dir(w.paths.DB))); !maps.Equal(now, state) {
+		t.Error("a recovery that could not run changed files")
+	}
+	held()
+	check(t, i.Recover())
+	if i.Pending() {
+		t.Error("the journal is still there after the recovery")
+	}
+	w.previousIntact(before)
+}
+
+// A recovery that is itself killed is finished by the next one.
+func TestRecoveryCanBeInterrupted(t *testing.T) {
+	for _, point := range []string{"recover-db-restored", "recover-files-restored"} {
+		t.Run(point, func(t *testing.T) {
+			w, before, p := midCommit(t)
+			killed := w.importer()
+			killed.killAt = point
+			if err := killed.Recover(); !errors.Is(err, errKilled) {
+				t.Fatalf("the recovery was not killed at %s: %v", point, err)
+			}
+			check(t, w.importer().Recover())
+			w.previousIntact(before)
+			check(t, w.importer().Apply(p, true))
+			if names, _, _, _ := w.database(); len(names) != 2 {
+				t.Errorf("the import after the recovery: contacts %v", names)
+			}
+			w.clean()
+		})
+	}
+}
+
+// A staged password is never orphaned: while the keyring cannot be reached the journal keeps its
+// reference, the files are already back, and a later recovery removes it.
+func TestStagedPasswordIsNeverOrphaned(t *testing.T) {
+	for name, broken := range map[string]func(*world, *Importer){
+		"no keyring":          func(_ *world, i *Importer) { i.Secrets = nil },
+		"unreachable keyring": func(w *world, _ *Importer) { w.keyring.Unavailable = true },
+	} {
+		t.Run(name, func(t *testing.T) {
+			w, before, _ := midCommit(t)
+			if len(w.keyring.Refs()) != 1 {
+				t.Fatalf("the fixture staged %d passwords", len(w.keyring.Refs()))
+			}
+			i := w.importer()
+			broken(w, i)
+			if err := i.Recover(); !errors.Is(err, ErrCredentialCleanup) || !i.Pending() {
+				t.Fatalf("recovery without a keyring: %v, pending %v", err, i.Pending())
+			}
+			// The files are already the previous ones; only the keyring entry is still owed.
+			if now := fingerprint(t, filepath.Dir(w.paths.Config)); !maps.Equal(now, before) {
+				t.Error("the configuration file was not restored")
+			}
+			if names, _, _, _ := w.database(); len(names) != 1 || names[0] != "Old" {
+				t.Errorf("the database was not restored: %v", names)
+			}
+			if err := i.Recover(); !errors.Is(err, ErrCredentialCleanup) {
+				t.Errorf("a second recovery without a keyring: %v", err)
+			}
+			w.keyring.Unavailable = false
+			check(t, w.importer().Recover())
+			w.previousIntact(before)
+		})
+	}
 }

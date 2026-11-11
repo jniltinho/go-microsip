@@ -212,6 +212,23 @@ func TestFilesAndDirectoriesArePrivate(t *testing.T) {
 	}
 }
 
+// A database in a directory that group or others can write is refused: they could swap the file.
+func TestDirectoryOthersCanWriteIsRefused(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "shared")
+	check(t, os.Mkdir(dir, 0o700))
+	for _, loose := range []os.FileMode{0o770, 0o707, 0o777} {
+		check(t, os.Chmod(dir, loose))
+		if _, err := Open(filepath.Join(dir, "db.sqlite3")); !is(err, InsecureDirectory) || !strings.Contains(err.Error(), "chmod go-w") {
+			t.Errorf("mode %o: %v", loose, err)
+		}
+	}
+	if entries := must(os.ReadDir(dir))(t); len(entries) != 0 {
+		t.Errorf("a refused open created %d files", len(entries))
+	}
+	check(t, os.Chmod(dir, 0o755)) // readable by others is not the problem
+	check(t, must(Open(filepath.Join(dir, "db.sqlite3")))(t).Close())
+}
+
 func TestOutcomeMappingFollowsEstablishmentAndDirection(t *testing.T) {
 	in, out := domain.Incoming, domain.Outgoing
 	for _, c := range []struct {

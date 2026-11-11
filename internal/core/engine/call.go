@@ -39,9 +39,12 @@ type call struct {
 	// rung is closed once 180 Ringing is out. The final response waits for it: the library keeps the
 	// last response it sent as the dialog's, and a 180 written after the 200 made it refuse the BYE.
 	rung      chan struct{}
-	answering bool             // Answer is on its way
+	answering bool             // Answer is on its way: the final response is its 200, nobody else's
 	busy      bool             // a hold or resume is on its way
 	ending    domain.EndReason // why this side is ending the call
+	// gone: the other side ended the dialog while a transfer waited for its verdict; the transfer's
+	// result ends the call.
+	gone bool
 
 	sound       bool // the audio goroutines run
 	audio       ports.MediaIO
@@ -49,7 +52,8 @@ type call struct {
 	pumps       sync.WaitGroup
 	held, muted atomic.Bool
 	keys        chan domain.DTMFKey
-	// released is closed once the audio is stopped and the sound devices are closed.
+	// released is closed once the audio is stopped and the sound devices are closed; nil until the
+	// call's audio was told to stop.
 	released chan struct{}
 	// What the audio goroutines did, for the summary logged when the call's audio ends.
 	sent, unfed, received atomic.Uint64
@@ -57,9 +61,9 @@ type call struct {
 }
 
 // startAudio connects the call's RTP to the sound devices: one goroutine sends the microphone, one
-// plays what arrives. Neither touches the actor.
-// micLost is called once, from the audio goroutine, when the microphone stops delivering.
-func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog.Logger, micLost func()) error {
+// plays what arrives. Neither touches the actor. micLost is called once when the microphone stops
+// delivering; failed is called once when a direction of the media ends on its own.
+func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog.Logger, micLost func(), failed func(direction string, err error)) error {
 	codec := media.PCMA
 	if dmedia.CodecAudioFromSession(med.MediaSession()).PayloadType == media.PCMU.PayloadType() {
 		codec = media.PCMU
@@ -77,6 +81,14 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 	ctx, stop := context.WithCancel(context.Background())
 	c.audio, c.stop, c.sound, c.log = audio, stop, true, log
 	c.pumps.Add(2)
+	var once sync.Once
+	// A direction that ends while the call is up is the call's problem, said once; one that ends
+	// because the call's audio was stopped is not.
+	ended := func(direction string, err error) {
+		if ctx.Err() == nil {
+			once.Do(func() { failed(direction, err) })
+		}
+	}
 
 	go func() { // microphone -> network
 		defer c.pumps.Done()
@@ -87,6 +99,7 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 			select {
 			case key := <-c.keys:
 				if err := writer.WriteDTMF(key.Rune()); err != nil {
+					ended("send", err)
 					return
 				}
 				continue
@@ -111,9 +124,7 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 			codec.Encode(payload, out)
 			c.sent.Add(1)
 			if _, err := writer.Write(payload); err != nil { // paced by the RTP clock: 20 ms
-				if ctx.Err() == nil {
-					log.Debug("audio send ended", "error", err)
-				}
+				ended("send", err)
 				return
 			}
 		}
@@ -126,9 +137,7 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 		for ctx.Err() == nil {
 			n, err := reader.Read(buf)
 			if err != nil {
-				if ctx.Err() == nil {
-					log.Debug("audio receive ended", "error", err)
-				}
+				ended("receive", err)
 				return
 			}
 			if codec.Decode(&frame, buf[:n]) {
@@ -140,18 +149,19 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 	return nil
 }
 
-// release stops the audio and frees the dialog. It does not wait for the network.
-func (c *call) release() {
-	if c.cancel != nil {
-		c.cancel()
+// stopAudio stops the call's audio and closes the sound devices, beside the caller. It is safe to
+// call more than once; released is closed when the devices are closed.
+func (c *call) stopAudio() {
+	if c.released != nil {
+		return
 	}
+	released := make(chan struct{})
+	c.released = released
 	if c.stop != nil {
 		c.stop()
 	}
-	med, dlg, audio, sound := c.media, c.dialog, c.audio, c.sound
+	med, audio, sound := c.media, c.audio, c.sound
 	c.sound = false
-	released := make(chan struct{})
-	c.released = released
 	go func() {
 		defer close(released)
 		if med != nil {
@@ -164,8 +174,19 @@ func (c *call) release() {
 			// audio to carry, and how many came in.
 			c.log.Info("call audio ended", "frames_sent", c.sent.Load(), "frames_without_capture", c.unfed.Load(), "frames_received", c.received.Load())
 		}
-		if dlg != nil {
-			_ = dlg.Close()
-		}
 	}()
+}
+
+// release stops the audio and frees the dialog. It does not wait for the network.
+func (c *call) release() {
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.stopAudio()
+	if dlg, released := c.dialog, c.released; dlg != nil {
+		go func() {
+			<-released
+			_ = dlg.Close()
+		}()
+	}
 }

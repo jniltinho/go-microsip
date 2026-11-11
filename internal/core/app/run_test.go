@@ -7,7 +7,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,7 +30,12 @@ func (own) Inspect(info os.FileInfo) (owner, mode uint32) {
 }
 
 // registrar is a minimal loopback registrar: it accepts every REGISTER and refuses every call.
-func registrar(t *testing.T) (port int) {
+func registrar(t *testing.T) (port int) { return lab(t, 486) }
+
+// ringingRegistrar accepts every REGISTER and lets every call ring without an answer.
+func ringingRegistrar(t *testing.T) (port int) { return lab(t, 180) }
+
+func lab(t *testing.T, invite int) (port int) {
 	t.Helper()
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -49,7 +56,13 @@ func registrar(t *testing.T) (port int) {
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {
-		_ = tx.Respond(gosip.NewResponseFromRequest(req, 486, "Busy Here", nil))
+		_ = tx.Respond(gosip.NewResponseFromRequest(req, invite, "Lab", nil))
+		if invite < 200 { // ringing: the caller gives up, and the transaction ends with 487
+			<-tx.Done()
+		}
+	})
+	srv.OnCancel(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnAck(func(*gosip.Request, gosip.ServerTransaction) {})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -159,6 +172,82 @@ func TestRunIsASingleInstance(t *testing.T) {
 	stop()
 	if err := Run(again, o, RunOptions{}, func(domain.Event) {}); err != nil {
 		t.Errorf("a run after the first one ended: %v", err)
+	}
+}
+
+// Without a runtime directory the lock lives beside the database: there is still one softphone
+// per user. A lock that exists and cannot be taken stops the run instead of running unprotected.
+func TestRunIsASingleInstanceWithoutARuntimeDirectory(t *testing.T) {
+	o, db := options(t, registrar(t))
+	locks := &memory.Locks{}
+	o.Locks = locks
+	if lock := InstanceLock(o.Env); lock != filepath.Join(filepath.Dir(db), "instance.lock") {
+		t.Fatalf("lock file %q", lock)
+	}
+	held, err := locks.Lock(InstanceLock(o.Env))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(context.Background(), o, RunOptions{}, func(domain.Event) {}); !errors.Is(err, ErrRunning) {
+		t.Errorf("a second softphone: %v", err)
+	}
+	held()
+	o.Locks = brokenLocks{}
+	if err := Run(context.Background(), o, RunOptions{}, func(domain.Event) {}); err == nil || !strings.Contains(err.Error(), "instance lock") {
+		t.Errorf("a lock that cannot be taken: %v", err)
+	}
+}
+
+// brokenLocks fails every lock for a reason other than "held".
+type brokenLocks struct{}
+
+func (brokenLocks) Lock(string) (func(), error) { return nil, errors.New("read-only file system") }
+
+// Being told to stop while the call it placed is not answered yet is not a failure.
+func TestStoppingBeforeTheAnswerIsNotAFailure(t *testing.T) {
+	o, _ := options(t, ringingRegistrar(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := Run(ctx, o, RunOptions{Call: "1002"}, func(ev domain.Event) {
+		if c, ok := ev.(domain.CallChanged); ok && !c.Call.Phase.IsFinal() {
+			cancel() // an interrupt while it dials or rings
+		}
+	})
+	if err != nil {
+		t.Errorf("run: %v, want a clean stop", err)
+	}
+}
+
+// A reader of the events that has stalled keeps neither the call nor the softphone: the engine
+// stops when told to, and the run ends shortly after.
+func TestAStalledReaderDoesNotKeepTheSoftphoneRunning(t *testing.T) {
+	o, _ := options(t, registrar(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stalled := make(chan struct{})
+	t.Cleanup(func() { close(stalled) })
+	var warned atomic.Bool
+	o.Warn = func(string) { warned.Store(true) }
+	done := make(chan error, 1)
+	start := time.Now()
+	go func() {
+		done <- Run(ctx, o, RunOptions{}, func(ev domain.Event) {
+			if r, ok := ev.(domain.RegistrationChanged); ok && r.State.Status == domain.Registered {
+				cancel()
+				<-stalled // the output pipe is full and nobody reads it
+			}
+		})
+	}()
+	select {
+	case err := <-done:
+		if err != nil || !warned.Load() {
+			t.Errorf("run: %v, warned %v", err, warned.Load())
+		}
+		if took := time.Since(start); took > 10*time.Second {
+			t.Errorf("the run took %v to end", took)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("the softphone kept running behind a stalled reader")
 	}
 }
 

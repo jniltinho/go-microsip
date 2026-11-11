@@ -5,6 +5,7 @@
 package engine
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -41,9 +42,19 @@ type Options struct {
 type Engine struct {
 	opts     Options
 	commands chan domain.Command
-	internal chan func()
 	events   *outbox
 	stopped  chan struct{}
+
+	// The results of work done beside the actor. They are bounded by the operations in flight, at
+	// most one per command taken, so the list needs no limit of its own.
+	mu      sync.Mutex
+	results []func()
+	wake    chan struct{}
+	// dead: the actor has ended. A result that arrives later is applied by the goroutine that
+	// brings it, one at a time under late; it finds its account or its call gone and only releases
+	// what it brought.
+	dead bool
+	late sync.Mutex
 }
 
 // Start runs an engine. It stops after a Shutdown command; Stopped is then its last event.
@@ -54,7 +65,7 @@ func Start(o Options) *Engine {
 	e := &Engine{
 		opts:     o,
 		commands: make(chan domain.Command, commandQueue),
-		internal: make(chan func(), 64),
+		wake:     make(chan struct{}, 1),
 		events:   newOutbox(),
 		stopped:  make(chan struct{}),
 	}
@@ -86,12 +97,37 @@ func (e *Engine) Events() <-chan domain.Event { return e.events.out }
 // Done is closed when the engine has stopped.
 func (e *Engine) Done() <-chan struct{} { return e.stopped }
 
-// post hands the actor a state change from another goroutine; it is dropped once the engine stopped.
+// post hands the actor the result of work done beside it. No result is ever dropped: it may own a
+// socket, a dialog or a sound device that only its callback releases.
 func (e *Engine) post(f func()) {
-	select {
-	case e.internal <- f:
-	case <-e.stopped:
+	e.mu.Lock()
+	if !e.dead {
+		e.results = append(e.results, f)
+		e.mu.Unlock()
+		select {
+		case e.wake <- struct{}{}:
+		default:
+		}
+		return
 	}
+	e.mu.Unlock()
+	e.late.Lock()
+	defer e.late.Unlock()
+	defer func() {
+		if r := recover(); r != nil {
+			e.opts.Log.Error("engine failure after the stop", "panic", fmt.Sprint(r))
+		}
+	}()
+	f()
+}
+
+// take returns the results posted so far.
+func (e *Engine) take() []func() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	results := e.results
+	e.results = nil
+	return results
 }
 
 // outbox decouples the actor from the front end: emit never blocks, and the deliverer waits for the
@@ -100,6 +136,7 @@ type outbox struct {
 	mu      sync.Mutex
 	pending []domain.Event
 	closed  bool
+	sealed  bool // Stopped was emitted: nothing comes after it
 	wake    chan struct{}
 	out     chan domain.Event
 }
@@ -113,8 +150,14 @@ func newOutbox() *outbox {
 // emit queues an event, merging it into a pending one of the same kind when nothing is lost by it.
 func (o *outbox) emit(ev domain.Event) {
 	o.mu.Lock()
+	if o.sealed {
+		o.mu.Unlock()
+		return
+	}
 	merged := false
 	switch v := ev.(type) {
+	case domain.Stopped:
+		o.sealed = true
 	case domain.RegistrationChanged:
 		for i := len(o.pending) - 1; i >= 0 && !merged; i-- {
 			if _, ok := o.pending[i].(domain.RegistrationChanged); ok {

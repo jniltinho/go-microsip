@@ -215,8 +215,8 @@ func callThroughTheBinary(t *testing.T, bin, server, user, password, settings st
 	if m.good > 10 {
 		t.Errorf("the voice is still heard %d times after the microphone was unplugged", m.good)
 	}
-	if decoy := toneBlocks(samples, micTone); decoy > 0.05 {
-		t.Errorf("the other microphone is heard in %.0f %% of the blocks: the call moved to it without the user", decoy*100)
+	if decoy := toneBlocks(samples, micTone); decoy > 0 {
+		t.Errorf("the other microphone is heard in %.1f %% of the blocks: the call moved to it without the user", decoy*100)
 	}
 	t.Logf("%s after the unplug: voice in %d pieces of 2 s, other microphone in %.0f %% of the blocks", user, m.good, toneBlocks(samples, micTone)*100)
 	// The call is still up: nothing ended it, and the softphone runs until it is told to stop.
@@ -238,7 +238,11 @@ func callThroughTheBinary(t *testing.T, bin, server, user, password, settings st
 	case <-time.After(10 * time.Second):
 		t.Error("the softphone did not exit after the interrupt")
 	}
-	if all := strings.Join(seen, " "); !strings.Contains(all, "call:ended") {
+	all := strings.Join(seen, " ")
+	if !strings.Contains(all, "call:ended") {
 		t.Errorf("the call's end was not reported: %v", seen)
+	}
+	if n := strings.Count(all, "notice:microphone_lost"); n != 1 {
+		t.Errorf("the loss of the microphone was reported %d times, want once: %v", n, seen)
 	}
 }

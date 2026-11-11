@@ -13,6 +13,7 @@ import (
 	"github.com/jniltinho/go-microsip/internal/core/domain"
 	"github.com/jniltinho/go-microsip/internal/core/engine"
 	"github.com/jniltinho/go-microsip/internal/core/ports"
+	"github.com/jniltinho/go-microsip/internal/core/rustimport"
 	"github.com/jniltinho/go-microsip/internal/core/store"
 )
 
@@ -56,21 +57,33 @@ func (noAudio) Open(_, _ string) (ports.MediaIO, error) { return nil, ports.ErrN
 // the user can fix. The engine is always shut down first: calls end and the account unregisters
 // within the engine's bound.
 func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)) error {
-	// One softphone per user: two would fight over the account, the sound and the history.
-	// The lock and the recovery come before anything opens the database.
-	if lock := InstanceLock(o.base().Env); o.Locks != nil && lock != "" {
+	// One softphone per user: two would fight over the account and the sound, and the second
+	// would close the first one's journaled calls as interrupted. The lock and the recovery come
+	// before anything opens the database.
+	locked := false
+	switch lock := InstanceLock(o.base().Env); {
+	case o.Locks == nil || lock == "":
+		o.warn("single-instance protection is off: this build or this session has no place for the instance lock")
+	default:
 		unlock, err := o.Locks.Lock(lock)
-		if errors.Is(err, ports.ErrLocked) {
-			return ErrRunning
-		}
-		if err == nil {
+		switch {
+		case err == nil:
 			defer unlock()
-		} else {
+			locked = true
+		case errors.Is(err, ports.ErrLocked):
+			return ErrRunning
+		case errors.Is(err, errors.ErrUnsupported):
 			o.warn("single-instance protection is off: " + err.Error())
+		default: // the lock exists here and could not be taken: do not run unprotected
+			return fmt.Errorf("the instance lock could not be taken: %w", err)
 		}
 	}
-	if err := RecoverImport(o); err != nil {
-		return err
+	if locked {
+		if err := recoverImportLocked(o); errors.Is(err, rustimport.ErrCredentialCleanup) {
+			o.warn(err.Error()) // the files are settled; the keyring is tried again at the next start
+		} else if err != nil {
+			return err
+		}
 	}
 	c := o.context()
 	cfg, err := config.Resolve(c)
@@ -97,7 +110,6 @@ func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)
 	}
 
 	j := openJournal(o, StorePath(c.Env))
-	defer j.close()
 	e := engine.Start(engine.Options{
 		Audio: r.Audio, Input: cfg.Config.Audio.InputDevice, Output: cfg.Config.Audio.OutputDevice,
 		CA: ca, UserAgent: r.UserAgent, Log: r.Log,
@@ -107,66 +119,105 @@ func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)
 	}
 	e.Send(domain.Register{Settings: cfg.Config.Account, Password: cfg.Password})
 
-	var (
-		result   error
-		dialed   bool
-		answered bool
-		hangup   <-chan time.Time
-		ours     domain.CallID
-		done     = ctx.Done()
-	)
-	stop := func(err error) {
-		if result == nil {
-			result = err
+	// The end of ctx stops the engine whatever the reporting below is doing: a reader of the
+	// events that has stalled must not keep a call up or a microphone open.
+	shutdown := func() {
+		for !e.Send(domain.Shutdown{}) {
+			select {
+			case <-e.Done():
+				return
+			case <-time.After(10 * time.Millisecond): // the command queue is full: it drains
+			}
 		}
-		e.Send(domain.Shutdown{})
 	}
-	for {
+	go func() {
 		select {
-		case <-done:
-			done = nil // once: the loop goes on until the engine has stopped
-			stop(nil)
-		case <-hangup:
-			e.Send(domain.Hangup{Call: ours})
-		case ev, open := <-e.Events():
-			if !open {
-				return result
+		case <-ctx.Done():
+			shutdown()
+		case <-e.Done():
+		}
+	}()
+
+	finished := make(chan error, 1)
+	go func() {
+		defer j.close()
+		var (
+			result   error
+			dialed   bool
+			answered bool
+			hangup   <-chan time.Time
+			ours     domain.CallID
+		)
+		stop := func(err error) {
+			// Being told to stop is not a failure, whatever state the call or the account is in.
+			if result == nil && ctx.Err() == nil {
+				result = err
 			}
-			report(ev)
-			j.record(ev)
-			switch ev := ev.(type) {
-			case domain.RegistrationChanged:
-				switch s := ev.State; {
-				case s.Status == domain.Registered && r.Call != "" && !dialed:
-					dialed = true
-					e.Send(domain.Dial{Target: target})
-				case s.Status == domain.RegistrationFailed && (r.Call != "" && !dialed || s.Failure == domain.Unauthorized || s.Failure == domain.Certificate):
-					stop(fmt.Errorf("%w: %v", ErrRegistration, s))
+			shutdown()
+		}
+		for {
+			select {
+			case <-hangup:
+				e.Send(domain.Hangup{Call: ours})
+			case ev, open := <-e.Events():
+				if !open {
+					finished <- result
+					return
 				}
-			case domain.CallChanged:
-				if !dialed || ev.Call.Direction != domain.Outgoing || ours != 0 && ev.Call.ID != ours {
-					break
-				}
-				ours = ev.Call.ID
-				switch {
-				case ev.Call.Phase.Kind == domain.Established && !answered:
-					answered = true
-					if r.HangupAfter > 0 {
-						hangup = time.After(r.HangupAfter)
+				report(ev)
+				j.record(ev)
+				switch ev := ev.(type) {
+				case domain.RegistrationChanged:
+					switch s := ev.State; {
+					case s.Status == domain.Registered && r.Call != "" && !dialed:
+						dialed = true
+						e.Send(domain.Dial{Target: target})
+					case s.Status == domain.RegistrationFailed && (r.Call != "" && !dialed || s.Failure == domain.Unauthorized || s.Failure == domain.Certificate):
+						stop(fmt.Errorf("%w: %v", ErrRegistration, s))
 					}
-				case ev.Call.Phase.IsFinal() && answered:
-					stop(nil)
-				case ev.Call.Phase.IsFinal():
-					stop(fmt.Errorf("%w: %v", ErrCall, ev.Call.Phase))
-				}
-			case domain.Noticed:
-				if dialed && ours == 0 { // the Dial itself was refused
-					stop(fmt.Errorf("%w: %v", ErrCall, ev.Notice))
+				case domain.CallChanged:
+					if !dialed || ev.Call.Direction != domain.Outgoing || ours != 0 && ev.Call.ID != ours {
+						break
+					}
+					ours = ev.Call.ID
+					switch {
+					case ev.Call.Phase.Kind == domain.Established && !answered:
+						answered = true
+						if r.HangupAfter > 0 {
+							hangup = time.After(r.HangupAfter)
+						}
+					case ev.Call.Phase.IsFinal() && answered:
+						stop(nil)
+					case ev.Call.Phase.IsFinal():
+						stop(fmt.Errorf("%w: %v", ErrCall, ev.Call.Phase))
+					}
+				case domain.Noticed:
+					if dialed && ours == 0 { // the Dial itself was refused
+						stop(fmt.Errorf("%w: %v", ErrCall, ev.Notice))
+					}
 				}
 			}
+		}
+	}()
+	select {
+	case err := <-finished:
+		return err
+	case <-e.Done():
+		// The engine has stopped: calls are ended, the account is unregistered, the devices are
+		// closed. The events still to be reported get a moment; a reader that has stalled does not
+		// keep the softphone from ending.
+		select {
+		case err := <-finished:
+			return err
+		case <-time.After(outputGrace):
+			o.warn("the last events were not reported: their reader has stalled")
+			return nil
 		}
 	}
 }
+
+// outputGrace is how long the events of a stopped engine may take to be reported.
+const outputGrace = 2 * time.Second
 
 // journal writes the calls of one run to the history. Without a database it does nothing.
 type journal struct {

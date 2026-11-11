@@ -1,7 +1,10 @@
 // Package lock takes the advisory file lock by which an application keeps one instance per user.
 package lock
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Files implements ports.Locker on Windows.
 //
@@ -11,5 +14,5 @@ type Files struct{}
 
 // Lock reports that the lock is not available on Windows yet.
 func (Files) Lock(string) (func(), error) {
-	return nil, errors.New("the instance lock is not implemented on Windows yet")
+	return nil, fmt.Errorf("the instance lock is not implemented on Windows yet: %w", errors.ErrUnsupported)
 }

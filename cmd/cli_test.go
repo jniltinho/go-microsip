@@ -30,7 +30,7 @@ func cli(env map[string]string, args ...string) (int, string) {
 	if env == nil {
 		env = map[string]string{}
 	}
-	code := execute(&session{platform: Platform{Files: me{}}, env: env, stdout: &out, stderr: &out, version: "1.2.3", commit: "abc1234"}, args)
+	code := execute(&session{platform: Platform{Files: me{}, Locks: &memory.Locks{}}, env: env, stdout: &out, stderr: &out, version: "1.2.3", commit: "abc1234"}, args)
 	return code, out.String()
 }
 
@@ -275,5 +275,11 @@ func TestRunRefusesWhatItCannotStart(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(data["XDG_DATA_HOME"]); len(entries) != 0 {
 		t.Error("a refused run created the database")
+	}
+	// A build that cannot take the instance lock says that it runs unprotected.
+	var out bytes.Buffer
+	code := execute(&session{platform: Platform{Files: me{}}, env: data, stdout: &out, stderr: &out}, []string{"run"})
+	if code != 1 || !strings.Contains(out.String(), "single-instance protection is off") {
+		t.Errorf("no lock in this build: %d %q", code, out.String())
 	}
 }

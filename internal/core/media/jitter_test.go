@@ -151,3 +151,43 @@ func TestJitterBufferKeepsUpWithAFastSource(t *testing.T) {
 		t.Errorf("%d of %d packets delivered (%d lost, %d late, %d dropped)", delivered, packets, st.PacketsLost, st.PacketsLate, st.PacketsDropped)
 	}
 }
+
+// A packet that is late behind a burst still has its time: the packets queued after it are no
+// reason to declare it lost early. The first catch-up of this buffer did exactly that.
+func TestJitterBufferWaitsForALatePacketBehindABurst(t *testing.T) {
+	net := make(network, 64)
+	jb := dmedia.NewRTPJitterBuffer(net, 20*time.Millisecond, dmedia.RTPJitterBufferOptions{DelayPackets: 3, MaxPackets: 10})
+	defer jb.Close()
+	got := make(chan uint16, 64)
+	go func() {
+		buf := make([]byte, dmedia.RTPBufSize)
+		for {
+			var p rtp.Packet
+			if _, err := jb.ReadRTP(buf, &p); err != nil {
+				return
+			}
+			got <- p.SequenceNumber
+		}
+	}()
+	// 1 to 3 start the playout; 5 to 10 are already there; 4 is on its way. Packet 1 goes out at
+	// once, 2 a packet time later and 3 right behind it (catching up): 4 is then due one packet
+	// time after that, about 40 ms from the start, and it arrives at about 30 ms.
+	for _, seq := range []uint16{1, 2, 3, 5, 6, 7, 8, 9, 10} {
+		net <- seq
+	}
+	time.Sleep(30 * time.Millisecond)
+	net <- 4
+	for want := uint16(1); want <= 10; want++ {
+		select {
+		case seq := <-got:
+			if seq != want {
+				t.Fatalf("read packet %d, want %d: the late packet was given up", seq, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("packet %d was not delivered", want)
+		}
+	}
+	if st := jb.Statistics(); st.PacketsLost != 0 || st.PacketsLate != 0 {
+		t.Errorf("%d lost, %d late", st.PacketsLost, st.PacketsLate)
+	}
+}

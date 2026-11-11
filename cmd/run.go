@@ -69,7 +69,7 @@ opens no window.`,
 				return invalidConfiguration(err)
 			case err != nil:
 				return failed(err)
-			case code != 0:
+			case code != 0: // stopped by a signal: that is the status, whatever the call was doing
 				return &failure{code: code}
 			}
 			return nil

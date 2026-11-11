@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -202,6 +203,7 @@ const (
 	CSVTooManyRecords                  // the CSV input exceeds CSVMaxRecords
 	CSVHeader                          // the first line is not name,number or name,number,label
 	CSVInvalid                         // the preview has invalid rows; nothing was imported
+	InsecureDirectory                  // group or others can write the database's directory
 )
 
 // Error is a storage failure. Its text never includes user data or a path.
@@ -246,6 +248,8 @@ func (e *Error) Error() string {
 		return "the CSV header must be name,number or name,number,label"
 	case CSVInvalid:
 		return "the CSV preview contains invalid rows"
+	case InsecureDirectory:
+		return "the storage directory is writable by group or others; run `chmod go-w` on it"
 	}
 	return "a database operation failed"
 }
@@ -294,6 +298,13 @@ func Open(path string) (*Store, error) {
 				return nil, wrap(err)
 			}
 		}
+	}
+	// Whoever can write the directory can swap the database for another file, whatever the mode of
+	// the file itself; the check before opening it relies on the directory too.
+	// shortcut: the mode is checked, the owner is not, and on Windows neither is (no mode bits
+	// there); check the owner and the DACL when the Windows adapters land (M4).
+	if info, err := os.Stat(filepath.Dir(path)); err == nil && runtime.GOOS != "windows" && info.Mode().Perm()&0o022 != 0 {
+		return nil, &Error{Kind: InsecureDirectory}
 	}
 	if err := createPrivateFile(path, false); err != nil {
 		return nil, err

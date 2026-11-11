@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/emiago/diago"
@@ -66,6 +67,24 @@ func (e *Engine) run() {
 			a.emit(domain.Noticed{Notice: domain.NoticeEngineFailed})
 			a.release()
 		}
+		// The actor ends here. Results that arrived meanwhile are applied now, later ones by the
+		// goroutine that brings them: each finds its account or call gone and releases what it holds.
+		e.mu.Lock()
+		pending := e.results
+		e.results, e.dead = nil, true
+		e.mu.Unlock()
+		e.late.Lock()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					e.opts.Log.Error("engine failure at the stop", "panic", fmt.Sprint(r))
+				}
+			}()
+			for _, f := range pending {
+				f()
+			}
+		}()
+		e.late.Unlock()
 		a.emit(domain.Stopped{})
 		close(e.stopped)
 		e.events.close()
@@ -78,8 +97,10 @@ func (e *Engine) run() {
 				return
 			}
 			a.handle(c)
-		case f := <-e.internal:
-			f()
+		case <-e.wake:
+			for _, f := range e.take() {
+				f()
+			}
 		}
 	}
 }
@@ -434,8 +455,8 @@ func (a *actor) answer(id domain.CallID) {
 		med, err := d.Answer(diago.AnswerOptions{})
 		a.e.post(func() {
 			if c.snap.Phase.IsFinal() {
-				if err == nil {
-					_ = med.Close()
+				if err == nil { // answered after the call was given up: hang the dialog up
+					go closeDialog(d, med)
 				}
 				return
 			}
@@ -477,24 +498,65 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 	c.media = med
 	c.snap.Secure = sip.Secure(med)
 	a.move(c, domain.CallPhase{Kind: domain.Established})
-	audio, err := a.e.opts.Audio.Open(a.e.opts.Input, a.e.opts.Output)
-	if err != nil {
-		// The call stays up without sound; the user sees why and decides.
-		a.e.opts.Log.Warn("audio unavailable", "error", err)
-		a.notice(domain.NoticeAudioUnavailable)
-	} else if err := c.startAudio(med, audio, a.e.opts.Log, func() {
-		a.e.post(func() {
-			a.e.opts.Log.Warn("the microphone stopped delivering")
-			a.notice(domain.NoticeMicrophoneLost)
-		})
-	}); err != nil {
-		audio.Close()
-		a.e.opts.Log.Warn("audio unavailable", "error", err)
-		a.notice(domain.NoticeAudioUnavailable)
-	}
 	if c.snap.Direction == domain.Outgoing {
 		a.watch(c)
 	}
+	// The sound service is asked beside the actor: one that does not answer must not keep the
+	// engine from taking commands, Shutdown among them.
+	opts := a.e.opts
+	go func() {
+		audio, err := opts.Audio.Open(opts.Input, opts.Output)
+		a.e.post(func() {
+			over := c.released != nil || c.snap.Phase.IsFinal()
+			if err == nil && over {
+				audio.Close() // the call ended while the devices were opening
+				return
+			}
+			if err == nil {
+				if err = c.startAudio(med, audio, opts.Log, func() {
+					a.e.post(func() {
+						opts.Log.Warn("the microphone stopped delivering")
+						a.notice(domain.NoticeMicrophoneLost)
+					})
+				}, func(direction string, cause error) {
+					a.e.post(func() { a.mediaFailed(c, direction, cause) })
+				}); err != nil {
+					audio.Close()
+				}
+			}
+			if err != nil && !over {
+				// The call stays up without sound; the user sees why and decides.
+				opts.Log.Warn("audio unavailable", "error", err)
+				a.notice(domain.NoticeAudioUnavailable)
+			}
+		})
+	}()
+}
+
+// mediaFailed ends a call whose audio stopped on its own in one direction: a call that looks
+// established and carries nothing is worse than one that ends.
+func (a *actor) mediaFailed(c *call, direction string, cause error) {
+	if k := c.snap.Phase.Kind; k != domain.Established && k != domain.Held {
+		return
+	}
+	a.e.opts.Log.Warn("the call's audio failed", "direction", direction, "error", cause)
+	a.terminate(c, domain.EndFailed)
+}
+
+// terminate hangs an answered call up and ends it for this reason, also when the other side never
+// confirms.
+func (a *actor) terminate(c *call, reason domain.EndReason) {
+	c.ending = reason
+	a.move(c, domain.CallPhase{Kind: domain.Terminating})
+	d := c.dialog
+	go func() {
+		ctx, done := context.WithTimeout(context.Background(), operationTimeout)
+		if err := d.Hangup(ctx); err != nil {
+			a.e.opts.Log.Warn("hang-up was not confirmed", "error", err)
+		}
+		done()
+		a.e.post(func() { a.end(c, reason) })
+	}()
 }
 
 // watch tells the actor when the other side ends the call.
@@ -503,11 +565,15 @@ func (a *actor) watch(c *call) {
 	go func() {
 		<-done
 		a.e.post(func() {
-			switch c.snap.Phase.Kind {
-			case domain.Ringing:
+			switch {
+			case c.snap.Phase.Kind == domain.Ringing:
 				a.end(c, domain.EndCanceled)
-			case domain.Terminating:
+			case c.snap.Phase.Kind == domain.Terminating:
 				a.end(c, c.ending)
+			case c.snap.Transfer.Kind == domain.TransferPending:
+				// A PBX that completes a transfer ends this dialog right after its verdict: the
+				// transfer's result, which is on its way, says how the call ended.
+				c.gone = true
 			default:
 				a.end(c, domain.EndNormal)
 			}
@@ -533,17 +599,7 @@ func (a *actor) hangup(id domain.CallID) {
 		a.move(c, domain.CallPhase{Kind: domain.Terminating})
 		c.cancel() // the dial returns canceled and ends the call
 	case domain.Established, domain.Held:
-		c.ending = domain.EndNormal
-		a.move(c, domain.CallPhase{Kind: domain.Terminating})
-		d := c.dialog
-		go func() {
-			ctx, done := context.WithTimeout(context.Background(), operationTimeout)
-			if err := d.Hangup(ctx); err != nil {
-				a.e.opts.Log.Warn("hang-up was not confirmed", "error", err)
-			}
-			done()
-			a.e.post(func() { a.end(c, domain.EndNormal) }) // also when the other side never confirmed
-		}()
+		a.terminate(c, domain.EndNormal)
 	default:
 		a.notice(domain.NoticeInvalidState)
 	}
@@ -644,25 +700,35 @@ func (a *actor) transfer(id domain.CallID, target domain.DialTarget) {
 	to := gosip.Uri{User: target.Value(), Host: s.Server, Port: int(s.Port)}
 	c.snap.Transfer = domain.TransferState{Kind: domain.TransferPending}
 	a.publish(c)
-	result := make(chan int, 8)
-	refer := c.refer
+	// Only the verdict matters: progress reports may be many, the final status is kept apart from
+	// them so it can never be crowded out.
+	var verdict atomic.Int32
+	arrived := make(chan struct{}, 1)
+	refer, gone := c.refer, c.dialog.Context().Done()
 	go func() {
 		ctx, done := context.WithTimeout(context.Background(), operationTimeout)
 		err := refer(ctx, to, func(code int) {
-			select {
-			case result <- code:
-			default:
+			if code >= 200 {
+				verdict.Store(int32(code))
+				select {
+				case arrived <- struct{}{}:
+				default:
+				}
 			}
 		})
 		done()
-		code := 0
-		if err != nil {
-			code = 500
-		}
-		for timeout := time.After(transferTimeout); code < 200; {
+		code := 500
+		if err == nil {
 			select {
-			case code = <-result:
-			case <-timeout:
+			case <-arrived:
+			case <-gone: // the dialog ended: a verdict sent before that is here, or about to be
+				select {
+				case <-arrived:
+				case <-time.After(time.Second):
+				}
+			case <-time.After(transferTimeout):
+			}
+			if code = int(verdict.Load()); code == 0 {
 				code = 408
 			}
 		}
@@ -672,55 +738,70 @@ func (a *actor) transfer(id domain.CallID, target domain.DialTarget) {
 			}
 			if code != 200 {
 				c.snap.Transfer = domain.TransferState{Kind: domain.TransferFailed, Code: uint16(code)}
+				if c.gone { // the other side hung up meanwhile
+					a.end(c, domain.EndNormal)
+					return
+				}
 				a.publish(c) // the call goes on
 				return
 			}
 			c.snap.Transfer = domain.TransferState{Kind: domain.TransferSucceeded}
+			if c.gone {
+				a.end(c, domain.EndTransferred)
+				return
+			}
 			a.publish(c)
-			c.ending = domain.EndTransferred
-			a.move(c, domain.CallPhase{Kind: domain.Terminating})
-			d := c.dialog
-			go func() {
-				ctx, done := context.WithTimeout(context.Background(), operationTimeout)
-				_ = d.Hangup(ctx)
-				done()
-				a.e.post(func() { a.end(c, domain.EndTransferred) })
-			}()
+			if c.snap.Phase.Kind != domain.Terminating {
+				a.terminate(c, domain.EndTransferred)
+			}
 		})
 	}()
 }
 
 // --- shutdown -------------------------------------------------------------------------------
 
-// shutdown ends the call, unregisters and returns within shutdownTimeout.
+// within runs f beside the actor and waits for it until the deadline, no longer.
+func within(deadline time.Time, f func()) {
+	done := make(chan struct{})
+	go func() { f(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Until(deadline)):
+	}
+}
+
+// shutdown ends the call, unregisters, closes the sound devices and returns within
+// shutdownTimeout, whatever the network or the sound service do. The time is shared out so that
+// no step can use up another's: the call's goodbye, then the unregistration, then the devices.
 func (a *actor) shutdown() {
-	deadline := time.Now().Add(shutdownTimeout)
+	start := time.Now()
+	callBy, accountBy, deadline := start.Add(shutdownTimeout*2/5), start.Add(shutdownTimeout*4/5), start.Add(shutdownTimeout)
 	if c := a.call; c != nil {
 		reason := domain.EndNormal
+		c.stopAudio() // local and at once: the microphone stops before anything waits for the network
 		switch {
 		case c.cancel != nil && c.dialog == nil: // still dialing
 			c.cancel()
 			reason = domain.EndCanceled
+		case c.server != nil && c.snap.Phase.Kind == domain.Ringing && c.answering:
+			// The 200 is on its way and is the only final response: the answered dialog is hung
+			// up when the answer reports back.
 		case c.server != nil && c.snap.Phase.Kind == domain.Ringing:
-			select {
-			case <-c.rung:
-			case <-time.After(time.Until(deadline)):
-			}
-			_ = c.server.Respond(gosip.StatusBusyHere, "Busy Here", nil)
+			d, rung := c.server, c.rung
+			within(callBy, func() {
+				<-rung
+				_ = d.Respond(gosip.StatusBusyHere, "Busy Here", nil)
+			})
 			reason = domain.EndRejected
 		case c.dialog != nil:
-			ctx, done := context.WithDeadline(context.Background(), deadline)
-			_ = c.dialog.Hangup(ctx)
-			done()
+			d := c.dialog
+			within(callBy, func() {
+				ctx, done := context.WithDeadline(context.Background(), callBy)
+				_ = d.Hangup(ctx)
+				done()
+			})
 		}
 		a.end(c, reason)
-	}
-	// Stopped means the sound devices are closed too, within the same bound.
-	if a.released != nil {
-		select {
-		case <-a.released:
-		case <-time.After(time.Until(deadline)):
-		}
 	}
 	a.generation++
 	if a.retry != nil {
@@ -731,12 +812,11 @@ func (a *actor) shutdown() {
 	}
 	if ep := a.endpoint; ep != nil {
 		a.endpoint = nil
-		closed := make(chan struct{})
-		go func() { ep.Close(); close(closed) }()
-		select {
-		case <-closed:
-		case <-time.After(time.Until(deadline)):
-		}
+		within(accountBy, ep.Close)
+	}
+	// Stopped means the sound devices are closed too; the last part of the time is theirs alone.
+	if released := a.released; released != nil {
+		within(deadline, func() { <-released })
 	}
 	a.setRegistration(domain.RegistrationState{Status: domain.Disabled})
 }
@@ -757,7 +837,7 @@ func (a *actor) release() {
 	}
 }
 
-func closeDialog(d *diago.DialogClientSession, med *diago.DialogMedia) {
+func closeDialog(d dialog, med *diago.DialogMedia) {
 	ctx, done := context.WithTimeout(context.Background(), operationTimeout)
 	_ = d.Hangup(ctx)
 	done()
