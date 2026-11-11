@@ -2,10 +2,11 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"runtime"
 
-	"github.com/jniltinho/go-microsip/internal/core/config"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 	"github.com/jniltinho/go-microsip/internal/core/rustimport"
 )
 
@@ -19,47 +20,77 @@ var ErrNoRuntimeDirectory = errors.New("no runtime directory (XDG_RUNTIME_DIR) i
 // ErrImportUnsupported means this build cannot take the locks the import needs.
 var ErrImportUnsupported = errors.New("the import from rust-microsip is not available in this build")
 
-// InstanceLock is go-microsip's own lock file: <XDG_RUNTIME_DIR>/go-microsip/instance.lock, or,
-// in a session without a runtime directory, instance.lock beside the database. The lock is an
-// advisory one that the system releases when the process dies, so a file that stays behind locks
-// nothing. Empty when there is neither directory.
+// InstanceLock is go-microsip's own lock file: instance.lock beside the database, or empty when
+// there is no data directory. It is tied to the database and to nothing else, so every way of
+// starting go-microsip that would use the same database takes the same lock, whatever the session
+// it runs in. The lock is an advisory one that the system releases when the process dies: a file
+// that stays behind locks nothing.
 func InstanceLock(env map[string]string) string {
-	if dir := env["XDG_RUNTIME_DIR"]; filepath.IsAbs(dir) {
-		return filepath.Join(dir, config.DirName, "instance.lock")
-	}
 	if db := StorePath(env); db != "" {
 		return filepath.Join(filepath.Dir(db), "instance.lock")
 	}
 	return ""
 }
 
-// rustImporter locates both applications' data. The Rust application's paths follow its own rules:
-// the same bases as go-microsip's, with its name.
-func (o Options) rustImporter() (*rustimport.Importer, error) {
+// importer locates go-microsip's own files, which is all that undoing an import needs, and the
+// Rust application's when this session can reach them. The Rust application's paths follow its own
+// rules: the same bases as go-microsip's, with its name, and its lock in the runtime directory and
+// nowhere else.
+func (o Options) importer() (*rustimport.Importer, error) {
 	c := o.base()
-	if o.Locks == nil || runtime.GOOS == "windows" {
+	if o.Locks == nil {
 		return nil, ErrImportUnsupported
 	}
-	db, own := StorePath(c.Env), InstanceLock(c.Env)
+	db := StorePath(c.Env)
 	if db == "" {
 		return nil, ErrNoDataDirectory
 	}
-	// The Rust application keeps its lock in the runtime directory and nowhere else: without one
-	// it cannot be kept out while its files are copied.
-	runtimeDir := c.Env["XDG_RUNTIME_DIR"]
-	if !filepath.IsAbs(runtimeDir) {
-		return nil, ErrNoRuntimeDirectory
-	}
 	target := c.DefaultConfigPath()
-	return &rustimport.Importer{
-		Paths: rustimport.Paths{
-			SourceConfig: filepath.Join(filepath.Dir(filepath.Dir(target)), rustName, filepath.Base(target)),
-			SourceDB:     filepath.Join(filepath.Dir(filepath.Dir(db)), rustName, rustName+".sqlite3"),
-			SourceLock:   filepath.Join(runtimeDir, rustName, "instance.lock"),
-			Config:       target, DB: db, Lock: own,
-		},
+	i := &rustimport.Importer{
+		Paths: rustimport.Paths{Config: target, DB: db, Lock: InstanceLock(c.Env)},
 		Locks: o.Locks, Files: o.Files, Secrets: o.Secrets, Legacy: o.LegacySecrets,
-	}, nil
+	}
+	if dir := c.Env["XDG_RUNTIME_DIR"]; filepath.IsAbs(dir) && target != "" && runtime.GOOS != "windows" {
+		i.Paths.SourceConfig = filepath.Join(filepath.Dir(filepath.Dir(target)), rustName, filepath.Base(target))
+		i.Paths.SourceDB = filepath.Join(filepath.Dir(filepath.Dir(db)), rustName, rustName+".sqlite3")
+		i.Paths.SourceLock = filepath.Join(dir, rustName, "instance.lock")
+	}
+	return i, nil
+}
+
+// exclusive makes this process the one go-microsip of its database: it takes the instance lock and
+// undoes an import that was interrupted, before anything reads or writes the database. release
+// frees the lock; the caller keeps it for as long as it uses the database.
+//
+// A build or a session that has no lock runs unprotected and says so, but never beside an
+// unfinished import. A lock that exists and cannot be taken is an error.
+func (o Options) exclusive() (release func(), err error) {
+	release = func() {}
+	i, err := o.importer()
+	if err != nil { // no lock in this build, or no data directory: nothing to protect or to undo
+		o.warn("single-instance protection is off: this build or this session has no place for the instance lock")
+		return release, nil
+	}
+	unlock, err := o.Locks.Lock(i.Paths.Lock)
+	switch {
+	case errors.Is(err, ports.ErrLocked):
+		return release, ErrRunning
+	case errors.Is(err, errors.ErrUnsupported):
+		if i.Pending() {
+			return release, errors.New("an import from rust-microsip was interrupted and cannot be undone without the instance lock")
+		}
+		o.warn("single-instance protection is off: " + err.Error())
+		return release, nil
+	case err != nil:
+		return release, fmt.Errorf("the instance lock could not be taken: %w", err)
+	}
+	if err := i.RecoverLocked(); errors.Is(err, rustimport.ErrCredentialCleanup) {
+		o.warn(err.Error()) // the files are settled; the keyring is tried again at the next start
+	} else if err != nil {
+		unlock()
+		return release, err
+	}
+	return unlock, nil
 }
 
 // ImportRust previews what an import from the Rust application (rust-microsip) would bring and,
@@ -68,9 +99,17 @@ func (o Options) rustImporter() (*rustimport.Importer, error) {
 // copied from the Rust application's keyring too. The Rust application's files are only read, and
 // it must not be running. Nothing is ever imported without this call.
 func ImportRust(o Options, apply, credential bool) (string, error) {
-	i, err := o.rustImporter()
+	i, err := o.importer()
 	if err != nil {
 		return "", err
+	}
+	if runtime.GOOS == "windows" {
+		return "", ErrImportUnsupported
+	}
+	if i.Paths.SourceLock == "" {
+		// Without its runtime directory the Rust application cannot be kept out while its files
+		// are copied.
+		return "", ErrNoRuntimeDirectory
 	}
 	preview, err := i.Preview()
 	if err != nil {
@@ -84,33 +123,4 @@ func ImportRust(o Options, apply, credential bool) (string, error) {
 		return "", &ImportError{Preview: text, Err: err}
 	}
 	return text + "Imported from rust-microsip. Its files were not modified.\n", nil
-}
-
-// recoverImportLocked undoes an import from the Rust application that was interrupted, so the
-// database and the configuration file in use belong together. The caller holds go-microsip's
-// instance lock; every start calls it before anything is read.
-func recoverImportLocked(o Options) error {
-	i, err := o.rustImporter()
-	if err != nil {
-		return nil // nothing could have started an import here
-	}
-	return i.RecoverLocked()
-}
-
-// recoverImport is recoverImportLocked for a command that does not hold the instance lock. While
-// go-microsip runs, it has done the recovery itself; what must not happen is writing beside an
-// import that is still in progress or was left unfinished.
-func recoverImport(o Options) error {
-	i, err := o.rustImporter()
-	if err != nil {
-		return nil
-	}
-	err = i.Recover()
-	if errors.Is(err, rustimport.ErrRunning) {
-		if i.Pending() {
-			return errors.New("an import from rust-microsip is in progress or was interrupted; close go-microsip and try again")
-		}
-		return nil
-	}
-	return err
 }

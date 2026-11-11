@@ -441,11 +441,18 @@ func (j *RTPJitterBuffer) startPlayout() {
 func (j *RTPJitterBuffer) resetPlayoutTimer() {
 	now := time.Now()
 	j.nextPlayout = j.nextPlayout.Add(j.packetDuration)
-	// Catching up takes a packet that is there. One that is missing keeps its full time to arrive:
-	// packets queued behind it are no reason to give it up early.
-	next := j.sequence[int(j.expectedSeq)%j.maxPackets]
+	// Catching up is for a backlog that can be played: the packets in sequence from the next one
+	// on. A packet that is missing keeps its time to arrive, and so does one that is missing
+	// further on: packets queued behind a gap are no reason to bring its deadline forward.
+	ready := 0
+	for ; ready < j.maxPackets; ready++ {
+		seq := j.expectedSeq + uint16(ready)
+		if slot := j.sequence[int(seq)%j.maxPackets]; slot < 0 || j.slots[slot].seq != seq {
+			break
+		}
+	}
 	switch {
-	case j.queued > j.delayPackets+1 && next >= 0 && j.slots[next].seq == j.expectedSeq:
+	case ready > j.delayPackets+1:
 		j.nextPlayout = now // the source runs ahead of this clock: catch up
 	case now.Sub(j.nextPlayout) > j.packetDuration:
 		j.nextPlayout = now.Add(j.packetDuration) // the consumer was away: start the timetable again

@@ -58,6 +58,18 @@ type phone struct {
 	e       *engine.Engine
 	sound   *memory.Audio
 	seen    []string
+	// notices counts every notice the engine reported, whoever was waiting for what.
+	notices map[domain.Notice]int
+}
+
+// note records an event read from the engine.
+func (p *phone) note(ev domain.Event) {
+	if n, ok := ev.(domain.Noticed); ok {
+		if p.notices == nil {
+			p.notices = map[domain.Notice]int{}
+		}
+		p.notices[n.Notice]++
+	}
 }
 
 // start runs an engine for the account without registering it.
@@ -109,6 +121,7 @@ func (p *phone) wait(ctx context.Context, what string, match func(domain.Event) 
 			if !ok {
 				return nil, fmt.Errorf("%s: the engine stopped before %s; saw %v", p.user, what, p.seen)
 			}
+			p.note(ev)
 			if p.seen = append(p.seen, fmt.Sprintf("%T%v", ev, ev)); len(p.seen) > 12 {
 				p.seen = p.seen[1:]
 			}
@@ -202,6 +215,7 @@ func (p *phone) stop() ([]domain.Event, error) {
 		select {
 		case ev, ok := <-p.e.Events():
 			if ok {
+				p.note(ev)
 				got = append(got, ev)
 				continue
 			}
@@ -652,7 +666,14 @@ func engineMicrophoneLost(ctx context.Context, l *Lab) (map[string]any, error) {
 	if _, err := p.ended(ctx, domain.EndNormal); err != nil {
 		return data, err
 	}
-	return data, stopAll(p)
+	if err := stopAll(p); err != nil {
+		return data, err
+	}
+	// Over the whole call, to its last event: the loss was said exactly once.
+	if n := p.notices[domain.NoticeMicrophoneLost]; n != 1 {
+		return data, fmt.Errorf("the loss of the microphone was reported %d times", n)
+	}
+	return data, nil
 }
 
 // enginePlainOffer: 1302 gets plain RTP offers from the PBX. Configured with secure media, its engine

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -247,5 +248,27 @@ func TestNothingFollowsStopped(t *testing.T) {
 	got := drain(t, o.out)
 	if _, stopped := got[len(got)-1].(domain.Stopped); len(got) != 2 || !stopped {
 		t.Errorf("events %v, want one notice and Stopped", got)
+	}
+}
+
+// A result that fails ends the engine, but not the results behind it: each may own something only
+// its callback releases. Nothing that reports back afterwards is installed.
+func TestAFailingResultDoesNotAbandonTheOthers(t *testing.T) {
+	e := Start(Options{Audio: &memory.Audio{}})
+	var after, late atomic.Bool
+	e.mu.Lock() // both in one batch
+	e.results = append(e.results, func() { panic("first") }, func() { after.Store(true) })
+	e.mu.Unlock()
+	e.wake <- struct{}{}
+	got := drain(t, e.Events())
+	if n, ok := got[0].(domain.Noticed); len(got) != 2 || !ok || n.Notice != domain.NoticeEngineFailed {
+		t.Fatalf("events %v, want engine_failed and Stopped", got)
+	}
+	if _, stopped := got[1].(domain.Stopped); !stopped || !after.Load() {
+		t.Errorf("last event %T; the result behind the failing one ran: %v", got[1], after.Load())
+	}
+	e.post(func() { late.Store(true) })
+	if !late.Load() {
+		t.Error("a result that arrived after the failure was dropped")
 	}
 }

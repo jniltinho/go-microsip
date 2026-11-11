@@ -54,8 +54,9 @@ type actor struct {
 	dnd      bool
 	call     *call
 	lastCall uint64
-	// released is closed once the sound devices of the call that ended last are closed.
-	released chan struct{}
+	// released is closed once the sound devices of the call that ended last are closed; settled,
+	// once its devices are no longer opening.
+	released, settled chan struct{}
 }
 
 func (e *Engine) run() {
@@ -74,16 +75,9 @@ func (e *Engine) run() {
 		e.results, e.dead = nil, true
 		e.mu.Unlock()
 		e.late.Lock()
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					e.opts.Log.Error("engine failure at the stop", "panic", fmt.Sprint(r))
-				}
-			}()
-			for _, f := range pending {
-				f()
-			}
-		}()
+		for _, f := range pending {
+			e.apply(f)
+		}
 		e.late.Unlock()
 		a.emit(domain.Stopped{})
 		close(e.stopped)
@@ -98,10 +92,26 @@ func (e *Engine) run() {
 			}
 			a.handle(c)
 		case <-e.wake:
-			for _, f := range e.take() {
-				f()
-			}
+			a.results(e.take())
 		}
+	}
+}
+
+// results applies a batch of results. If one of them fails, the failure goes on to end the actor,
+// but not before the rest of the batch is back in the queue: the stop applies it.
+func (a *actor) results(batch []func()) {
+	for n, f := range batch {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					a.e.mu.Lock()
+					a.e.results = append(batch[n+1:], a.e.results...)
+					a.e.mu.Unlock()
+					panic(r)
+				}
+			}()
+			f()
+		}()
 	}
 }
 
@@ -348,7 +358,7 @@ func (a *actor) end(c *call, reason domain.EndReason) {
 	c.snap.Phase = domain.EndedWith(reason)
 	a.publish(c)
 	c.release()
-	a.released = c.released
+	a.released, a.settled = c.released, c.settled
 	if a.call == c {
 		a.call = nil
 	}
@@ -504,14 +514,27 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 	// The sound service is asked beside the actor: one that does not answer must not keep the
 	// engine from taking commands, Shutdown among them.
 	opts := a.e.opts
+	settled := make(chan struct{})
+	c.settled = settled
 	go func() {
 		audio, err := opts.Audio.Open(opts.Input, opts.Output)
+		if err == nil && c.over.Load() {
+			// The call's audio was stopped while the devices were opening: they are closed here,
+			// without waiting for an actor that may be busy stopping.
+			audio.Close()
+			close(settled)
+			return
+		}
 		a.e.post(func() {
 			over := c.released != nil || c.snap.Phase.IsFinal()
 			if err == nil && over {
-				audio.Close() // the call ended while the devices were opening
+				go func() { // closing may take its time: never on the actor
+					audio.Close()
+					close(settled)
+				}()
 				return
 			}
+			defer close(settled)
 			if err == nil {
 				if err = c.startAudio(med, audio, opts.Log, func() {
 					a.e.post(func() {
@@ -521,7 +544,7 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 				}, func(direction string, cause error) {
 					a.e.post(func() { a.mediaFailed(c, direction, cause) })
 				}); err != nil {
-					audio.Close()
+					go audio.Close()
 				}
 			}
 			if err != nil && !over {
@@ -814,25 +837,41 @@ func (a *actor) shutdown() {
 		a.endpoint = nil
 		within(accountBy, ep.Close)
 	}
-	// Stopped means the sound devices are closed too; the last part of the time is theirs alone.
-	if released := a.released; released != nil {
-		within(deadline, func() { <-released })
+	// Stopped means the sound devices are closed too, unless the sound service itself does not
+	// answer within the time: the last part of it is theirs alone. That covers devices that were
+	// still opening when the call ended.
+	if released, settled := a.released, a.settled; released != nil {
+		within(deadline, func() {
+			<-released
+			if settled != nil {
+				<-settled
+			}
+		})
 	}
 	a.setRegistration(domain.RegistrationState{Status: domain.Disabled})
 }
 
 // release frees what the actor holds after a failure, without waiting for the network.
 func (a *actor) release() {
+	// Nothing that reports back from now on belongs to an account or a call of this engine: a
+	// registration that completes late is closed, not installed.
+	a.generation++
+	a.configured = false
+	if a.retry != nil {
+		a.retry.Stop()
+	}
 	if c := a.call; c != nil {
 		c.snap.Phase = domain.EndedWith(domain.EndFailed)
 		c.snap.Version++
 		a.emit(domain.CallChanged{Call: c.snap})
 		c.release()
+		a.call = nil
 	}
 	if a.cancel != nil {
 		a.cancel()
 	}
 	if ep := a.endpoint; ep != nil {
+		a.endpoint = nil
 		go ep.Close()
 	}
 }

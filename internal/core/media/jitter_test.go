@@ -169,13 +169,13 @@ func TestJitterBufferWaitsForALatePacketBehindABurst(t *testing.T) {
 			got <- p.SequenceNumber
 		}
 	}()
-	// 1 to 3 start the playout; 5 to 10 are already there; 4 is on its way. Packet 1 goes out at
-	// once, 2 a packet time later and 3 right behind it (catching up): 4 is then due one packet
-	// time after that, about 40 ms from the start, and it arrives at about 30 ms.
+	// 1 to 3 start the playout; 5 to 10 are already there; 4 is on its way. On its timetable 1 goes
+	// out at once, 2 and 3 one and two packet times later, and 4 is due at about 60 ms: it arrives
+	// at about 50 ms. The packets behind the gap must not bring any of that forward.
 	for _, seq := range []uint16{1, 2, 3, 5, 6, 7, 8, 9, 10} {
 		net <- seq
 	}
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	net <- 4
 	for want := uint16(1); want <= 10; want++ {
 		select {

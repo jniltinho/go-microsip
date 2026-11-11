@@ -285,6 +285,9 @@ type journal struct {
 	ConfigBackup string `json:"config_backup,omitempty"`
 	// NewConfig tells whether the import brings a configuration file.
 	NewConfig bool `json:"new_config"`
+	// Config is go-microsip's configuration file as the import knew it: recovery restores that
+	// file, also from a session whose environment names another one, or none.
+	Config string `json:"config,omitempty"`
 }
 
 // Steps of the journal. Everything before stepCommit leaves go-microsip's files untouched.
@@ -299,10 +302,31 @@ const (
 // syncDirs makes the renames in go-microsip's two directories durable.
 func (i *Importer) syncDirs() error {
 	err := syncDir(filepath.Dir(i.Paths.DB))
-	if config := filepath.Dir(i.Paths.Config); exists(config) {
+	if config := filepath.Dir(i.Paths.Config); i.Paths.Config != "" && exists(config) {
 		err = errors.Join(err, syncDir(config))
 	}
 	return err
+}
+
+// mkdirDurable creates a private directory with its missing parents and syncs the directory each
+// new one was made in, so that a file renamed into it does not vanish with it at a power loss.
+func mkdirDurable(dir string) error {
+	var made []string
+	for d := dir; !exists(d); d = filepath.Dir(d) {
+		made = append(made, d)
+		if filepath.Dir(d) == d {
+			break
+		}
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	for _, d := range made {
+		if err := syncDir(filepath.Dir(d)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (i *Importer) writeJournal(j journal) error {
@@ -383,6 +407,9 @@ func (i *Importer) RecoverLocked() error {
 	if err := json.Unmarshal(raw, &j); err != nil {
 		return fmt.Errorf("the import journal cannot be read: %w", err)
 	}
+	if j.Config != "" {
+		i.Paths.Config = j.Config
+	}
 	if j.Step == stepCommit {
 		// Put back what was moved away; what took its place came from the import.
 		if j.HadDB {
@@ -445,7 +472,7 @@ func (i *Importer) RecoverLocked() error {
 // remains, and the import can be run again. go-microsip's instance lock is held from before the
 // recovery of an earlier attempt until after the cleanup of this one.
 func (i *Importer) Apply(confirmed Preview, credential bool) error {
-	if err := os.MkdirAll(filepath.Dir(i.Paths.DB), 0o700); err != nil {
+	if err := mkdirDurable(filepath.Dir(i.Paths.DB)); err != nil {
 		return err
 	}
 	unlock, err := i.Locks.Lock(i.Paths.Lock)
@@ -491,7 +518,7 @@ func (i *Importer) apply(confirmed Preview, credential bool) (err error) {
 	if credential && (i.Secrets == nil || i.Legacy == nil) {
 		return ErrNoCredential
 	}
-	j := journal{Step: stepStaging, HadDB: exists(p.DB), HadConfig: exists(p.Config)}
+	j := journal{Step: stepStaging, HadDB: exists(p.DB), HadConfig: exists(p.Config), Config: p.Config}
 	if err := i.writeJournal(j); err != nil {
 		return err
 	}
@@ -659,7 +686,7 @@ func (i *Importer) apply(confirmed Preview, credential bool) (err error) {
 		return err
 	}
 	if configCopy != "" {
-		if err := os.MkdirAll(filepath.Dir(p.Config), 0o700); err != nil {
+		if err := mkdirDurable(filepath.Dir(p.Config)); err != nil {
 			return err
 		}
 		if err := os.Rename(configCopy, p.Config); err != nil {

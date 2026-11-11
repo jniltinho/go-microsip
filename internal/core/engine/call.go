@@ -55,6 +55,11 @@ type call struct {
 	// released is closed once the audio is stopped and the sound devices are closed; nil until the
 	// call's audio was told to stop.
 	released chan struct{}
+	// settled is closed once the sound devices are no longer opening: they run, they failed, or
+	// they were closed again. over tells the goroutine that opens them that the call's audio was
+	// stopped meanwhile.
+	settled chan struct{}
+	over    atomic.Bool
 	// What the audio goroutines did, for the summary logged when the call's audio ends.
 	sent, unfed, received atomic.Uint64
 	log                   *slog.Logger
@@ -157,6 +162,7 @@ func (c *call) stopAudio() {
 	}
 	released := make(chan struct{})
 	c.released = released
+	c.over.Store(true)
 	if c.stop != nil {
 		c.stop()
 	}

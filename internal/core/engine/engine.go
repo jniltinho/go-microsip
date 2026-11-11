@@ -113,9 +113,15 @@ func (e *Engine) post(f func()) {
 	e.mu.Unlock()
 	e.late.Lock()
 	defer e.late.Unlock()
+	e.apply(f)
+}
+
+// apply runs one result. A failure in it is contained, so the results after it still run: each may
+// own something only its callback releases.
+func (e *Engine) apply(f func()) {
 	defer func() {
 		if r := recover(); r != nil {
-			e.opts.Log.Error("engine failure after the stop", "panic", fmt.Sprint(r))
+			e.opts.Log.Error("engine failure in a result", "panic", fmt.Sprint(r))
 		}
 	}()
 	f()

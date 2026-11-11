@@ -159,11 +159,14 @@ func Import(o Options, file string, apply bool) (string, error) {
 	if path == "" {
 		return "", &ImportError{Preview: text, Err: ErrNoDataDirectory}
 	}
-	// An import from the Rust application that was interrupted is undone before the database is
-	// written: what is stored now must not be replaced by that recovery later.
-	if err := recoverImport(o); err != nil && !errors.Is(err, rustimport.ErrCredentialCleanup) {
+	// The settings are replaced by the one go-microsip of this database, from before an interrupted
+	// import is undone until the store is closed: not beside a running softphone, whose settings
+	// would change under it, and not beside an import from the Rust application.
+	release, err := o.exclusive()
+	if err != nil {
 		return "", &ImportError{Preview: text, Err: err}
 	}
+	defer release()
 	s, err := store.Open(path)
 	if err == nil {
 		// shortcut: the keyring entry of the replaced account is not deleted yet; do it here once

@@ -54,7 +54,7 @@ What is wired today and what is not: the command line runs the whole core (`go-m
 - **Sound devices.** The audio service's threads and the engine never share a lock: samples cross through preallocated single-producer single-consumer rings. A microphone that stops delivering is reported once (`microphone_lost`); the call goes on in silence and no other device is opened.
 - **Shutdown.** `Shutdown` ends the call, unregisters, closes the sound devices and reports `Stopped` within five seconds, also when the PBX does not answer. A panic in the actor is caught and reported as `engine_failed`, still followed by `Stopped`. `go-microsip run` turns an interrupt or a termination signal into this shutdown and exits 130 or 143.
 - **History.** A call is journaled when it starts and completed when it ends; a row left open by a killed process is closed as `interrupted` at the next start.
-- **One instance.** `run` holds `$XDG_RUNTIME_DIR/go-microsip/instance.lock`; a second one refuses to start. The import from the Rust application holds this lock and the Rust application's own while it copies.
+- **One instance.** `run` holds `instance.lock` beside the database, so there is one go-microsip per database whatever session starts it; a second one refuses to start. Both imports hold this lock; the one from the Rust application also holds the Rust application's own while it copies.
 
 ### Security boundaries
 

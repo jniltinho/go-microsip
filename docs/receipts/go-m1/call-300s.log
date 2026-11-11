@@ -1,10 +1,10 @@
-call_linux_test.go:201: 1001, 300 s through the binary and the echo: speaker 29994 of 29995 10 ms pieces (longest silence 1 pieces, arrival gap 23 ms)
+call_linux_test.go:201: 1001, 300 s through the binary and the echo: speaker 29994 of 29995 10 ms pieces (longest silence 1 pieces, arrival gap 24 ms)
 call_linux_test.go:221: 1001 after the unplug: voice in 0 pieces of 2 s, other microphone in 0 % of the blocks
-time=2026-11-11T16:29:45.813Z level=INFO msg="call audio ended" frames_sent=15315 frames_without_capture=218 frames_received=15313
-call_linux_test.go:201: 1201, 300 s through the binary and the echo: speaker 29995 of 29996 10 ms pieces (longest silence 1 pieces, arrival gap 24 ms)
+time=2026-11-11T16:59:56.530Z level=INFO msg="call audio ended" frames_sent=15316 frames_without_capture=218 frames_received=15314
+call_linux_test.go:201: 1201, 300 s through the binary and the echo: speaker 29994 of 29995 10 ms pieces (longest silence 1 pieces, arrival gap 24 ms)
 call_linux_test.go:221: 1201 after the unplug: voice in 0 pieces of 2 s, other microphone in 0 % of the blocks
-time=2026-11-11T16:34:52.200Z level=INFO msg="call audio ended" frames_sent=15317 frames_without_capture=218 frames_received=15315
---- PASS: TestCallThroughTheBinary (612.80s)
---- PASS: TestCallThroughTheBinary/1001 (306.41s)
---- PASS: TestCallThroughTheBinary/1201 (306.39s)
+time=2026-11-11T17:05:02.901Z level=INFO msg="call audio ended" frames_sent=15316 frames_without_capture=218 frames_received=15314
+--- PASS: TestCallThroughTheBinary (612.77s)
+--- PASS: TestCallThroughTheBinary/1001 (306.40s)
+--- PASS: TestCallThroughTheBinary/1201 (306.37s)
 PASS

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -175,14 +176,17 @@ func TestRunIsASingleInstance(t *testing.T) {
 	}
 }
 
-// Without a runtime directory the lock lives beside the database: there is still one softphone
-// per user. A lock that exists and cannot be taken stops the run instead of running unprotected.
-func TestRunIsASingleInstanceWithoutARuntimeDirectory(t *testing.T) {
+// The lock is tied to the database and to nothing else: a desktop session and one without a
+// runtime directory take the same lock, so there is one softphone per database. A lock that exists
+// and cannot be taken stops the run instead of running unprotected.
+func TestTheInstanceLockBelongsToTheDatabase(t *testing.T) {
 	o, db := options(t, registrar(t))
 	locks := &memory.Locks{}
 	o.Locks = locks
-	if lock := InstanceLock(o.Env); lock != filepath.Join(filepath.Dir(db), "instance.lock") {
-		t.Fatalf("lock file %q", lock)
+	desktop := maps.Clone(o.Env)
+	desktop["XDG_RUNTIME_DIR"] = t.TempDir()
+	if lock := InstanceLock(o.Env); lock != filepath.Join(filepath.Dir(db), "instance.lock") || lock != InstanceLock(desktop) {
+		t.Fatalf("lock files %q and %q", lock, InstanceLock(desktop))
 	}
 	held, err := locks.Lock(InstanceLock(o.Env))
 	if err != nil {
@@ -248,6 +252,78 @@ func TestAStalledReaderDoesNotKeepTheSoftphoneRunning(t *testing.T) {
 		}
 	case <-time.After(20 * time.Second):
 		t.Fatal("the softphone kept running behind a stalled reader")
+	}
+}
+
+// An import from the Rust application that was interrupted is undone at the next start, whatever
+// session that start runs in: undoing it needs go-microsip's own files only.
+func TestStartUndoesAnInterruptedImportInAnySession(t *testing.T) {
+	o, db := options(t, 1)
+	o.Locks = &memory.Locks{}
+	delete(o.Env, "GO_MICROSIP_SIP_PASSWORD") // the run ends right after the recovery
+	dir := filepath.Dir(db)
+	staging, journal := filepath.Join(dir, "import-staging"), filepath.Join(dir, "import.journal")
+	if err := os.MkdirAll(staging, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(journal, []byte(`{"step":"staging","had_db":false,"had_config":false,"new_config":false}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, has := o.Env["XDG_RUNTIME_DIR"]; has {
+		t.Fatal("this start must have no runtime directory")
+	}
+	if err := Run(context.Background(), o, RunOptions{}, func(domain.Event) {}); !errors.Is(err, ErrNoPassword) {
+		t.Fatalf("run: %v", err)
+	}
+	for _, left := range []string{staging, journal} {
+		if _, err := os.Stat(left); err == nil {
+			t.Errorf("%s is still there: the interrupted import was not undone", filepath.Base(left))
+		}
+	}
+	// A build without a lock never starts beside an unfinished import.
+	if err := os.WriteFile(journal, []byte(`{"step":"staging"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o.Locks = unsupportedLocks{}
+	if err := Run(context.Background(), o, RunOptions{}, func(domain.Event) {}); err == nil || !strings.Contains(err.Error(), "interrupted") {
+		t.Errorf("a start without a lock beside an unfinished import: %v", err)
+	}
+}
+
+// unsupportedLocks is a platform that has no instance lock yet.
+type unsupportedLocks struct{}
+
+func (unsupportedLocks) Lock(string) (func(), error) {
+	return nil, fmt.Errorf("not here: %w", errors.ErrUnsupported)
+}
+
+// Stored settings are replaced only by the one go-microsip of the database: not beside a running
+// softphone and not beside an import, and the lock is held until the store is closed.
+func TestConfigImportNeedsTheInstanceLock(t *testing.T) {
+	o, db := options(t, 1)
+	locks := &memory.Locks{}
+	o.Locks = locks
+	file := filepath.Join(t.TempDir(), "import.toml")
+	if err := os.WriteFile(file, []byte("schema = 1\n[account]\nusername = \"1009\"\ndomain = \"pbx.invalid\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	held, err := locks.Lock(InstanceLock(o.Env))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refused *ImportError
+	if _, err := Import(o, file, true); !errors.As(err, &refused) || !errors.Is(err, ErrRunning) {
+		t.Errorf("import beside a running go-microsip: %v", err)
+	}
+	if _, err := os.Stat(db); err == nil {
+		t.Error("a refused import created the database")
+	}
+	held()
+	if _, err := Import(o, file, true); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if locks.Held(InstanceLock(o.Env)) {
+		t.Error("the lock is still held after the import")
 	}
 }
 
