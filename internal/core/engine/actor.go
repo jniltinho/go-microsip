@@ -514,28 +514,21 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 	// The sound service is asked beside the actor: one that does not answer must not keep the
 	// engine from taking commands, Shutdown among them.
 	opts := a.e.opts
-	settled := make(chan struct{})
-	c.settled = settled
+	c.settled = make(chan struct{})
 	go func() {
 		audio, err := opts.Audio.Open(opts.Input, opts.Output)
-		if err == nil && c.over.Load() {
-			// The call's audio was stopped while the devices were opening: they are closed here,
-			// without waiting for an actor that may be busy stopping.
-			audio.Close()
-			close(settled)
-			return
+		if err != nil {
+			close(c.settled) // nothing is open
+		} else if !c.offer(audio) {
+			return // the call's audio was stopped while the devices were opening
 		}
 		a.e.post(func() {
 			over := c.released != nil || c.snap.Phase.IsFinal()
-			if err == nil && over {
-				go func() { // closing may take its time: never on the actor
-					audio.Close()
-					close(settled)
-				}()
-				return
-			}
-			defer close(settled)
 			if err == nil {
+				audio := c.take()
+				if audio == nil {
+					return // stopAudio took the devices and closes them
+				}
 				if err = c.startAudio(med, audio, opts.Log, func() {
 					a.e.post(func() {
 						opts.Log.Warn("the microphone stopped delivering")
@@ -546,6 +539,7 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 				}); err != nil {
 					go audio.Close()
 				}
+				close(c.settled)
 			}
 			if err != nil && !over {
 				// The call stays up without sound; the user sees why and decides.

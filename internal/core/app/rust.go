@@ -58,6 +58,10 @@ func (o Options) importer() (*rustimport.Importer, error) {
 	return i, nil
 }
 
+// errPendingImport: an unfinished import is on record and this build cannot take the lock under
+// which it is undone. Nothing may use the database until a build that can has started once.
+var errPendingImport = errors.New("an import from rust-microsip was interrupted and cannot be undone without the instance lock")
+
 // exclusive makes this process the one go-microsip of its database: it takes the instance lock and
 // undoes an import that was interrupted, before anything reads or writes the database. release
 // frees the lock; the caller keeps it for as long as it uses the database.
@@ -67,7 +71,10 @@ func (o Options) importer() (*rustimport.Importer, error) {
 func (o Options) exclusive() (release func(), err error) {
 	release = func() {}
 	i, err := o.importer()
-	if err != nil { // no lock in this build, or no data directory: nothing to protect or to undo
+	if err != nil { // no lock in this build, or no data directory
+		if db := StorePath(o.base().Env); db != "" && (&rustimport.Importer{Paths: rustimport.Paths{DB: db}}).Pending() {
+			return release, errPendingImport
+		}
 		o.warn("single-instance protection is off: this build or this session has no place for the instance lock")
 		return release, nil
 	}
@@ -77,7 +84,7 @@ func (o Options) exclusive() (release func(), err error) {
 		return release, ErrRunning
 	case errors.Is(err, errors.ErrUnsupported):
 		if i.Pending() {
-			return release, errors.New("an import from rust-microsip was interrupted and cannot be undone without the instance lock")
+			return release, errPendingImport
 		}
 		o.warn("single-instance protection is off: " + err.Error())
 		return release, nil

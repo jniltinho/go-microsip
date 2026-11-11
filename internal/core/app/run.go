@@ -118,18 +118,17 @@ func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)
 		}
 	}()
 
-	// Reporting has its own goroutine and its own queue: a reader of the events that has stalled
-	// keeps neither the call, nor the history, nor the lock. What it has not taken by the end is
-	// not reported.
-	reports := make(chan domain.Event, reportQueue)
+	// Reporting has its own goroutine: a reader of the events that has stalled keeps neither the
+	// call, nor the history, nor the lock. While it is behind, events reach it by the engine's own
+	// rule: intermediate states are merged, a call's final snapshot and Stopped are never dropped.
+	reports := make(chan domain.Event)
 	reported := make(chan struct{})
 	go func() {
 		defer close(reported)
-		for ev := range reports {
+		for ev := range engine.Relay(reports) {
 			report(ev)
 		}
 	}()
-	unreported := 0
 
 	var (
 		result   error
@@ -157,11 +156,7 @@ func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)
 			}
 		}
 		j.record(ev)
-		select {
-		case reports <- ev:
-		default:
-			unreported++
-		}
+		reports <- ev // taken at once: the relay never waits for the reader
 		switch ev := ev.(type) {
 		case domain.RegistrationChanged:
 			switch s := ev.State; {
@@ -199,16 +194,13 @@ func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)
 	select {
 	case <-reported:
 	case <-time.After(outputGrace):
-		unreported += len(reports)
-	}
-	if unreported > 0 {
-		o.warn(fmt.Sprintf("%d events were not reported: their reader has stalled", unreported))
+		// The warning may go to the same stalled reader: it is sent without waiting for it, so the
+		// history is closed and the lock released whatever the output does.
+		go o.warn("the last events were not reported: their reader has stalled")
+		time.Sleep(50 * time.Millisecond)
 	}
 	return result
 }
-
-// reportQueue is how many events may wait for their reader.
-const reportQueue = 1024
 
 // outputGrace is how long the events of a stopped engine may take to be reported.
 const outputGrace = 2 * time.Second

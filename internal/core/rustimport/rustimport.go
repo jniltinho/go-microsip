@@ -299,11 +299,12 @@ const (
 	stepCleanup = "cleanup"
 )
 
-// syncDirs makes the renames in go-microsip's two directories durable.
-func (i *Importer) syncDirs() error {
-	err := syncDir(filepath.Dir(i.Paths.DB))
-	if config := filepath.Dir(i.Paths.Config); i.Paths.Config != "" && exists(config) {
-		err = errors.Join(err, syncDir(config))
+// syncDirs makes the renames in the directories of the database and of the configuration file
+// durable.
+func syncDirs(db, config string) error {
+	err := syncDir(filepath.Dir(db))
+	if dir := filepath.Dir(config); config != "" && exists(dir) {
+		err = errors.Join(err, syncDir(dir))
 	}
 	return err
 }
@@ -407,8 +408,11 @@ func (i *Importer) RecoverLocked() error {
 	if err := json.Unmarshal(raw, &j); err != nil {
 		return fmt.Errorf("the import journal cannot be read: %w", err)
 	}
+	// The configuration file is the one the interrupted import moved, which the journal names: the
+	// session that recovers may point at another one, and a later import goes to that one.
+	config := i.Paths.Config
 	if j.Config != "" {
-		i.Paths.Config = j.Config
+		config = j.Config
 	}
 	if j.Step == stepCommit {
 		// Put back what was moved away; what took its place came from the import.
@@ -426,13 +430,13 @@ func (i *Importer) RecoverLocked() error {
 		}
 		if j.HadConfig {
 			if exists(j.ConfigBackup) {
-				_ = os.Remove(i.Paths.Config)
-				if err := os.Rename(j.ConfigBackup, i.Paths.Config); err != nil {
+				_ = os.Remove(config)
+				if err := os.Rename(j.ConfigBackup, config); err != nil {
 					return err
 				}
 			}
 		} else if j.NewConfig {
-			if err := os.Remove(i.Paths.Config); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			if err := os.Remove(config); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return err
 			}
 		}
@@ -442,7 +446,7 @@ func (i *Importer) RecoverLocked() error {
 	}
 	// The files are settled; that must be on disk before the journal that says how to settle them
 	// is changed or removed.
-	if err := i.syncDirs(); err != nil {
+	if err := syncDirs(i.Paths.DB, config); err != nil {
 		return err
 	}
 	if err := i.kill("recover-files-restored"); err != nil {
@@ -697,7 +701,7 @@ func (i *Importer) apply(confirmed Preview, credential bool) (err error) {
 		return err
 	}
 	// Every rename, in both directories, is on disk before the journal says the import is done.
-	if err := i.syncDirs(); err != nil {
+	if err := syncDirs(p.DB, p.Config); err != nil {
 		return err
 	}
 	j.Step = stepDone

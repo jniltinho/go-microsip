@@ -56,10 +56,13 @@ type call struct {
 	// call's audio was told to stop.
 	released chan struct{}
 	// settled is closed once the sound devices are no longer opening: they run, they failed, or
-	// they were closed again. over tells the goroutine that opens them that the call's audio was
-	// stopped meanwhile.
+	// they were closed again. Devices that are open and not yet running are in opened, guarded by
+	// handoff together with stopped: whoever takes them out, the actor to start them or stopAudio
+	// to close them, owns them, so neither waits for the other.
 	settled chan struct{}
-	over    atomic.Bool
+	handoff sync.Mutex
+	opened  ports.MediaIO
+	stopped bool
 	// What the audio goroutines did, for the summary logged when the call's audio ends.
 	sent, unfed, received atomic.Uint64
 	log                   *slog.Logger
@@ -154,6 +157,30 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 	return nil
 }
 
+// offer hands over sound devices that were just opened, from the goroutine that opened them. It
+// reports false when the call's audio was stopped meanwhile: the devices are then closed here.
+func (c *call) offer(audio ports.MediaIO) bool {
+	c.handoff.Lock()
+	if c.stopped {
+		c.handoff.Unlock()
+		audio.Close()
+		close(c.settled)
+		return false
+	}
+	c.opened = audio
+	c.handoff.Unlock()
+	return true
+}
+
+// take removes the offered devices; nil when there are none or stopAudio took them.
+func (c *call) take() ports.MediaIO {
+	c.handoff.Lock()
+	defer c.handoff.Unlock()
+	audio := c.opened
+	c.opened = nil
+	return audio
+}
+
 // stopAudio stops the call's audio and closes the sound devices, beside the caller. It is safe to
 // call more than once; released is closed when the devices are closed.
 func (c *call) stopAudio() {
@@ -162,14 +189,22 @@ func (c *call) stopAudio() {
 	}
 	released := make(chan struct{})
 	c.released = released
-	c.over.Store(true)
+	c.handoff.Lock()
+	c.stopped = true
+	offered := c.opened // opened and not started yet: closed here, whatever the actor is doing
+	c.opened = nil
+	c.handoff.Unlock()
 	if c.stop != nil {
 		c.stop()
 	}
-	med, audio, sound := c.media, c.audio, c.sound
+	med, audio, sound, settled := c.media, c.audio, c.sound, c.settled
 	c.sound = false
 	go func() {
 		defer close(released)
+		if offered != nil {
+			offered.Close()
+			close(settled)
+		}
 		if med != nil {
 			_ = med.Close() // unblocks the receive goroutine
 		}

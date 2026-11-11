@@ -6,6 +6,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | --- | --- | --- | --- |
 | 1 | `60cd1a8` | UNSOUND: 1 critical, 12 major, 1 minor | [codex-round1.md](codex-round1.md) |
 | 2 | `2eedb96` | UNSOUND: of the 14, 6 resolved and 8 partially; 6 new major | [codex-round2.md](codex-round2.md) |
+| 3 | `e856d17` | UNSOUND: earlier findings resolved or accepted except three partial; 3 new major, 2 minor | [codex-round3.md](codex-round3.md) |
 
 ## What was done about round 1
 
@@ -44,3 +45,14 @@ Round 2 found six of the fourteen resolved (3, 4, 5, 8, 10, 13), the others part
 | 14 | Receipt wording | The lab now counts every notice of a phone to its last event, so "exactly once" covers the whole scenario. "Closed at `Stopped`" is worded as what is checked: no sound stream is open when the event stream closes, right after `Stopped`. The summary of round 1 is restated below. |
 
 Of the fourteen findings of round 1, after both rounds: thirteen are fixed in code and one (7) is fixed for the mode and recorded as a shortcut for the owner and for Windows. Four fixes have no test of their own, because the lab cannot produce the situation: a shutdown while an Answer is in flight, a media direction that fails alone, a transfer whose verdict arrives with the other side's hang-up, and durability across a power loss.
+
+## What was done about round 3
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | Shutdown waits for an audio result only the blocked actor can settle | Fixed. Devices that are open and not yet started are handed over under a small lock: the actor takes them to start them, or the stop of the call's audio takes them and closes them, and neither waits for the other. `TestOpenedDevicesAreClosedWhoeverComesFirst` covers the three orders, the queued result overtaken by the stop among them. (Closes the rest of N5 and of finding 2.) |
+| 2 | Recovering an earlier import redirects the next one | Fixed. The journal's configuration path is used inside the recovery only. `TestRecoveryDoesNotRedirectTheNextImport`. |
+| 3 | The reporting queue can drop final snapshots and `Stopped` | Fixed. Reporting goes through `engine.Relay`, which applies the engine's own rule to a reader that is behind: intermediate states merged, final snapshots and `Stopped` always delivered, in order. `TestRelayKeepsFinalStatesForAReaderThatWasAway`. |
+| 4 | The stalled-output warning can block `Run` | Fixed as best effort: the warning is sent without waiting for it, so the history is closed and the lock released whatever the output does. |
+| 5 | A nil locker skips the unfinished-import check | Fixed. Without a locker the journal is still looked for, and `run` and `config import --apply` refuse beside one. The test covers a nil locker and a platform without the lock. (Closes the rest of N2.) |
+| 14 | "History recovered after a kill" | Reworded: the store test closes the database cleanly and reopens it; it shows that calls left unfinished are closed as interrupted at the next start, not a kill. |

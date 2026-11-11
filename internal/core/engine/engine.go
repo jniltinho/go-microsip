@@ -229,3 +229,19 @@ func (o *outbox) deliver() {
 		o.out <- ev
 	}
 }
+
+// Relay passes the events of in on to a reader of any speed, by the rule of Engine.Events: while
+// the reader is behind, intermediate snapshots of a call and repeated registration states are
+// merged into the newest and notices are capped, but a call's final snapshot and Stopped are
+// always delivered, in order. The returned channel closes after in is closed and everything
+// pending was read. Sending to in never waits for the reader.
+func Relay(in <-chan domain.Event) <-chan domain.Event {
+	o := newOutbox()
+	go func() {
+		for ev := range in {
+			o.emit(ev)
+		}
+		o.close()
+	}()
+	return o.out
+}

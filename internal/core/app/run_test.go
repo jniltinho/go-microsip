@@ -18,6 +18,7 @@ import (
 	gosip "github.com/emiago/sipgo/sip"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 	"github.com/jniltinho/go-microsip/internal/core/store"
 )
@@ -284,9 +285,14 @@ func TestStartUndoesAnInterruptedImportInAnySession(t *testing.T) {
 	if err := os.WriteFile(journal, []byte(`{"step":"staging"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	o.Locks = unsupportedLocks{}
-	if err := Run(context.Background(), o, RunOptions{}, func(domain.Event) {}); err == nil || !strings.Contains(err.Error(), "interrupted") {
-		t.Errorf("a start without a lock beside an unfinished import: %v", err)
+	for name, locks := range map[string]ports.Locker{"a platform without the lock": unsupportedLocks{}, "a build without a locker": nil} {
+		o.Locks = locks
+		if err := Run(context.Background(), o, RunOptions{}, func(domain.Event) {}); err == nil || !strings.Contains(err.Error(), "interrupted") {
+			t.Errorf("%s, beside an unfinished import: %v", name, err)
+		}
+		if _, err := Import(o, journal, true); err == nil {
+			t.Errorf("%s: a configuration import ran beside an unfinished import", name)
+		}
 	}
 }
 

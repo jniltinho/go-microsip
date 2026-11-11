@@ -639,3 +639,25 @@ func TestStagedPasswordIsNeverOrphaned(t *testing.T) {
 		})
 	}
 }
+
+// Undoing an earlier import restores the configuration file that import moved; the import that
+// follows goes where the current session points, which may be another file.
+func TestRecoveryDoesNotRedirectTheNextImport(t *testing.T) {
+	w, before, p := midCommit(t)
+	first := w.paths.Config
+	elsewhere := w.importer()
+	elsewhere.Paths.Config = filepath.Join(filepath.Dir(filepath.Dir(first)), "other", "config.toml")
+	check(t, elsewhere.Apply(p, false))
+	if now := fingerprint(t, filepath.Dir(first)); !maps.Equal(now, before) {
+		t.Errorf("the first configuration file is not the restored one: %v, was %v", now, before)
+	}
+	if raw, err := os.ReadFile(elsewhere.Paths.Config); err != nil || string(raw) != rustTOML {
+		t.Errorf("the import did not write the configuration file of its own session: %v", err)
+	}
+	if elsewhere.Paths.Config == first || elsewhere.Pending() {
+		t.Error("the importer's destination was changed by the recovery, or a journal is left")
+	}
+	if names, _, _, _ := w.database(); len(names) != 2 {
+		t.Errorf("imported contacts %v", names)
+	}
+}
