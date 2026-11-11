@@ -35,22 +35,27 @@ type Endpoint struct {
 	Account Account
 }
 
-// NewEndpoint creates the core's endpoint for a lab account.
-func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
+// settings is the lab account in the core's terms.
+func (a Account) settings() domain.AccountSettings {
 	transport, _ := domain.ParseTransport(a.Transport)
-	settings := domain.AccountSettings{
+	s := domain.AccountSettings{
 		Username: a.User, Domain: a.Server, Server: a.Server, Port: uint16(a.Port),
 		Transport: transport, Expires: 120,
 	}
 	if a.SecureMedia {
-		settings.Media = domain.SRTP
+		s.Media = domain.SRTP
 	}
+	return s
+}
+
+// NewEndpoint creates the core's endpoint for a lab account.
+func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	codec := media.PCMA
 	if a.Codec.Name == dmedia.CodecAudioUlaw.Name {
 		codec = media.PCMU
 	}
 	e, err := sip.NewEndpoint(sip.Account{
-		Settings: settings, Password: domain.NewSecret(a.Password), CAFile: a.CAFile, Codecs: []media.Codec{codec},
+		Settings: a.settings(), Password: domain.NewSecret(a.Password), CAFile: a.CAFile, Codecs: []media.Codec{codec},
 	}, log)
 	if err != nil {
 		return nil, err

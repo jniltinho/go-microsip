@@ -1,0 +1,182 @@
+// Package engine is the telephony engine: one account and one call, driven by Commands and
+// reporting Events. A single actor goroutine owns every state change; network operations run beside
+// it and report back, so the actor never blocks on the network and a slow front end never blocks
+// the actor.
+package engine
+
+import (
+	"io"
+	"log/slog"
+	"sync"
+
+	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/media"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
+)
+
+const (
+	// commandQueue bounds the commands waiting for the actor; Send refuses beyond it.
+	commandQueue = 64
+	// noticeBacklog bounds the notices waiting for a slow front end; notices are advisory.
+	noticeBacklog = 64
+)
+
+// Options is what the engine needs from its surroundings.
+type Options struct {
+	// Audio opens the sound devices of a call.
+	Audio ports.AudioDevices
+	// Input and Output are the device IDs to open; empty is the default device.
+	Input, Output string
+	// CAFile is the PEM bundle that replaces the system roots for a TLS account.
+	CAFile string
+	// UserAgent is the product name sent in the User-Agent header.
+	UserAgent string
+	// Codecs is the offer in order of preference; empty is the endpoint's default.
+	Codecs []media.Codec
+	// Log receives diagnostics; they never carry a password, a dialed number or a DTMF key.
+	Log *slog.Logger
+}
+
+// Engine is a running engine.
+type Engine struct {
+	opts     Options
+	commands chan domain.Command
+	internal chan func()
+	events   *outbox
+	stopped  chan struct{}
+}
+
+// Start runs an engine. It stops after a Shutdown command; Stopped is then its last event.
+func Start(o Options) *Engine {
+	if o.Log == nil {
+		o.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	e := &Engine{
+		opts:     o,
+		commands: make(chan domain.Command, commandQueue),
+		internal: make(chan func(), 64),
+		events:   newOutbox(),
+		stopped:  make(chan struct{}),
+	}
+	go e.run()
+	return e
+}
+
+// Send hands a command to the engine without waiting. It reports false when the queue is full or
+// the engine has stopped: the command was not taken, and the caller tells the user (NoticeOverloaded).
+func (e *Engine) Send(c domain.Command) bool {
+	select {
+	case <-e.stopped:
+		return false
+	default:
+	}
+	select {
+	case e.commands <- c:
+		return true
+	default:
+		return false
+	}
+}
+
+// Events delivers the engine's events in order. The channel closes after Stopped. A front end that
+// reads slowly misses nothing final: intermediate snapshots of a call and repeated registration
+// states are merged into the newest, but a call's last snapshot and Stopped are always delivered.
+func (e *Engine) Events() <-chan domain.Event { return e.events.out }
+
+// Done is closed when the engine has stopped.
+func (e *Engine) Done() <-chan struct{} { return e.stopped }
+
+// post hands the actor a state change from another goroutine; it is dropped once the engine stopped.
+func (e *Engine) post(f func()) {
+	select {
+	case e.internal <- f:
+	case <-e.stopped:
+	}
+}
+
+// outbox decouples the actor from the front end: emit never blocks, and the deliverer waits for the
+// reader as long as it takes.
+type outbox struct {
+	mu      sync.Mutex
+	pending []domain.Event
+	closed  bool
+	wake    chan struct{}
+	out     chan domain.Event
+}
+
+func newOutbox() *outbox {
+	o := &outbox{wake: make(chan struct{}, 1), out: make(chan domain.Event)}
+	go o.deliver()
+	return o
+}
+
+// emit queues an event, merging it into a pending one of the same kind when nothing is lost by it.
+func (o *outbox) emit(ev domain.Event) {
+	o.mu.Lock()
+	merged := false
+	switch v := ev.(type) {
+	case domain.RegistrationChanged:
+		for i := len(o.pending) - 1; i >= 0 && !merged; i-- {
+			if _, ok := o.pending[i].(domain.RegistrationChanged); ok {
+				o.pending[i], merged = ev, true
+			}
+		}
+	case domain.CallChanged:
+		// Only a snapshot that is not final may be replaced, and only by a newer one of its call.
+		for i := len(o.pending) - 1; i >= 0 && !merged; i-- {
+			if p, ok := o.pending[i].(domain.CallChanged); ok && p.Call.ID == v.Call.ID {
+				if !p.Call.Phase.IsFinal() && !v.Call.Phase.IsFinal() {
+					o.pending[i], merged = ev, true
+				}
+				break
+			}
+		}
+	case domain.Noticed:
+		notices := 0
+		for _, p := range o.pending {
+			if _, ok := p.(domain.Noticed); ok {
+				notices++
+			}
+		}
+		merged = notices >= noticeBacklog // dropped: the front end is far behind anyway
+	}
+	if !merged {
+		o.pending = append(o.pending, ev)
+	}
+	o.mu.Unlock()
+	select {
+	case o.wake <- struct{}{}:
+	default:
+	}
+}
+
+// close ends the stream after everything pending was delivered.
+func (o *outbox) close() {
+	o.mu.Lock()
+	o.closed = true
+	o.mu.Unlock()
+	select {
+	case o.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (o *outbox) deliver() {
+	for {
+		o.mu.Lock()
+		if len(o.pending) == 0 {
+			closed := o.closed
+			o.mu.Unlock()
+			if closed {
+				close(o.out)
+				return
+			}
+			<-o.wake
+			continue
+		}
+		ev := o.pending[0]
+		o.pending = o.pending[1:]
+		o.mu.Unlock()
+		o.out <- ev
+	}
+}

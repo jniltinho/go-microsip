@@ -116,6 +116,8 @@ type RTPJitterBuffer struct {
 	playout bool
 	// releaseNow reports that the next expected sequence may be processed now.
 	releaseNow bool
+	// go-microsip: lostRun counts playout decisions in a row that found no packet.
+	lostRun int
 
 	// inputClosed reports that readLoop has stopped producing packet events.
 	inputClosed bool
@@ -204,6 +206,7 @@ func (j *RTPJitterBuffer) ReadRTP(buf []byte, p *rtp.Packet) (int, error) {
 				j.queued--
 				j.expectedSeq++
 				j.releaseNow = false
+				j.lostRun = 0
 				j.resetPlayoutTimer()
 
 				n := copy(buf, slot.raw[:slot.n])
@@ -221,6 +224,7 @@ func (j *RTPJitterBuffer) ReadRTP(buf []byte, p *rtp.Packet) (int, error) {
 			j.stats.packetsLost.Add(1)
 			j.expectedSeq++
 			j.releaseNow = false
+			j.lostRun++
 			j.resetPlayoutTimer()
 		}
 
@@ -329,6 +333,15 @@ func (j *RTPJitterBuffer) handleSlot(slotIndex int) {
 		if j.ssrcSet {
 			j.stats.ssrcResets.Add(1)
 		}
+		j.resetStream(slot.ssrc, slot.seq)
+	}
+
+	// go-microsip: during a silence (a held call, a peer that stops sending, an outage) playout keeps
+	// counting losses and the expected sequence runs away from a stream that resumes where it
+	// stopped: every packet would be late, or beyond the window, for good. After a whole window of
+	// losses the next packet starts the stream over.
+	if j.playout && j.lostRun >= j.maxPackets {
+		j.lostRun = 0
 		j.resetStream(slot.ssrc, slot.seq)
 	}
 

@@ -84,7 +84,7 @@ func connect(ctx context.Context, l *Lab, caller, callee string) (*legs, error) 
 			answer <- answered{err: errors.New("no incoming call reached the callee")}
 		}
 	}()
-	if c.da, c.medA, err = c.a.Dial(ctx, callee); err != nil {
+	if c.da, c.medA, err = c.a.Dial(ctx, callee, nil); err != nil {
 		return c, fmt.Errorf("dial %s: %w", callee, err)
 	}
 	in := <-answer
@@ -104,7 +104,7 @@ func dtmf(user, digits string, want float64) func(context.Context, *Lab) (map[st
 			return nil, err
 		}
 		defer e.Close()
-		d, med, err := e.Dial(ctx, "601")
+		d, med, err := e.Dial(ctx, "601", nil)
 		if err != nil {
 			return nil, fmt.Errorf("dial 601: %w", err)
 		}
@@ -274,7 +274,7 @@ func reregister(user string) func(context.Context, *Lab) (map[string]any, error)
 		if err := e.Register(rctx); err != nil {
 			return nil, fmt.Errorf("register after the drop: %w", err)
 		}
-		d, med, err := e.Dial(ctx, "602")
+		d, med, err := e.Dial(ctx, "602", nil)
 		if err != nil {
 			return nil, fmt.Errorf("dial after the drop: %w", err)
 		}
@@ -307,7 +307,7 @@ func plainOfferRefused(ctx context.Context, l *Lab) (map[string]any, error) {
 	defer a.Close()
 	dctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	d, med, err := a.Dial(dctx, "1302")
+	d, med, err := a.Dial(dctx, "1302", nil)
 	if err == nil {
 		hangup(d, med)
 		return nil, errors.New("the call was answered; a plain offer to a secure account must be refused")

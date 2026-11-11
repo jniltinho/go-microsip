@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -80,9 +81,25 @@ type Endpoint struct {
 	peers  []net.IP
 	ua     *sipgo.UserAgent
 	dg     *diago.Diago
-	reg    *diago.RegisterTransaction
 	cancel context.CancelFunc
 	log    *slog.Logger
+
+	// mu guards the binding. The library's registration is not safe for a renewal and another
+	// request at once, so halt stops the renewal loop before anything else touches it.
+	mu   sync.Mutex
+	reg  *diago.RegisterTransaction
+	halt func()
+}
+
+// stopRenewal ends a running KeepRegistered and waits until it has returned.
+func (e *Endpoint) stopRenewal() {
+	e.mu.Lock()
+	halt := e.halt
+	e.halt = nil
+	e.mu.Unlock()
+	if halt != nil {
+		halt()
+	}
 }
 
 func (e *Endpoint) secure() bool { return e.Account.Settings.Media == domain.SRTP }
@@ -211,41 +228,63 @@ func (e *Endpoint) Register(ctx context.Context) error {
 	from.Params.Add("tag", gosip.GenerateTagN(16))
 	reg.Origin.AppendHeader(from)
 	reg.Origin.AppendHeader(&gosip.ToHeader{Address: from.Address})
+	e.stopRenewal()
 	if err := reg.Register(ctx); err != nil {
 		return err
 	}
+	e.mu.Lock()
 	e.reg = reg
+	e.mu.Unlock()
 	return nil
 }
 
 // KeepRegistered renews the binding before it expires, until ctx ends or the registrar refuses. It
 // returns the reason; a canceled context is not a failure.
 func (e *Endpoint) KeepRegistered(ctx context.Context) error {
-	if e.reg == nil {
-		return errors.New("not registered")
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan struct{})
+	defer close(done)
+	e.mu.Lock()
+	reg := e.reg
+	if reg == nil || e.halt != nil {
+		e.mu.Unlock()
+		return errors.New("not registered, or already renewing")
 	}
-	return e.reg.QualifyLoop(ctx)
+	e.halt = func() { cancel(); <-done }
+	e.mu.Unlock()
+	return reg.QualifyLoop(ctx)
 }
 
 // Unregister removes the binding.
 func (e *Endpoint) Unregister(ctx context.Context) error {
-	if e.reg == nil {
+	e.stopRenewal()
+	e.mu.Lock()
+	reg := e.reg
+	e.reg = nil
+	e.mu.Unlock()
+	if reg == nil {
 		return nil
 	}
-	err := e.reg.Unregister(ctx)
-	e.reg = nil
-	return err
+	return reg.Unregister(ctx)
 }
 
-// Dial calls a user part at the registrar and returns once the call is answered. A secure-media
-// account ends a call whose answer is not SRTP and returns ErrInsecureAnswer.
-func (e *Endpoint) Dial(ctx context.Context, target string) (*diago.DialogClientSession, *diago.DialogMedia, error) {
+// Dial calls a user part at the registrar and returns once the call is answered. onProgress, when
+// set, is told each provisional status (180 Ringing, 183 Session Progress). A secure-media account
+// ends a call whose answer is not SRTP and returns ErrInsecureAnswer.
+func (e *Endpoint) Dial(ctx context.Context, target string, onProgress func(status int)) (*diago.DialogClientSession, *diago.DialogMedia, error) {
 	// shortcut: the call is addressed to the server's host, so an account whose domain differs from
 	// its server sends To with the server's name; add an outbound-proxy route when one is needed.
 	d, med, err := e.dg.Invite(ctx, e.uri(target), diago.InviteOptions{
 		Transport: e.Account.Settings.Transport.String(),
 		Username:  e.authUser(), Password: e.Account.Password.Reveal(),
 		Headers: []gosip.Header{e.identity()},
+		OnResponse: func(res *gosip.Response) error {
+			if onProgress != nil && res.StatusCode > 100 && res.StatusCode < 200 {
+				onProgress(res.StatusCode)
+			}
+			return nil
+		},
 	})
 	if err != nil {
 		return nil, nil, err

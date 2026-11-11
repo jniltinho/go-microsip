@@ -43,7 +43,7 @@ func Scenarios() []Scenario {
 			list = append(list, Scenario{fmt.Sprintf("pair/%s-%s/%s", pair[0], pair[1], c.Name), pairCall(pair[0], pair[1], c)})
 		}
 	}
-	return append(list, ControlScenarios()...)
+	return append(append(list, ControlScenarios()...), EngineScenarios()...)
 }
 
 func register(user string) func(context.Context, *Lab) (map[string]any, error) {
@@ -105,7 +105,7 @@ func echoCall(user string, codec media.Codec) func(context.Context, *Lab) (map[s
 			return nil, err
 		}
 		defer e.Close()
-		d, med, err := e.Dial(ctx, "600")
+		d, med, err := e.Dial(ctx, "600", nil)
 		if err != nil {
 			return nil, fmt.Errorf("dial 600: %w", err)
 		}
@@ -157,7 +157,7 @@ func pairCall(caller, callee string, codec media.Codec) func(context.Context, *L
 				answer <- answered{err: errors.New("no incoming call reached the callee")}
 			}
 		}()
-		da, medA, err := a.Dial(ctx, callee)
+		da, medA, err := a.Dial(ctx, callee, nil)
 		if err != nil {
 			return nil, fmt.Errorf("dial %s: %w", callee, err)
 		}

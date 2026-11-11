@@ -65,7 +65,7 @@ go-prints: go-build ## Go: screenshots of the window into docs/prints/go/
 go-audio: ## Go: the audio adapter against PipeWire with virtual sound cards (SECONDS=300 for the G0 run)
 	$(GO_GUI) build/qa/audio.sh $(SECONDS)
 
-go-lab: ## Go: the G0 SIP/SRTP probes against the disposable Asterisk lab (SCENARIO=prefix)
+go-lab: ## Go: the SIP/SRTP probes and the engine scenarios against the disposable Asterisk lab (SCENARIO=prefix)
 	sh docker/asterisk/go-g0.sh $(SCENARIO)
 
 go-licenses: go-frontend ## Go: third-party notices of the binary and the embedded frontend
