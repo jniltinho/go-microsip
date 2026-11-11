@@ -305,6 +305,7 @@ Precedence per field: flag > environment > `.env` > TOML > SQLite > default.
 
 ### Open points for the parity gate
 
+- The Go command line is Cobra with subcommands (owner instruction of 2026-11-11): `--doctor` becomes `doctor`, `mcp --stdio` becomes `mcp`, `-V` stays as `--version` plus a `version` command. Rows B3.4, B3.5 and B3.19 close as accepted differences, not as identical syntax.
 - Six error codes are defined but never constructed in the Rust code (`approval_denied`, `approval_expired`, `grant_expired`, `engine_owned_by_service`, `result_expired`, `unsupported`); decide whether the Go contract keeps them.
 - Some JSON values in `status_get`, `config_show` and `history_list` come from Rust debug formatting (for example `config_show.media` yields `plainrtp`, not `rtp`); the Go contract should define these strings deliberately.
 - Not inventoried here and to be added before the gate: the window's `Backend` contract, tray and notification actions, the SQLite schema of contacts and history, the Windows pipe naming and file-permission rules, and the storage ledger internals.

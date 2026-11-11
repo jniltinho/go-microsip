@@ -92,3 +92,6 @@ clean: ## Delete target/ and DIST=dist (inside the checkout) without asking
 
 shell: ## Interactive shell in the toolchain container
 	scripts/cargo-docker.sh bash
+
+# The Go application (migrate-to-go-wails) builds beside the Rust workspace until the cutover.
+include build/go.mk

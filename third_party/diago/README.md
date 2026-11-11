@@ -1,0 +1,115 @@
+<img src="icons/diago-icon-text.svg" width="300" alt="DIAGO">
+
+[![golangci-lint](https://github.com/emiago/diago/actions/workflows/golangci-lint.yml/badge.svg?branch=main)](https://github.com/emiago/diago/actions/workflows/golangci-lint.yml)
+![Coverage](https://img.shields.io/badge/coverage-61.1%25-blue)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/emiago/diago)
+
+Short of **dialog + GO**.  
+**Library for building VOIP solutions in GO!**
+
+Built on top of optimized [SIPgo library](https://github.com/emiago/sipgo)!  
+In short it allows developing fast and easy testable VOIP apps to handle calls, registrations and more... 
+It is offering High Level APIs to make **telephony easier** while you can go low and control every packet if needed.
+
+*Diago is mainly project driven lib, so lot of API design will/should be challenged with real working apps needs*
+
+**For more information and documentation visit [the website](https://emiago.github.io/diago/docs)**
+
+Quick links:
+- [Getting started](https://emiago.github.io/diago/docs/getting_started/)
+- [Demo Examples](https://emiago.github.io/diago/docs/examples/)
+- [API Docs](https://emiago.github.io/diago/docs/api_docs/)
+- [GO Docs](https://pkg.go.dev/github.com/emiago/diago)
+- [Roadmap](https://emiago.github.io/diago/docs/#core-roadmap)
+
+## WebRTC/Pion API changes
+
+For WebRTC/Pion migration details and current media API direction, read
+[WEBRTC_PION_CHANGES.md](WEBRTC_PION_CHANGES.md).
+
+The previous combined SIP and media stack is on the `sip-media` branch, based on
+v0.32.2, and may receive patches. To use it in your Go project:
+
+```sh
+go get github.com/emiago/diago@sip-media
+```
+
+**NOTE:** SIP dialog sessions and media stacks are now separated. Use returned
+media objects such as `*DialogMedia` and `*DialogWebrtc` for media operations.
+
+**NOTE:** Existing code using dialog-owned media access should be migrated to the
+new returned-media API.
+
+*If you find this project useful and you want to support/sponzor or need help with your projects, you can contact me more on*
+[mail](mailto:emirfreelance91@gmail.com).
+
+Follow me on [X/Twitter](https://twitter.com/emiago123) for regular updates
+
+**Tools/Service developed with diago:**
+- <img width="20" src="https://github.com/emiago/diagox/raw/main/images/diagox-icon-blue.png"> [github.com/emiago/diagox](https://github.com/emiago/diagox) simple Ingress/Egress and Registrar for SIP/RTP scaling
+- <img width="20" src="https://github.com/emiago/gophone/raw/main/images/g2.png"> [github.com/emiago/gophone](https://github.com/emiago/gophone) CLI softphone for easy testing 
+
+## RFCS
+
+SIP: [RFC 3261](https://datatracker.ietf.org/doc/html/rfc3261)|[RFC3581](https://datatracker.ietf.org/doc/html/rfc3581)|[RFC6026](https://datatracker.ietf.org/doc/html/rfc6026)
+> More refer to lib [github.com/emiago/sipgo](https://github.com/emiago/sipgo)
+Full dialog control (client/server), Registering, Authentication ...
+
+SDP: [RFC8866](https://datatracker.ietf.org/doc/html/rfc8866). 
+> Parsing + Auto Generating for media session/audio
+
+RTP/AVP: 
+[RFC3550](https://datatracker.ietf.org/doc/html/rfc3550)
+> RTP Packetizers, Media Forking, RTP Session control, RTCP Sender/Receiver reports, RTCP statistics tracking, DTMF reader/writer ...
+
+
+REFER:
+- [RFC3515](https://datatracker.ietf.org/doc/html/rfc3515)
+- [RFC3892](https://datatracker.ietf.org/doc/html/rfc3892)
+
+**NOTE**: For specifics and questions what is covered by RFC, please open Issue. Lot of functionality can be extended even if not built in library. 
+
+## Contributions
+
+Please avoid following:
+- Creating BIG PR that creates feature or lot of refactoring without previously having Issue. Issue should explain problem or requirements you want to accomplish.
+- Creating Change Log or some other textual files that add some sort of documentation. This is why we need Issue and ID of issue should be in your commit. If you want(think it is good) to have this better documented(like webpage or readme) pls open issue.
+- English is main language for code and for comments. Any other language used PRs will be rejected.
+
+## Usage 
+
+Checkout more on [Getting started](https://emiago.github.io/diago/docs/getting_started/), but for quick view here is echotest (hello world) example.
+```go 
+ua, _ := sipgo.NewUA()
+dg := diago.NewDiago(ua)
+
+dg.Serve(ctx, func(inDialog *diago.DialogServerSession) {
+	inDialog.Trying() // 100 Trying
+	inDialog.Answer(); // Answer - 200 OK SDP
+
+	// Make sure file below exists in work dir
+	playfile, err := os.Open("demo-echotest.wav")
+	if err != nil {
+		fmt.Println("Failed to open file", err)
+		return
+	}
+	defer playfile.Close()
+
+	// Create playback and play file.
+	pb, _ := inDialog.PlaybackCreate()
+	if err := pb.Play(playfile, "audio/wav"); err != nil {
+		fmt.Println("Playing failed", err)
+	}
+}
+```
+
+See more [examples in this repo](/examples)
+### Tracing SIP, RTP
+
+While openning issue, consider having some traces enabled.
+
+```go
+sip.SIPDebug = true // Enables SIP tracing
+media.RTCPDebug = true // Enables RTCP tracing
+media.RTPDebug = true // Enables RTP tracing. NOTE: It will dump every RTP Packet
+```
