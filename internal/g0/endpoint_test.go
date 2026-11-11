@@ -25,12 +25,15 @@ func TestOffersSRTP(t *testing.T) {
 		"plain audio, secure video after":    {head + audioPlain + video, false},
 		"secure video first, plain audio":    {head + video + audioPlain, false},
 		"plain audio with a stray attribute": {head + audioPlain + "a=x-note: RTP/SAVP a=crypto:1\r\n", false},
-		"session-level crypto, plain audio":  {head + "a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:QUJD\r\n" + audioPlain, false},
+		"session-level crypto, plain audio":  {head + "a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNk\r\n" + audioPlain, false},
 		"secure profile without a key":       {head + "m=audio 4000 RTP/SAVP 8\r\n", false},
 		"secure profile, unsupported suite":  {head + "m=audio 4000 RTP/SAVP 8\r\na=crypto:1 F8_128_HMAC_SHA1_80 inline:QUJD\r\n", false},
 		"secure profile, empty key":          {head + "m=audio 4000 RTP/SAVP 8\r\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:\r\n", false},
 		"plain audio first, secure second":   {head + audioPlain + audioSecure, false},
-		"bare newlines":                      {"v=0\nm=audio 4000 RTP/SAVP 8\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:QUJD\n", true},
+		"bare newlines":                      {"v=0\nm=audio 4000 RTP/SAVP 8\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNk\n", true},
+		"key with a lifetime":                {head + "m=audio 4000 RTP/SAVP 8\r\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNk|2^31\r\n", true},
+		"key too short":                      {head + "m=audio 4000 RTP/SAVP 8\r\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:QUJD\r\n", false},
+		"key not base64":                     {head + "m=audio 4000 RTP/SAVP 8\r\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:!!!!REVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNk\r\n", false},
 	} {
 		if got := offersSRTP([]byte(c.sdp)); got != c.want {
 			t.Errorf("%s: offersSRTP = %v, want %v", name, got, c.want)

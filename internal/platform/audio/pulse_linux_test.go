@@ -2,6 +2,7 @@ package audio
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,7 +134,8 @@ func TestPulseLoopback(t *testing.T) {
 			<-heard
 		}
 		before := s.Stats()
-		m := newMeter()
+		m := newMeter(time.Now())
+		var got []int16
 		tick := time.NewTicker(20 * time.Millisecond)
 		defer tick.Stop()
 		var in, out [FrameSamples]int16
@@ -142,18 +144,21 @@ func TestPulseLoopback(t *testing.T) {
 				time.Sleep(stall)
 				stall = 0
 			}
-			m.captureFrame(s.Capture(&in), in[:])
+			now := time.Now()
+			m.captureFrame(s.Capture(&in), in[:], now)
 			sine(speakerTone, &toneN, out[:])
 			s.Play(&out)
+			got = got[:0]
 			for len(heard) > 0 {
-				m.heard(<-heard)
+				got = append(got, <-heard...)
 			}
+			m.heard(got, now)
 		}
 		return m, before
 	}
 	run(time.Second, 0) // streams start and settle
 	m, before := run(time.Duration(seconds)*time.Second, 0)
-	summary, bad := m.verdict(s.Stats(), before, true)
+	summary, bad := m.verdict(time.Now(), s.Stats(), before, true)
 	t.Logf("%d s: %s", seconds, summary)
 	for _, b := range bad {
 		t.Error(b)
@@ -163,7 +168,7 @@ func TestPulseLoopback(t *testing.T) {
 	}
 	// Control: the same checks must fail when the engine stalls.
 	m, before = run(2*time.Second, 300*time.Millisecond)
-	_, bad = m.verdict(s.Stats(), before, true)
+	_, bad = m.verdict(time.Now(), s.Stats(), before, true)
 	mustCatch(t, bad)
 	run(time.Second, 0) // recover
 
@@ -185,8 +190,9 @@ func TestPulseLoopback(t *testing.T) {
 		t.Errorf("%d frames captured after the microphone was unplugged (moved to another device?)", m.captured)
 	}
 	m, _ = run(time.Second, 0)
-	if m.toneBlocks < 45 || m.playGap > maxGap || s.PlaybackLost() {
-		t.Errorf("playback did not continue after the microphone was unplugged: %d of 50 frames, gap %d ms", m.toneBlocks, m.playGap.Milliseconds())
+	_, bad = m.verdict(time.Now(), s.Stats(), s.Stats(), false)
+	if playback := strings.Join(bad, "; "); strings.Contains(playback, "playback:") || s.PlaybackLost() {
+		t.Errorf("playback did not continue after the microphone was unplugged: %s", playback)
 	}
-	t.Logf("after unplug: lost=%v, %d frames captured in 1 s, speaker %d of 50 frames, gap %d ms", s.CaptureLost(), m.captured, m.toneBlocks, m.playGap.Milliseconds())
+	t.Logf("after unplug: lost=%v, %d frames captured in 1 s, speaker %d pieces, longest silence %d pieces", s.CaptureLost(), m.captured, m.good, m.maxBadRun)
 }

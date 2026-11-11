@@ -44,8 +44,9 @@ function Invoke-Desktop([string]$Name, [string[]]$Lines, [int]$Timeout) {
 $code = Invoke-Desktop 'audio' @('set GO_MICROSIP_AUDIO_TEST=1', "set GO_MICROSIP_AUDIO_SECONDS=$Seconds",
     "`"$work\audio.test.exe`" -test.v -test.timeout 20m -test.run TestWASAPI") ($Seconds + 120)
 Get-Content "$work\audio.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match 'wasapi_windows_test|^(--- |PASS|FAIL|ok|panic)' } | ForEach-Object { "vm-check: audio: $_" }
-if ($code -ne 0) { "vm-check: FAIL audio exit $code"; exit 1 }
-'vm-check: audio adapter OK on the Windows audio service'
+$failed = ''
+if ($code -ne 0) { "vm-check: audio: FAILED (exit $code); the window is still checked"; $failed = 'audio' }
+else { 'vm-check: audio adapter OK on the Windows audio service' }
 
 # 3. The window on WebView2.
 $code = Invoke-Desktop 'selftest' @("`"$work\go-microsip.exe`" --self-test") 150
@@ -55,4 +56,5 @@ if ($code -ne 0) {
     exit 1
 }
 'vm-check: window opened on WebView2 and the page called the backend'
+if ($failed) { "vm-check: FAIL $($os.Caption): $failed"; exit 1 }
 "vm-check: PASS $($os.Caption)"

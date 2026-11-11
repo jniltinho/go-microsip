@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -215,7 +216,7 @@ func (e *Endpoint) Dial(ctx context.Context, ext string) (*diago.DialogClientSes
 }
 
 // ErrInsecureAnswer means the peer answered a secure-media offer without SRTP; the call was ended
-// before any audio was exchanged.
+// before this endpoint sent or played any audio.
 var ErrInsecureAnswer = errors.New("the peer answered without SRTP; the call was ended")
 
 // Close unregisters and releases the sockets.
@@ -277,10 +278,22 @@ func offersSRTP(sdp []byte) bool {
 			secure = inAudio && f[2] == "RTP/SAVP"
 		case inAudio && strings.HasPrefix(line, "a=crypto:"):
 			f := strings.Fields(line)
-			keyed = keyed || (len(f) >= 3 && f[1] == "AES_CM_128_HMAC_SHA1_80" && len(f[2]) > len("inline:") && strings.HasPrefix(f[2], "inline:"))
+			keyed = keyed || (len(f) >= 3 && f[1] == "AES_CM_128_HMAC_SHA1_80" && validKey(f[2]))
 		}
 	}
 	return inAudio && secure && keyed
+}
+
+// validKey reports whether a crypto attribute's key parameter carries the 30 bytes this suite
+// needs: a 16-byte master key and a 14-byte master salt, base64, before any lifetime or MKI.
+func validKey(param string) bool {
+	key, ok := strings.CutPrefix(param, "inline:")
+	if !ok {
+		return false
+	}
+	key, _, _ = strings.Cut(key, "|")
+	raw, err := base64.StdEncoding.DecodeString(key)
+	return err == nil && len(raw) == 30
 }
 
 // DropTransport closes every connection of the account's transport, as a network loss would.

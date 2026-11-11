@@ -38,11 +38,12 @@ audio=0
 GO_MICROSIP_AUDIO_TEST=1 GO_MICROSIP_AUDIO_SECONDS=$seconds /dist/g0/audio.test \
 	-test.v -test.timeout 20m -test.run 'TestPulseLoopback|TestNoService' >"$work/audio.log" 2>&1 || audio=$?
 grep -E 'pulse_linux_test|^(--- |PASS|FAIL|ok|panic)' "$work/audio.log" | sed 's/^/vm-check: audio: /'
+failed=
 if [ "$audio" -ne 0 ]; then
-	echo "vm-check: FAIL audio exit $audio" >&2
-	exit 1
+	echo "vm-check: audio: FAILED (exit $audio); the window is still checked"
+	failed="audio"
 fi
-echo "vm-check: audio adapter OK on the distribution's audio service"
+[ -n "$failed" ] || echo "vm-check: audio adapter OK on the distribution's audio service"
 
 # 3. The window in the distribution's own desktop session (GDM logs the user in automatically; the
 # provisioner set that up). The session's display variables are taken from the session itself.
@@ -91,4 +92,8 @@ echo "vm-check: the AppImage window passed with $passed"
 # Leave the application open for the screenshot the host takes of the VM's screen.
 (setsid "$work/app.AppImage" >/dev/null 2>&1 &)
 sleep 6
+if [ -n "$failed" ]; then
+	echo "vm-check: FAIL $PRETTY_NAME: $failed"
+	exit 1
+fi
 echo "vm-check: PASS $PRETTY_NAME"

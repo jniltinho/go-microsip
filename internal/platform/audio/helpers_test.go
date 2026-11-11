@@ -72,81 +72,114 @@ func toneBlocks(samples []int16, freq float64) float64 {
 	return float64(good) / float64(blocks)
 }
 
-// meter judges a run against the threshold of design D4 (at most 0.5 % of frames late or lost, no
-// gap over 60 ms) from wall-clock time: frames are counted against the time that passed, so a
-// stalled loop or a silent interval cannot hide in a smaller denominator.
+// meter judges a run against the threshold of design D4: at most 0.5 % of frames late or lost and
+// no gap over 60 ms, in each direction. It counts against wall-clock time, so a stalled loop or a
+// silent interval cannot hide in a smaller denominator, and it reads gaps from the audio itself, so
+// samples that arrive together cannot hide the silence between them. Every method takes the time
+// of the observation, which makes the meter testable without an audio service (TestMeter).
 type meter struct {
-	start, lastCapture, lastTone    time.Time
-	captured, micBlocks, toneBlocks int
-	captureGap, playGap             time.Duration
-	pending                         []int16
+	start time.Time
+
+	// capture: one observation per 20 ms media tick
+	captured, micFrames, missRun, maxMissRun int
+	lastCapture                              time.Time
+	captureGap                               time.Duration
+
+	// playback: what the speaker played, judged in 10 ms pieces
+	pending                 []int16
+	first, last             time.Time // first and latest observation that brought samples
+	good, badRun, maxBadRun int
+	arrivalGap              time.Duration
 }
 
-func newMeter() *meter {
-	now := time.Now()
-	return &meter{start: now, lastCapture: now, lastTone: now}
-}
+const (
+	piece = FrameSamples / 2 // 10 ms; both test tones have whole cycles in it
+	// 60 ms of silence spoils at most seven 10 ms pieces (five whole, two partly); 80 ms at least
+	// eight. The same limit in wall-clock time, seen at 20 ms ticks: 60 ms missing shows as 80 ms
+	// between observations, 80 ms as 100 ms.
+	maxBadPieces = 7
+	maxInterval  = 90 * time.Millisecond
+	maxMissTicks = 3
+)
+
+func newMeter(now time.Time) *meter { return &meter{start: now, lastCapture: now} }
 
 // captureFrame records one media tick's capture result.
-func (m *meter) captureFrame(ok bool, frame []int16) {
+func (m *meter) captureFrame(ok bool, frame []int16, now time.Time) {
 	if !ok {
+		m.missRun++
+		m.maxMissRun = max(m.maxMissRun, m.missRun)
 		return
 	}
-	now := time.Now()
+	m.missRun = 0
 	m.captureGap = max(m.captureGap, now.Sub(m.lastCapture))
 	m.lastCapture = now
 	m.captured++
 	if share(frame, micTone) > 0.9 {
-		m.micBlocks++
+		m.micFrames++
 	}
 }
 
-// heard records what came out of the speaker since the last call.
-func (m *meter) heard(p []int16) {
+// heard records everything that came out of the speaker since the previous observation. The
+// samples of the first observation only mark where the measured span begins.
+func (m *meter) heard(p []int16, now time.Time) {
+	if len(p) == 0 {
+		return
+	}
+	counted := !m.first.IsZero()
+	if counted {
+		m.arrivalGap = max(m.arrivalGap, now.Sub(m.last))
+	} else {
+		m.first = now
+	}
+	m.last = now
 	m.pending = append(m.pending, p...)
-	for ; len(m.pending) >= FrameSamples; m.pending = m.pending[FrameSamples:] {
-		if share(m.pending[:FrameSamples], speakerTone) > 0.9 {
-			now := time.Now()
-			m.playGap = max(m.playGap, now.Sub(m.lastTone))
-			m.lastTone = now
-			m.toneBlocks++
+	for ; len(m.pending) >= piece; m.pending = m.pending[piece:] {
+		if share(m.pending[:piece], speakerTone) > 0.9 {
+			m.badRun = 0
+			if counted {
+				m.good++
+			}
+		} else {
+			m.badRun++
+			m.maxBadRun = max(m.maxBadRun, m.badRun)
 		}
 	}
 }
 
-// maxGap is 60 ms of missing audio as this meter sees it: 80 ms between consecutive good frames,
-// plus one tick of measuring granularity.
-const maxGap = 100 * time.Millisecond
-
-// verdict closes the run and returns a one-line summary and every way it broke the threshold.
-func (m *meter) verdict(st, before Stats, micHasTone bool) (string, []string) {
-	now := time.Now()
+// verdict closes the run at now and returns a one-line summary and every way it broke the threshold.
+func (m *meter) verdict(now time.Time, st, before Stats, micHasTone bool) (string, []string) {
 	m.captureGap = max(m.captureGap, now.Sub(m.lastCapture))
-	m.playGap = max(m.playGap, now.Sub(m.lastTone))
 	expected := int(now.Sub(m.start) / (20 * time.Millisecond))
-	allowed := int(0.005 * float64(expected))
-	captureDropped, playLost := st.CaptureDropped-before.CaptureDropped, st.PlayDropped-before.PlayDropped+st.PlaySilence-before.PlaySilence
-	summary := fmt.Sprintf("%d frames expected: captured %d (longest gap %d ms, %d samples dropped), heard on the speaker %d (longest gap %d ms, %d samples dropped or silent)",
-		expected, m.captured, m.captureGap.Milliseconds(), captureDropped, m.toneBlocks, m.playGap.Milliseconds(), playLost)
+	expectedPieces := int(m.last.Sub(m.first) / (10 * time.Millisecond))
+	if !m.last.IsZero() {
+		m.arrivalGap = max(m.arrivalGap, now.Sub(m.last))
+	}
+	captureDropped := st.CaptureDropped - before.CaptureDropped
+	playLost := st.PlayDropped - before.PlayDropped + st.PlaySilence - before.PlaySilence
+	summary := fmt.Sprintf("capture %d of %d frames (longest miss %d ticks, gap %d ms, %d samples dropped); speaker %d of %d 10 ms pieces (longest silence %d pieces, arrival gap %d ms, %d samples dropped or silent)",
+		m.captured, expected, m.maxMissRun, m.captureGap.Milliseconds(), captureDropped,
+		m.good, expectedPieces, m.maxBadRun, m.arrivalGap.Milliseconds(), playLost)
 	var bad []string
-	// Two frames of slack at the edges of the run; five on the speaker for the pipeline's delay.
-	if m.captured < expected-allowed-2 {
-		bad = append(bad, fmt.Sprintf("capture: %d of %d frames missing, over 0.5 %%", expected-m.captured, expected))
+	if missing := expected - m.captured; float64(missing) > 0.005*float64(expected) {
+		bad = append(bad, fmt.Sprintf("capture: %d of %d frames missing, over 0.5 %%", missing, expected))
 	}
-	if micHasTone && m.micBlocks < m.captured-allowed {
-		bad = append(bad, fmt.Sprintf("capture: the microphone tone is in only %d of %d frames", m.micBlocks, m.captured))
+	if micHasTone && float64(m.captured-m.micFrames) > 0.005*float64(m.captured) {
+		bad = append(bad, fmt.Sprintf("capture: the microphone tone is in only %d of %d frames", m.micFrames, m.captured))
 	}
-	if m.captureGap > maxGap {
-		bad = append(bad, fmt.Sprintf("capture: gap of %d ms", m.captureGap.Milliseconds()))
+	if m.maxMissRun > maxMissTicks || m.captureGap > maxInterval {
+		bad = append(bad, fmt.Sprintf("capture: gap over 60 ms (%d ticks missed in a row, %d ms between frames)", m.maxMissRun, m.captureGap.Milliseconds()))
 	}
 	if captureDropped > 0 {
 		bad = append(bad, fmt.Sprintf("capture: %d samples dropped", captureDropped))
 	}
-	if m.toneBlocks < expected-allowed-5 {
-		bad = append(bad, fmt.Sprintf("playback: %d of %d frames missing on the speaker, over 0.5 %%", expected-m.toneBlocks, expected))
+	if expectedPieces == 0 {
+		bad = append(bad, "playback: nothing was heard on the speaker")
+	} else if missing := expectedPieces - m.good; float64(missing) > 0.005*float64(expectedPieces) {
+		bad = append(bad, fmt.Sprintf("playback: %d of %d 10 ms pieces missing on the speaker, over 0.5 %%", missing, expectedPieces))
 	}
-	if m.playGap > maxGap {
-		bad = append(bad, fmt.Sprintf("playback: gap of %d ms", m.playGap.Milliseconds()))
+	if m.maxBadRun > maxBadPieces || m.arrivalGap > maxInterval {
+		bad = append(bad, fmt.Sprintf("playback: gap over 60 ms (%d silent pieces in a row, %d ms without samples)", m.maxBadRun, m.arrivalGap.Milliseconds()))
 	}
 	if float64(playLost) > 0.005*float64(expected*FrameSamples) {
 		bad = append(bad, fmt.Sprintf("playback: %d samples dropped or silent, over 0.5 %%", playLost))
