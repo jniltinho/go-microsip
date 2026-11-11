@@ -1,0 +1,2 @@
+# A mock build (`npm run build:mock`) for screenshots; never embedded.
+/dist-mock/
