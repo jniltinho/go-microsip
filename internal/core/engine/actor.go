@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -54,9 +55,10 @@ type actor struct {
 	dnd      bool
 	call     *call
 	lastCall uint64
-	// released is closed once the sound devices of the call that ended last are closed; settled,
-	// once its devices are no longer opening.
-	released, settled chan struct{}
+	// cleanup counts the calls whose sound devices are not closed yet: every call that ended, not
+	// only the last one. A call ends, and a next one may come and go, before the devices of the
+	// first are closed.
+	cleanup sync.WaitGroup
 }
 
 func (e *Engine) run() {
@@ -358,7 +360,14 @@ func (a *actor) end(c *call, reason domain.EndReason) {
 	c.snap.Phase = domain.EndedWith(reason)
 	a.publish(c)
 	c.release()
-	a.released, a.settled = c.released, c.settled
+	a.cleanup.Add(1)
+	go func(released, settled chan struct{}) {
+		defer a.cleanup.Done()
+		<-released
+		if settled != nil { // devices that were still opening when the call ended
+			<-settled
+		}
+	}(c.released, c.settled)
 	if a.call == c {
 		a.call = nil
 	}
@@ -831,17 +840,9 @@ func (a *actor) shutdown() {
 		a.endpoint = nil
 		within(accountBy, ep.Close)
 	}
-	// Stopped means the sound devices are closed too, unless the sound service itself does not
-	// answer within the time: the last part of it is theirs alone. That covers devices that were
-	// still opening when the call ended.
-	if released, settled := a.released, a.settled; released != nil {
-		within(deadline, func() {
-			<-released
-			if settled != nil {
-				<-settled
-			}
-		})
-	}
+	// Stopped means the sound devices are closed too, of every call there was, unless the sound
+	// service itself does not answer within the time: the last part of it is theirs alone.
+	within(deadline, a.cleanup.Wait)
 	a.setRegistration(domain.RegistrationState{Status: domain.Disabled})
 }
 

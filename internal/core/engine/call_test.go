@@ -100,3 +100,43 @@ func TestRelayKeepsFinalStatesForAReaderThatWasAway(t *testing.T) {
 		t.Errorf("%d events for a reader that was away: intermediate ones were not merged", len(got))
 	}
 }
+
+// slowDevices are sound devices whose Close takes until it is let go.
+type slowDevices struct {
+	*memory.Stream
+	gate chan struct{}
+}
+
+func (s slowDevices) Close() {
+	<-s.gate
+	s.Stream.Close()
+}
+
+// The shutdown waits for the sound devices of every call that ended, not only of the last one: a
+// call that comes and goes meanwhile does not hide devices that are still closing.
+func TestShutdownWaitsForTheDevicesOfEveryCall(t *testing.T) {
+	a := &actor{e: Start(Options{Audio: &memory.Audio{}})}
+	defer a.e.Send(domain.Shutdown{})
+	stream, _ := (&memory.Audio{}).Open("", "")
+	slow := slowDevices{Stream: stream.(*memory.Stream), gate: make(chan struct{})}
+
+	first := &call{snap: domain.CallSnapshot{ID: 1, Phase: domain.CallPhase{Kind: domain.Established}}, settled: make(chan struct{})}
+	if !first.offer(slow) {
+		t.Fatal("the offer was refused")
+	}
+	a.end(first, domain.EndNormal) // its devices start closing, slowly
+	second := &call{snap: domain.CallSnapshot{ID: 2, Phase: domain.CallPhase{Kind: domain.Ringing}}}
+	a.end(second, domain.EndBusy) // a call that never had sound, over at once
+
+	waited := make(chan struct{})
+	go func() { a.cleanup.Wait(); close(waited) }()
+	select {
+	case <-waited:
+		t.Fatal("the cleanup of the first call was forgotten behind the second")
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(slow.gate)
+	if !closed(waited) || !slow.Closed() {
+		t.Errorf("the devices of the first call: closed %v", slow.Closed())
+	}
+}

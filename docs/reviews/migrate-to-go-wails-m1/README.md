@@ -7,6 +7,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | 1 | `60cd1a8` | UNSOUND: 1 critical, 12 major, 1 minor | [codex-round1.md](codex-round1.md) |
 | 2 | `2eedb96` | UNSOUND: of the 14, 6 resolved and 8 partially; 6 new major | [codex-round2.md](codex-round2.md) |
 | 3 | `e856d17` | UNSOUND: earlier findings resolved or accepted except three partial; 3 new major, 2 minor | [codex-round3.md](codex-round3.md) |
+| 4 | `8483f9f` | UNSOUND: everything earlier resolved or accepted; 1 new major | [codex-round4.md](codex-round4.md) |
 
 ## What was done about round 1
 
@@ -56,3 +57,10 @@ Of the fourteen findings of round 1, after both rounds: thirteen are fixed in co
 | 4 | The stalled-output warning can block `Run` | Fixed as best effort: the warning is sent without waiting for it, so the history is closed and the lock released whatever the output does. |
 | 5 | A nil locker skips the unfinished-import check | Fixed. Without a locker the journal is still looked for, and `run` and `config import --apply` refuse beside one. The test covers a nil locker and a platform without the lock. (Closes the rest of N2.) |
 | 14 | "History recovered after a kill" | Reworded: the store test closes the database cleanly and reopens it; it shows that calls left unfinished are closed as interrupted at the next start, not a kill. |
+
+## What was done about round 4
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | A later call can hide unfinished device cleanup from the shutdown | Fixed. The actor counts the calls whose sound devices are not closed yet, every one of them, and the shutdown waits for that count inside its time. `TestShutdownWaitsForTheDevicesOfEveryCall` gates the first call's close, ends a second call at once, and requires the wait to last until the gate opens. (Closes the rest of N5 and of finding 2.) |
+| - | Test counts in the receipt | Corrected: 19 configuration, 24 store and 13 importer tests. |
