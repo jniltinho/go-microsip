@@ -1,12 +1,12 @@
-Server Name: PulseAudio (on PipeWire 1.4.2)
-Server Version: 15.0.0
 === RUN   TestRing
 --- PASS: TestRing (0.00s)
 === RUN   TestNoService
 --- PASS: TestNoService (0.00s)
 === RUN   TestPulseLoopback
-    pulse_linux_test.go:219: 300 s: 15000 frames, 0 capture misses (longest run 0), capture dropped 0, play dropped 0, play silence 32 samples, mic tone in 1.000 of blocks, speaker tone in 1.000 of blocks
-    pulse_linux_test.go:271: after unplug: lost=true, 47 misses in 1 s, 480 samples captured, speaker tone in 1.000 of blocks
---- PASS: TestPulseLoopback (303.71s)
+    pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
+    pulse_linux_test.go:161: 300 s: capture 15000 of 15000 frames (longest miss 0 ticks, gap 24 ms, 0 samples dropped); speaker 29992 of 29994 10 ms pieces (longest silence 1 pieces, arrival gap 43 ms, 22 samples dropped or silent)
+    pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 319 ms between frames); capture: 2400 samples dropped; playback: 30 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (31 silent pieces in a row, 319 ms without samples); playback: 2368 samples dropped or silent, over 0.5 %
+    pulse_linux_test.go:198: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+--- PASS: TestPulseLoopback (306.98s)
 PASS
-ok  	github.com/jniltinho/go-microsip/internal/platform/audio	303.717s
+ok  	github.com/jniltinho/go-microsip/internal/platform/audio	306.980s

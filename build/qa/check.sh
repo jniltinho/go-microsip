@@ -3,7 +3,7 @@
 # ships or supports: CGO-free Linux with the window, cgo Linux, Linux without a window, and Windows.
 #   build/qa/check.sh <packages...>
 set -eu
-unformatted=$(gofmt -l main.go cmd internal)
+unformatted=$(gofmt -l main.go cmd internal build/winicon)
 if [ -n "$unformatted" ]; then
 	echo "$unformatted"
 	echo "run gofmt -w" >&2
@@ -15,4 +15,8 @@ CGO_ENABLED=1 go vet "$@"
 # shellcheck disable=SC2046 # the package list is a word list
 CGO_ENABLED=0 go vet $(CGO_ENABLED=0 go list "$@" | grep -v '/internal/gui$')
 CGO_ENABLED=0 GOOS=windows go vet "$@"
-echo "check: gofmt and go vet OK (purego, cgo, no window, windows)"
+# The core must build for a system no adapter exists for yet.
+if [ -d internal/core ]; then
+	CGO_ENABLED=0 GOOS=darwin go vet ./internal/core/...
+fi
+echo "check: gofmt and go vet OK (purego, cgo, no window, windows, core on darwin)"

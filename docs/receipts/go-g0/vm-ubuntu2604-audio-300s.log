@@ -1,0 +1,16 @@
+vm-check: Ubuntu 26.04 LTS, kernel 7.0.0-22-generic
+vm-check: libgtk-4-1 4.22.4+ds-0ubuntu0.1 (ii )
+vm-check: libwebkitgtk-6.0-4 2.52.6-0ubuntu0.26.04.1 (ii )
+go-microsip 0.2.0-g0 (467fe9f14ffa)
+{"build":{"version":"0.2.0-g0","commit":"467fe9f14ffa","os":"linux","arch":"amd64","window":"purego"},"display":false}
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.6.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 300 s: capture 15000 of 15000 frames (longest miss 0 ticks, gap 30 ms, 0 samples dropped); speaker 29896 of 29996 10 ms pieces (longest silence 1 pieces, arrival gap 118 ms, 54 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:163: playback: gap over 60 ms (1 silent pieces in a row, 118 ms without samples)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 15 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 322 ms between frames); capture: 2560 samples dropped; playback: 30 of 196 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 322 ms without samples); playback: 2293 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:198: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- FAIL: TestPulseLoopback (307.02s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
+vm-check: FAIL no desktop session

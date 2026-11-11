@@ -1,0 +1,20 @@
+vm-check: Ubuntu 26.04 LTS, kernel 7.0.0-22-generic
+vm-check: libgtk-4-1 4.22.4+ds-0ubuntu0.1 (ii )
+vm-check: libwebkitgtk-6.0-4 2.52.6-0ubuntu0.26.04.1 (ii )
+go-microsip 0.2.0-g0 (467fe9f14ffa)
+{"build":{"version":"0.2.0-g0","commit":"467fe9f14ffa","os":"linux","arch":"amd64","window":"purego"},"display":false}
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.6.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 26 ms, 0 samples dropped); speaker 1992 of 1995 10 ms pieces (longest silence 1 pieces, arrival gap 61 ms, 32 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 320 ms between frames); capture: 2400 samples dropped; playback: 29 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (29 silent pieces in a row, 320 ms without samples); playback: 2283 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:198: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (27.02s)
+vm-check: audio: PASS
+vm-check: audio adapter OK on the distribution's audio service
+vm-check: desktop session: ubuntu:GNOME on wayland, GNOME Shell 50.1
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: window: diagnostic: cgo backend: opened and the page called the backend
+vm-check: window: diagnostic: cgo backend --safe-gpu: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: PASS Ubuntu 26.04 LTS

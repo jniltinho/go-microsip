@@ -48,7 +48,7 @@ fi
 # 3. The window in the distribution's own desktop session (GDM logs the user in automatically; the
 # provisioner set that up). The session's display variables are taken from the session itself.
 i=0
-until session=$(pgrep -u "$(id -u)" -f gnome-session-binary | head -n 1) && [ -n "$session" ]; do
+until session=$(pgrep -u "$(id -u)" -x gnome-shell | head -n 1) && [ -n "$session" ]; do
 	i=$((i + 1))
 	if [ "$i" -gt 60 ]; then
 		echo "vm-check: FAIL no desktop session" >&2

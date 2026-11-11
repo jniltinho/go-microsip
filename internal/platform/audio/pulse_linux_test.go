@@ -2,7 +2,6 @@ package audio
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -190,9 +189,11 @@ func TestPulseLoopback(t *testing.T) {
 		t.Errorf("%d frames captured after the microphone was unplugged (moved to another device?)", m.captured)
 	}
 	m, _ = run(time.Second, 0)
-	_, bad = m.verdict(time.Now(), s.Stats(), s.Stats(), false)
-	if playback := strings.Join(bad, "; "); strings.Contains(playback, "playback:") || s.PlaybackLost() {
-		t.Errorf("playback did not continue after the microphone was unplugged: %s", playback)
+	// One second is too short for the 0.5 % rule; what matters here is that the speaker kept
+	// playing: no gap, nearly every piece, and no lost stream.
+	if m.maxBadRun > maxBadPieces || m.arrivalGap > maxInterval || m.good < 90 || s.PlaybackLost() {
+		t.Errorf("playback did not continue after the microphone was unplugged: %d of about 96 pieces, longest silence %d pieces, arrival gap %d ms, lost=%v",
+			m.good, m.maxBadRun, m.arrivalGap.Milliseconds(), s.PlaybackLost())
 	}
 	t.Logf("after unplug: lost=%v, %d frames captured in 1 s, speaker %d pieces, longest silence %d pieces", s.CaptureLost(), m.captured, m.good, m.maxBadRun)
 }

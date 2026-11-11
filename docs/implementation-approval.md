@@ -29,3 +29,5 @@ Assumptions presented with the proposal and accepted with the approval:
 The approval permits implementation and testing of this change on its branch. It is not a declaration that G0 passed, and it does not cover renaming the GitHub repository, archiving the Rust code, publishing a release or downloading the closed-source `gophone` binary; each of those needs its own confirmation. `base/`, personal settings and the installed AppImage remain untouched.
 
 On the same date, after seeing the spike window, the owner asked for a separate agent to build and refine the interface in parallel, to save time (translated from Portuguese: "start a separate agent to create the interface and refine it"). This authorizes the frontend part of milestones M2 and M3 (screens, skins, a mock backend) to start before the G0 decision is recorded. It does not change the G0 gate for the engine, and the screens are wired to the real core only after G0 and M1.
+
+On 2026-11-11 the owner recorded the G0 decision: go, proceed to milestone M1 (see `docs/receipts/go-g0-2026-11-11.md`, "Decision", for what stays open).

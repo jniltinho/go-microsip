@@ -1,0 +1,20 @@
+vm-check: Debian GNU/Linux 13 (trixie), kernel 6.12.48+deb13-amd64
+vm-check: libgtk-4-1 4.18.6+ds-2 (ii )
+vm-check: libwebkitgtk-6.0-4 2.54.0-1~deb13u3 (ii )
+go-microsip 0.2.0-g0 (467fe9f14ffa)
+{"build":{"version":"0.2.0-g0","commit":"467fe9f14ffa","os":"linux","arch":"amd64","window":"purego"},"display":false}
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 300 s: capture 15000 of 15000 frames (longest miss 0 ticks, gap 28 ms, 0 samples dropped); speaker 29976 of 29996 10 ms pieces (longest silence 1 pieces, arrival gap 80 ms, 22 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 321 ms between frames); capture: 2400 samples dropped; playback: 28 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (29 silent pieces in a row, 321 ms without samples); playback: 2293 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:198: after unplug: lost=true, 0 frames captured in 1 s, speaker 96 pieces, longest silence 0 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (307.08s)
+vm-check: audio: PASS
+vm-check: audio adapter OK on the distribution's audio service
+vm-check: desktop session: GNOME on x11, GNOME Shell 48.7
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: window: diagnostic: cgo backend: opened and the page called the backend
+vm-check: window: diagnostic: cgo backend --safe-gpu: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: PASS Debian GNU/Linux 13 (trixie)
