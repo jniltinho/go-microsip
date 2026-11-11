@@ -1,6 +1,7 @@
 #!/bin/sh
 # Headless check (run inside the build container): with no display variables, the binary prints
-# its version, the doctor report and answers an MCP initialize + tools/list handshake on stdio.
+# its version, the doctor report, answers an MCP initialize + tools/list handshake on stdio, and
+# refuses a password-like option.
 #   build/qa/headless.sh <binary>
 set -eu
 bin=$1
@@ -17,4 +18,15 @@ out=$({
 } | timeout 20 "$bin" mcp)
 echo "$out" | grep -q '"serverInfo":{[^}]*"name":"go-microsip"' || { echo "headless: no initialize result" >&2; exit 1; }
 echo "$out" | grep -q '"name":"status_get"' || { echo "headless: tools/list did not list status_get" >&2; exit 1; }
-echo "headless: version, doctor and MCP handshake OK"
+# A password-like option is refused with the usage status, before anything parses or echoes it.
+for args in "--password s3cret-marker" "doctor --sip-pass=s3cret-marker" "mcp -pass s3cret-marker"; do
+	status=0
+	# shellcheck disable=SC2086 # the arguments are a word list
+	refusal=$("$bin" $args 2>&1) || status=$?
+	if [ "$status" -ne 2 ] || echo "$refusal" | grep -q "s3cret-marker" ||
+		! echo "$refusal" | grep -q "passwords are not accepted on the command line"; then
+		echo "headless: \`$args\` exited $status: $refusal" >&2
+		exit 1
+	fi
+done
+echo "headless: version, doctor, MCP handshake and password-argument refusal OK"

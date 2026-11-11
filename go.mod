@@ -9,6 +9,7 @@ require (
 	github.com/jfreymuth/pulse v0.1.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/moutend/go-wca v0.3.0
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pion/rtcp v1.2.16
 	github.com/pion/rtp v1.10.1
 	github.com/pion/srtp/v3 v3.0.10

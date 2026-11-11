@@ -3,7 +3,10 @@
 // tests. A capability a system lacks is reported as unavailable, never simulated.
 package ports
 
-import "errors"
+import (
+	"errors"
+	"os"
+)
 
 // FrameSamples is one 20 ms frame of 8 kHz mono audio.
 const FrameSamples = 160
@@ -44,4 +47,13 @@ type AudioDevices interface {
 	// Open starts capture and playback on the devices with these IDs; an empty ID is the default
 	// device. It fails with ErrNoAudioService when the session has no audio service.
 	Open(input, output string) (MediaIO, error)
+}
+
+// FileAccess tells the configuration who may touch a file, so it can refuse a settings file that
+// another user could rewrite and a secret that anyone else could read.
+type FileAccess interface {
+	// CurrentUser is the numeric user the process runs as.
+	CurrentUser() uint32
+	// Inspect returns the owner and the permission bits, as Unix mode bits, of a file.
+	Inspect(info os.FileInfo) (owner, mode uint32)
 }

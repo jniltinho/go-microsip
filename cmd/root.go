@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/jniltinho/go-microsip/internal/buildinfo"
+	"github.com/jniltinho/go-microsip/internal/core/app"
 )
 
 // Window flags, read by the build that links the window.
@@ -35,6 +36,11 @@ var runWindow = func(c *cobra.Command) error {
 
 // Execute runs the command line and exits with its status: 0 done, 2 invalid usage, 1 otherwise.
 func Execute(version, commit string) {
+	// Before Cobra sees the arguments: a password must never be parsed, echoed or logged.
+	if err := app.CheckArguments(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, "go-microsip:", err)
+		os.Exit(2)
+	}
 	buildinfo.Set(version, commit)
 	rootCmd.Flags().BoolVar(&safeGPU, "safe-gpu", false, "start the window without GPU acceleration")
 	rootCmd.Flags().BoolVar(&selfTest, "self-test", false, "open the window, wait for the page to load and exit 0")
