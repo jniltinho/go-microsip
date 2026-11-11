@@ -333,6 +333,44 @@ func TestConfigImportNeedsTheInstanceLock(t *testing.T) {
 	}
 }
 
+// The history of a call comes from what its snapshots say, not from which of them were seen: a
+// call whose "established" snapshot was merged away is still stored as answered, with its times.
+func TestHistoryDoesNotDependOnSeeingTheCallEstablished(t *testing.T) {
+	o, db := options(t, 1)
+	j := openJournal(o, db)
+	started := time.Now().Add(-10 * time.Second).UnixMilli()
+	snap := domain.CallSnapshot{ID: 1, Direction: domain.Outgoing, Remote: "1002", Phase: domain.CallPhase{Kind: domain.Ringing}, StartedMS: started}
+	j.record(domain.CallChanged{Call: snap})
+	snap.Phase, snap.Secure = domain.EndedWith(domain.EndFailed), true
+	snap.AnsweredMS, snap.EndedMS = started+2_000, started+9_500
+	j.record(domain.CallChanged{Call: snap}) // straight from ringing to the end
+	snap = domain.CallSnapshot{ID: 2, Direction: domain.Incoming, Remote: "1003", Phase: domain.EndedWith(domain.EndCanceled), StartedMS: started, EndedMS: started + 1_000}
+	j.record(domain.CallChanged{Call: snap}) // a call seen only at its end, never answered
+	j.close()
+
+	s, err := store.Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	calls, err := s.RecentCalls(10, store.AllCalls, "")
+	if err != nil || len(calls) != 2 {
+		t.Fatalf("history %v, %v", calls, err)
+	}
+	byRemote := map[string]store.CallRecord{}
+	for _, c := range calls {
+		byRemote[c.Call.Remote] = c.Call
+	}
+	answered, missed := byRemote["1002"], byRemote["1003"]
+	if answered.Outcome != store.Answered || answered.DurationMS == nil || *answered.DurationMS != 7_500 ||
+		answered.AnsweredUTC == nil || *answered.AnsweredUTC != (started+2_000)/1000 || answered.EndedUTC == nil || !answered.Secure {
+		t.Errorf("the answered call: %+v", answered)
+	}
+	if missed.Outcome != store.Missed || missed.AnsweredUTC != nil || missed.DurationMS != nil || missed.StartedUTC != started/1000 {
+		t.Errorf("the unanswered call: %+v", missed)
+	}
+}
+
 func TestRunNeedsAPasswordAndARegistrar(t *testing.T) {
 	o, db := options(t, registrar(t))
 	delete(o.Env, "GO_MICROSIP_SIP_PASSWORD")

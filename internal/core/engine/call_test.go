@@ -140,3 +140,40 @@ func TestShutdownWaitsForTheDevicesOfEveryCall(t *testing.T) {
 		t.Errorf("the devices of the first call: closed %v", slow.Closed())
 	}
 }
+
+// A reader that is away while a call is answered, fails and ends still learns that it was
+// answered, and when: the final snapshot says so itself, whatever was merged away before it.
+func TestTheFinalSnapshotSaysTheCallWasAnswered(t *testing.T) {
+	a := &actor{e: &Engine{events: newOutbox(), opts: Options{}}}
+	c := a.newCall(domain.Outgoing, "1002", domain.Dialing)
+	time.Sleep(50 * time.Millisecond) // the deliverer takes the first snapshot and waits for a reader
+	a.move(c, domain.CallPhase{Kind: domain.Ringing})
+	a.move(c, domain.CallPhase{Kind: domain.Established})
+	time.Sleep(5 * time.Millisecond)
+	a.move(c, domain.CallPhase{Kind: domain.Terminating}) // replaces "established" for the absent reader
+	a.end(c, domain.EndFailed)
+	a.e.events.emit(domain.Stopped{})
+	a.e.events.close()
+	got := drain(t, a.e.events.out)
+	var final domain.CallSnapshot
+	established := false
+	for _, ev := range got {
+		if ch, ok := ev.(domain.CallChanged); ok {
+			established = established || ch.Call.Phase.Kind == domain.Established
+			final = ch.Call
+		}
+	}
+	if established {
+		t.Fatal("the reader saw the call established: this test must merge that snapshot away")
+	}
+	if !final.Phase.IsFinal() || !final.Answered() || final.StartedMS == 0 || final.AnsweredMS < final.StartedMS || final.EndedMS < final.AnsweredMS+5 {
+		t.Errorf("final snapshot %+v", final)
+	}
+	// A call that never was established says that too.
+	b := &actor{e: &Engine{events: newOutbox(), opts: Options{}}}
+	never := b.newCall(domain.Incoming, "1003", domain.Ringing)
+	b.end(never, domain.EndCanceled)
+	if never.snap.Answered() || never.snap.EndedMS == 0 {
+		t.Errorf("unanswered call %+v", never.snap)
+	}
+}

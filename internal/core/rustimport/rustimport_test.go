@@ -661,3 +661,37 @@ func TestRecoveryDoesNotRedirectTheNextImport(t *testing.T) {
 		t.Errorf("imported contacts %v", names)
 	}
 }
+
+// A configuration directory on another file system than the data directory cannot be reached by a
+// rename: the file is copied beside its destination and renamed there, and a copy that was left on
+// its way is removed by the next recovery.
+func TestConfigurationOnAnotherFileSystem(t *testing.T) {
+	dir := t.TempDir()
+	staged, dst := filepath.Join(dir, "staged.toml"), filepath.Join(dir, "config", "config.toml")
+	write(t, staged, rustTOML)
+	check(t, os.MkdirAll(filepath.Dir(dst), 0o700))
+	check(t, os.Mkdir(dst, 0o700)) // a rename onto a directory fails, as one across file systems does
+	if err := place(staged, dst); err == nil {
+		t.Fatal("placing a file onto a directory succeeded")
+	}
+	check(t, os.Remove(dst))
+	check(t, os.Remove(dst+placing))
+	write(t, dst+placing, "left over")
+	check(t, os.Chmod(filepath.Dir(staged), 0o500)) // the staged file cannot be renamed away
+	err := place(staged, dst)
+	check(t, os.Chmod(filepath.Dir(staged), 0o700))
+	if raw, _ := os.ReadFile(dst); err != nil || string(raw) != rustTOML {
+		t.Fatalf("the copy across: %v", err)
+	}
+	if info, _ := os.Stat(dst); info.Mode().Perm() != 0o600 {
+		t.Errorf("mode %o", info.Mode().Perm())
+	}
+	if _, err := os.Stat(dst + placing); err == nil {
+		t.Error("the copy on its way was left behind")
+	}
+
+	w, before, _ := midCommit(t)
+	write(t, w.paths.Config+placing, "half a file")
+	check(t, w.importer().Recover())
+	w.previousIntact(before)
+}

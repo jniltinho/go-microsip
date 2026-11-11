@@ -327,7 +327,10 @@ func (a *actor) find(id domain.CallID) *call {
 func (a *actor) newCall(dir domain.Direction, remote string, phase domain.PhaseKind) *call {
 	a.lastCall++
 	c := &call{
-		snap: domain.CallSnapshot{ID: domain.CallID(a.lastCall), Direction: dir, Remote: remote, Phase: domain.CallPhase{Kind: phase}},
+		snap: domain.CallSnapshot{
+			ID: domain.CallID(a.lastCall), Direction: dir, Remote: remote, Phase: domain.CallPhase{Kind: phase},
+			StartedMS: time.Now().UnixMilli(),
+		},
 		keys: make(chan domain.DTMFKey, 32),
 	}
 	a.call = c
@@ -347,6 +350,9 @@ func (a *actor) move(c *call, next domain.CallPhase) bool {
 		return false
 	}
 	c.snap.Phase = next
+	if next.Kind == domain.Established && c.snap.AnsweredMS == 0 {
+		c.snap.AnsweredMS = time.Now().UnixMilli() // stays in every snapshot from here on
+	}
 	a.publish(c)
 	return true
 }
@@ -358,6 +364,7 @@ func (a *actor) end(c *call, reason domain.EndReason) {
 		return
 	}
 	c.snap.Phase = domain.EndedWith(reason)
+	c.snap.EndedMS = time.Now().UnixMilli()
 	a.publish(c)
 	c.release()
 	a.cleanup.Add(1)
@@ -857,6 +864,7 @@ func (a *actor) release() {
 	}
 	if c := a.call; c != nil {
 		c.snap.Phase = domain.EndedWith(domain.EndFailed)
+		c.snap.EndedMS = time.Now().UnixMilli()
 		c.snap.Version++
 		a.emit(domain.CallChanged{Call: c.snap})
 		c.release()

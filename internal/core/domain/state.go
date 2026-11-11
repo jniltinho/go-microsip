@@ -214,7 +214,15 @@ type CallSnapshot struct {
 	Secure   bool
 	Transfer TransferState
 	Version  uint64
+	// StartedMS, AnsweredMS and EndedMS are when the call began, was first established and ended,
+	// in Unix milliseconds; 0 means not yet, and for AnsweredMS in a final snapshot, never. Every
+	// snapshot carries them, the last one included: a front end that reads slowly gets intermediate
+	// snapshots merged, and must not have to see "established" to know a call was answered.
+	StartedMS, AnsweredMS, EndedMS int64
 }
+
+// Answered reports whether the call was ever established.
+func (c CallSnapshot) Answered() bool { return c.AnsweredMS != 0 }
 
 // Command is what a front end asks of the engine. The types below are all of them.
 type Command interface{ command() }

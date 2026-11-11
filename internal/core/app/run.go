@@ -172,15 +172,15 @@ func Run(ctx context.Context, o Options, r RunOptions, report func(domain.Event)
 			}
 			ours = ev.Call.ID
 			switch {
-			case ev.Call.Phase.Kind == domain.Established && !answered:
+			case ev.Call.Phase.IsFinal() && ev.Call.Answered(): // also when "established" was merged away
+				stop(nil)
+			case ev.Call.Phase.IsFinal():
+				stop(fmt.Errorf("%w: %v", ErrCall, ev.Call.Phase))
+			case ev.Call.Answered() && !answered:
 				answered = true
 				if r.HangupAfter > 0 {
 					hangup = time.After(r.HangupAfter)
 				}
-			case ev.Call.Phase.IsFinal() && answered:
-				stop(nil)
-			case ev.Call.Phase.IsFinal():
-				stop(fmt.Errorf("%w: %v", ErrCall, ev.Call.Phase))
 			}
 		case domain.Noticed:
 			if dialed && ours == 0 { // the Dial itself was refused
@@ -210,16 +210,11 @@ type journal struct {
 	store   *store.Store
 	session string
 	warn    func(string)
-	calls   map[domain.CallID]*journaled
-}
-
-type journaled struct {
-	started  time.Time
-	answered time.Time
+	calls   map[domain.CallID]bool // the calls that have their open row
 }
 
 func openJournal(o Options, path string) *journal {
-	j := &journal{warn: o.warn, calls: map[domain.CallID]*journaled{}}
+	j := &journal{warn: o.warn, calls: map[domain.CallID]bool{}}
 	if path == "" {
 		o.warn("history storage unavailable: " + ErrNoDataDirectory.Error())
 		return j
@@ -257,28 +252,24 @@ func (j *journal) record(ev domain.Event) {
 	}
 	c := changed.Call
 	key := fmt.Sprintf("%s:%d", j.session, c.ID)
-	now := time.Now()
-	call := j.calls[c.ID]
 	var err error
-	if call == nil {
-		call = &journaled{started: now}
-		j.calls[c.ID] = call
+	if !j.calls[c.ID] {
+		j.calls[c.ID] = true
 		_, err = j.store.BeginCall(store.CallStart{
-			SessionKey: key, StartedUTC: now.Unix(), Direction: c.Direction, Remote: c.Remote, Secure: c.Secure,
+			SessionKey: key, StartedUTC: c.StartedMS / 1000, Direction: c.Direction, Remote: c.Remote, Secure: c.Secure,
 		})
 	}
-	if call.answered.IsZero() && (c.Phase.Kind == domain.Established || c.Phase.Kind == domain.Held) {
-		call.answered = now
-	}
 	if c.Phase.IsFinal() {
+		// Whether and when the call was answered comes from the snapshot itself, never from having
+		// seen it established: intermediate snapshots may have been merged away.
 		record := store.CallRecord{
-			SessionKey: key, StartedUTC: call.started.Unix(), Direction: c.Direction, Remote: c.Remote, Secure: c.Secure,
-			Outcome: store.OutcomeFromEnd(c.Direction, !call.answered.IsZero(), c.Phase.End),
+			SessionKey: key, StartedUTC: c.StartedMS / 1000, Direction: c.Direction, Remote: c.Remote, Secure: c.Secure,
+			Outcome: store.OutcomeFromEnd(c.Direction, c.Answered(), c.Phase.End),
 		}
-		ended := now.Unix()
+		ended := c.EndedMS / 1000
 		record.EndedUTC = &ended
-		if !call.answered.IsZero() {
-			at, lasted := call.answered.Unix(), now.Sub(call.answered).Milliseconds()
+		if c.Answered() {
+			at, lasted := c.AnsweredMS/1000, max(0, c.EndedMS-c.AnsweredMS)
 			record.AnsweredUTC, record.DurationMS = &at, &lasted
 		}
 		delete(j.calls, c.ID)

@@ -394,8 +394,14 @@ func enginePairCall(caller, callee string) func(context.Context, *Lab) (map[stri
 		if _, err := d.b.ended(ctx, domain.EndNormal); err != nil {
 			return data, err
 		}
-		if _, err := d.a.ended(ctx, domain.EndNormal); err != nil {
+		end, err := d.a.ended(ctx, domain.EndNormal)
+		if err != nil {
 			return data, err
+		}
+		// The final snapshot itself says that and when the call was answered.
+		data["answered_ms"] = end.EndedMS - end.AnsweredMS
+		if !end.Answered() || end.AnsweredMS < end.StartedMS || end.EndedMS-end.AnsweredMS < 2000 {
+			return data, fmt.Errorf("the final snapshot's times: started %d, answered %d, ended %d", end.StartedMS, end.AnsweredMS, end.EndedMS)
 		}
 		return data, stopAll(d.a, d.b)
 	}
@@ -537,8 +543,12 @@ func engineReject(ctx context.Context, l *Lab) (map[string]any, error) {
 	if _, err := d.b.ended(ctx, domain.EndRejected); err != nil {
 		return nil, err
 	}
-	if _, err := d.a.ended(ctx, domain.EndBusy); err != nil {
+	end, err := d.a.ended(ctx, domain.EndBusy)
+	if err != nil {
 		return nil, err
+	}
+	if end.Answered() || end.EndedMS < end.StartedMS || end.StartedMS == 0 {
+		return nil, fmt.Errorf("a refused call's times: started %d, answered %d, ended %d", end.StartedMS, end.AnsweredMS, end.EndedMS)
 	}
 	return nil, stopAll(d.a, d.b)
 }

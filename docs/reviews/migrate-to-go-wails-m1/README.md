@@ -8,6 +8,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | 2 | `2eedb96` | UNSOUND: of the 14, 6 resolved and 8 partially; 6 new major | [codex-round2.md](codex-round2.md) |
 | 3 | `e856d17` | UNSOUND: earlier findings resolved or accepted except three partial; 3 new major, 2 minor | [codex-round3.md](codex-round3.md) |
 | 4 | `8483f9f` | UNSOUND: everything earlier resolved or accepted; 1 new major | [codex-round4.md](codex-round4.md) |
+| 5 | `cf8e470` | UNSOUND: everything earlier resolved; 1 new major, 1 minor | [codex-round5.md](codex-round5.md) |
 
 ## What was done about round 1
 
@@ -64,3 +65,11 @@ Of the fourteen findings of round 1, after both rounds: thirteen are fixed in co
 | --- | --- | --- |
 | 1 | A later call can hide unfinished device cleanup from the shutdown | Fixed. The actor counts the calls whose sound devices are not closed yet, every one of them, and the shutdown waits for that count inside its time. `TestShutdownWaitsForTheDevicesOfEveryCall` gates the first call's close, ends a second call at once, and requires the wait to last until the gate opens. (Closes the rest of N5 and of finding 2.) |
 | - | Test counts in the receipt | Corrected: 19 configuration, 24 store and 13 importer tests. |
+
+## What was done about round 5
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | Merging intermediate states can erase that a call was answered | Fixed. Every snapshot carries when the call began, was first established and ended (`StartedMS`, `AnsweredMS`, `EndedMS`), the final one included; the history and `run` read "answered" and the times from the snapshot, never from having seen "established". `TestTheFinalSnapshotSaysTheCallWasAnswered` merges the established snapshot away; `TestHistoryDoesNotDependOnSeeingTheCallEstablished` stores a call seen only ringing and ended; the lab's pair and reject scenarios check the final snapshot's times. |
+| 2 | A configuration directory on another file system | Fixed. When the rename cannot reach, the file is copied beside its destination, synced and renamed there; a copy left on its way is removed by the recovery. `TestConfigurationOnAnotherFileSystem` forces the fallback (a real second file system is not used). |
+| - | Receipt wording | "The voice is gone" now says what is asserted (at most 10 of 200 pieces, measured 0), and the sequential-cleanup test is described as what it is: a test of the count the shutdown waits for, not of a whole shutdown. |

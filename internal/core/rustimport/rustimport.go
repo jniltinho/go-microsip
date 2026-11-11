@@ -309,6 +309,25 @@ func syncDirs(db, config string) error {
 	return err
 }
 
+// placing is the name of the copy made when the configuration directory is on another file system
+// than the staging directory, where a rename cannot reach.
+const placing = ".import-placing"
+
+// place moves the staged configuration file into its place. When that is on another file system
+// the file is first copied beside its destination, synced, and renamed from there, so that what
+// appears under the final name is always the whole file.
+func place(staged, dst string) error {
+	if os.Rename(staged, dst) == nil {
+		return nil
+	}
+	near := dst + placing
+	_ = os.Remove(near)
+	if err := copyFile(staged, near); err != nil {
+		return err
+	}
+	return os.Rename(near, dst)
+}
+
 // mkdirDurable creates a private directory with its missing parents and syncs the directory each
 // new one was made in, so that a file renamed into it does not vanish with it at a power loss.
 func mkdirDurable(dir string) error {
@@ -443,6 +462,9 @@ func (i *Importer) RecoverLocked() error {
 	}
 	if err := os.RemoveAll(i.Paths.staging()); err != nil {
 		return err
+	}
+	if config != "" {
+		_ = os.Remove(config + placing) // a copy that was on its way to another file system
 	}
 	// The files are settled; that must be on disk before the journal that says how to settle them
 	// is changed or removed.
@@ -693,7 +715,7 @@ func (i *Importer) apply(confirmed Preview, credential bool) (err error) {
 		if err := mkdirDurable(filepath.Dir(p.Config)); err != nil {
 			return err
 		}
-		if err := os.Rename(configCopy, p.Config); err != nil {
+		if err := place(configCopy, p.Config); err != nil {
 			return err
 		}
 	}
