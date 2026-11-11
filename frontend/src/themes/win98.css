@@ -75,6 +75,15 @@
   --font-ui: "DejaVu Sans", Tahoma, "Microsoft Sans Serif", "Noto Sans", sans-serif;
   --font-size: 12px;
   --radius: 0;
+  --radius-pill: 0;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 24px;
   --key-height: 40px;

@@ -1,5 +1,6 @@
-// The skin contract (openspec ui-themes): every skin defines the same tokens, colors live only in this
-// folder, corners are square, and text meets 4.5:1 in every skin.
+// The skin contract (openspec ui-themes): every skin defines the same tokens, colors and corner radii
+// live only in this folder, and text meets 4.5:1 in every skin. Light and Dark go further: text at
+// 7:1, control boundaries and the focus ring at 3:1 (WCAG AAA).
 import { expect, test } from "vite-plus/test";
 import { effectiveSkin, knownSkin, SKINS } from "./index";
 
@@ -60,13 +61,17 @@ test("every skin defines the same token set", () => {
   }
 });
 
-test("corners are square in every skin and no source rounds them", () => {
-  for (const { id } of SKINS) expect(tokens(id).get("--radius"), id).toBe("0");
+test("corners come from the skin: square in xp and win98, and no source names a radius", () => {
+  for (const id of ["xp", "win98"])
+    expect([tokens(id).get("--radius"), tokens(id).get("--radius-pill")], id).toEqual(["0", "0"]);
+  const allowed = ["var(--radius)", "var(--radius-pill)", "0", "inherit"];
   for (const [file, text] of Object.entries(sources)) {
     expect(text, file).not.toMatch(/\brounded(-|\b)/);
-    expect(text.replaceAll("border-radius: var(--radius)", ""), file).not.toContain(
-      "border-radius",
-    );
+    for (const [, value] of text.matchAll(/border[\w-]*-radius\s*:\s*([^;]+);/g))
+      expect(
+        value.split(/\s+/).filter((part) => !allowed.includes(part)),
+        `${file}: border-radius: ${value}`,
+      ).toEqual([]);
   }
 });
 
@@ -154,6 +159,7 @@ const TEXT_PAIRS: [string, string][] = [
   ["call-text", "call"],
   ["hangup-text", "hangup"],
   ["notice-text", "notice"],
+  ["state-error", "notice"],
   ["title-text", "title"],
   ["tab-text", "tab"],
   ["tab-text", "tab-bar"],
@@ -162,6 +168,7 @@ const TEXT_PAIRS: [string, string][] = [
   ...STATES.flatMap((s): [string, string][] => [
     [`state-${s}`, "surface"],
     [`state-${s}`, "panel"],
+    [`state-${s}`, `state-${s}-bg`],
   ]),
 ];
 
@@ -178,13 +185,16 @@ function audit(): { skin: string; fg: string; bg: string; ratio: number }[] {
   });
 }
 
-test("text meets 4.5:1 on its background in every skin", () => {
+/** Light and Dark meet WCAG AAA; the skins that imitate another system keep AA. */
+const floor = (skin: string) => (skin === "light" || skin === "dark" ? 7 : 4.5);
+
+test("text meets its floor on its background: 7:1 in light and dark, 4.5:1 elsewhere", () => {
   expect(contrast("#000000", "#ffffff")).toBeCloseTo(21);
   const rows = audit();
   expect(rows.length).toBe(SKINS.length * TEXT_PAIRS.length);
   expect(
     rows
-      .filter((r) => !(r.ratio >= 4.5))
+      .filter((r) => !(r.ratio >= floor(r.skin)))
       .map((r) => `${r.skin}: ${r.fg} on ${r.bg} = ${r.ratio.toFixed(2)}`),
   ).toEqual([]);
   const worst = SKINS.map(({ id }) => {
@@ -208,6 +218,21 @@ test("the focus ring meets 3:1 in every skin", () => {
       );
       if (!(ratio >= 3)) failures.push(`${id}: ${fg} on ${bg} = ${ratio.toFixed(2)}`);
     }
+  }
+  expect(failures).toEqual([]);
+});
+
+test("control boundaries meet 3:1 in light and dark", () => {
+  // A control is told from what surrounds it by its border, or by its fill when it has none.
+  const edges = ["border", "btn-border", "field-border", "accent", "call", "hangup"];
+  const failures: string[] = [];
+  for (const id of ["light", "dark"]) {
+    const t = tokens(id);
+    for (const edge of edges)
+      for (const bg of ["surface", "panel"]) {
+        const ratio = contrast(t.get(`--${edge}`) ?? "", t.get(`--${bg}`) ?? "");
+        if (!(ratio >= 3)) failures.push(`${id}: ${edge} on ${bg} = ${ratio.toFixed(2)}`);
+      }
   }
   expect(failures).toEqual([]);
 });

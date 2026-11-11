@@ -1,28 +1,45 @@
 <script setup lang="ts">
-// The compact softphone window: tabs, the current view, notices, the status bar and the dialogs.
+// The compact softphone window (layout B of docs/ui/layouts): the header with the account and the
+// registration state, the current destination, notices, the bottom navigation and the dialogs.
 // Everything it shows about the engine comes from store.ui, which changes only on backend events.
-import { computed, nextTick, onBeforeUnmount, onMounted } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, watch } from "vue";
 import AppMenu from "./components/AppMenu.vue";
 import CallsTab from "./components/CallsTab.vue";
 import ContactEditor from "./components/ContactEditor.vue";
 import ContactsTab from "./components/ContactsTab.vue";
 import Dialog from "./components/Dialog.vue";
 import DialpadTab from "./components/DialpadTab.vue";
-import Icon from "./components/Icon.vue";
+import HomeTab from "./components/HomeTab.vue";
+import Icon, { type IconName } from "./components/Icon.vue";
 import SettingsView from "./components/SettingsView.vue";
 import SkinPicker from "./components/SkinPicker.vue";
 import StatusBar from "./components/StatusBar.vue";
 import { moveFocus } from "./keys";
-import { confirmButton, confirmQuestion, phaseText, TABS } from "./state";
-import { about, nameOf, now, start, ui, unavailable } from "./store";
+import { confirmButton, confirmQuestion, phaseText, type Tab, TABS } from "./state";
+import { about, initials, nameOf, now, start, ui, unavailable } from "./store";
+
+const TAB_ICONS: Record<Tab, IconName> = {
+  home: "home",
+  calls: "wait",
+  contacts: "user",
+  phone: "keypad",
+};
 
 const notice = computed(() => ui.notice(now.value));
 const incoming = computed(() => (ui.incomingRinging ? ui.call?.snapshot : undefined));
 const approval = computed(() => ui.approvals[0]);
 const armed = computed(() => ui.approvalArmed(now.value));
 
+// A call that was dialed or answered takes the window, unless a form is open (its edits stay).
+watch(
+  () => !!ui.call && !ui.incomingRinging,
+  (active) => {
+    if (active && ui.view === "main") void ui.dispatch({ type: "selectTab", tab: "phone" });
+  },
+);
+
 // Keyboard: Ctrl+L number entry, Enter call/answer, Escape hang up/reject or leave a view, and on
-// the dialpad digits, * and # type the number or send DTMF. Dialogs and menus handle their own keys.
+// the keypad digits, * and # type the number or send DTMF. Dialogs and menus handle their own keys.
 function onKey(e: KeyboardEvent) {
   if (e.defaultPrevented || document.querySelector("dialog[open]")) return;
   const target = e.target as HTMLElement;
@@ -63,6 +80,20 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
 <template>
   <div class="flex h-full flex-col">
+    <StatusBar>
+      <template v-if="!unavailable && !ui.stopped">
+        <button
+          class="btn pill toggle"
+          :aria-pressed="ui.dnd"
+          title="Do not disturb"
+          @click="ui.dispatch({ type: 'toggleDnd' })"
+        >
+          <Icon :name="ui.dnd ? 'check' : 'dnd'" />DND
+        </button>
+        <AppMenu />
+      </template>
+    </StatusBar>
+
     <!-- No engine behind the window (a build without the Go engine, or it stopped): say so. -->
     <main v-if="unavailable || ui.stopped" class="flex flex-1 flex-col gap-3 overflow-auto p-4">
       <h1 class="flex items-center gap-2 text-[1.25rem] font-semibold">
@@ -87,29 +118,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
     </main>
 
     <template v-else>
-      <header class="tabbar">
-        <div
-          class="flex gap-0.5"
-          role="tablist"
-          aria-label="Sections"
-          @keydown="moveFocus($event, '.tab', true)"
-        >
-          <button
-            v-for="t in TABS"
-            :key="t.id"
-            class="tab"
-            role="tab"
-            :aria-selected="ui.view === 'main' && ui.tab === t.id"
-            :tabindex="ui.tab === t.id ? 0 : -1"
-            @click="ui.dispatch({ type: 'selectTab', tab: t.id })"
-            @focus="ui.view === 'main' && ui.dispatch({ type: 'selectTab', tab: t.id })"
-          >
-            {{ t.label }}
-          </button>
-        </div>
-        <AppMenu />
-      </header>
-
       <button
         v-if="ui.call && (ui.view !== 'main' || ui.tab !== 'phone')"
         class="notice flex items-center gap-1.5 border-t-0 border-b border-line text-left"
@@ -126,6 +134,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
       <main class="min-h-0 flex-1" role="tabpanel">
         <SettingsView v-if="ui.view === 'settings'" />
         <ContactEditor v-else-if="ui.view === 'contactEdit'" />
+        <HomeTab v-else-if="ui.tab === 'home'" />
         <DialpadTab v-else-if="ui.tab === 'phone'" />
         <CallsTab v-else-if="ui.tab === 'calls'" />
         <ContactsTab v-else />
@@ -137,36 +146,57 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
       <p v-else-if="notice" class="notice flex items-center gap-1.5" role="status">
         <Icon name="alert" />{{ notice }}
       </p>
+
+      <nav
+        class="navbar"
+        role="tablist"
+        aria-label="Sections"
+        @keydown="moveFocus($event, '.tab', true)"
+      >
+        <button
+          v-for="t in TABS"
+          :key="t.id"
+          class="tab"
+          role="tab"
+          :aria-selected="ui.view === 'main' && ui.tab === t.id"
+          :tabindex="ui.tab === t.id ? 0 : -1"
+          @click="ui.dispatch({ type: 'selectTab', tab: t.id })"
+          @focus="ui.view === 'main' && ui.dispatch({ type: 'selectTab', tab: t.id })"
+        >
+          <span class="marker"><Icon :name="TAB_ICONS[t.id]" /></span>{{ t.label }}
+        </button>
+      </nav>
     </template>
 
-    <StatusBar />
-
     <!-- One dialog at a time: a ringing call first, then an agent's request, then a confirmation. -->
-    <Dialog v-if="incoming" title="Incoming call" @cancel="ui.dispatch({ type: 'end' })">
-      <p class="flex items-center gap-1.5 font-semibold text-ringing">
-        <Icon name="bell" />Incoming call
+    <Dialog v-if="incoming" title="Incoming call" sheet @cancel="ui.dispatch({ type: 'end' })">
+      <p class="text-center">
+        <span class="badge bg-ringing-soft text-ringing"><Icon name="bell" />Incoming call</span>
       </p>
+      <span class="avatar avatar-big mx-auto" aria-hidden="true">{{
+        initials(nameOf(incoming.remote) ?? "")
+      }}</span>
       <!-- The caller's name is remote-controlled: interpolation only. -->
-      <p class="truncate text-[1.4rem] font-semibold">
+      <p class="truncate text-center text-[1.8rem] leading-tight font-semibold">
         {{ nameOf(incoming.remote) ?? incoming.remote }}
       </p>
-      <p v-if="nameOf(incoming.remote)" class="num text-muted">{{ incoming.remote }}</p>
-      <p>
-        <span v-if="incoming.secure" class="badge text-secure"
+      <p v-if="nameOf(incoming.remote)" class="num text-center text-[1.1rem] text-muted">
+        {{ incoming.remote }}
+      </p>
+      <p class="text-center">
+        <span v-if="incoming.secure" class="badge bg-secure-soft text-secure"
           ><Icon name="lock" />Encrypted (SRTP)</span
         >
-        <span v-else class="badge text-insecure"><Icon name="unlock" />Unencrypted (RTP)</span>
-      </p>
-      <div class="grid grid-cols-2 gap-1.5 pt-1">
-        <button
-          class="btn btn-call min-h-[2.6rem]"
-          autofocus
-          @click="ui.dispatch({ type: 'call' })"
+        <span v-else class="badge bg-insecure-soft text-insecure"
+          ><Icon name="unlock" />Unencrypted (RTP)</span
         >
-          <Icon name="phone" />Answer
-        </button>
-        <button class="btn btn-hangup min-h-[2.6rem]" @click="ui.dispatch({ type: 'end' })">
+      </p>
+      <div class="grid grid-cols-2 gap-3 pt-1">
+        <button class="btn btn-hangup pill big" @click="ui.dispatch({ type: 'end' })">
           <Icon name="hangup" />Reject
+        </button>
+        <button class="btn btn-call pill big" autofocus @click="ui.dispatch({ type: 'call' })">
+          <Icon name="phone" />Answer
         </button>
       </div>
     </Dialog>

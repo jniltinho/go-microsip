@@ -1,0 +1,38 @@
+PASS  the window opens on Home with the focus in the search
+PASS  Enter in the search calls the only contact the name matches
+PASS  Escape hangs up and leaves the number in the keypad
+PASS  Tab focuses a control and its focus ring is visible
+PASS  Ctrl+L focuses the number entry
+PASS  Enter dials: the call is ringing
+PASS  the call is connected, shown with a label
+PASS  a digit during the call is DTMF, not typed
+PASS  Escape hangs up
+PASS  Tab moves from the number, past its clear button, to the keypad
+PASS  Space presses the focused key
+PASS  arrow keys move through the destinations, around the end, to Calls
+PASS  arrow keys move in the history list
+PASS  Enter opens a row and Tab reaches its actions
+PASS  the row's Edit puts the number in the dialpad without dialing
+PASS  Enter opens the menu on its first item
+PASS  arrow keys move in the menu
+PASS  Escape closes the menu and returns the focus
+PASS  the menu opens Settings
+PASS  choosing a skin applies at once
+PASS  Escape leaves Settings
+PASS  the skin is remembered after a reload
+PASS  a skin change during a call keeps the call
+PASS  the call is still shown
+PASS  System follows the desktop to dark without a reload
+PASS  and back to light
+PASS  an incoming call opens with the focus on Answer
+PASS  Tab stays inside the dialog
+PASS  Escape rejects the call
+PASS  a hostile caller name is literal text
+PASS  Enter answers
+PASS  an agent request opens with the focus on Deny and Allow disarmed
+PASS  Allow arms after a second
+PASS  Escape denies: no call is placed
+PASS  a muted call shows an icon and a label
+PASS  a held call shows an icon and a label
+PASS  without an engine the window says so and offers no call control
+keyboard-check: all passed

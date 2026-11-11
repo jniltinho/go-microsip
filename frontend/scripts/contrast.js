@@ -1,7 +1,8 @@
 // Contrast audit of the page as drawn, evaluated in the browser by prints.sh on every screen: each
 // visible text, field value and placeholder against the nearest painted background (every stop of
-// a gradient). Returns the texts below 4.5:1. Inactive controls are exempt (WCAG 1.4.3), and so
-// is what lies behind an open modal dialog, which is inert.
+// a gradient). Returns the texts below the skin's floor: 7:1 in light and dark, 4.5:1 in the other
+// skins. Inactive controls are exempt (WCAG 1.4.3), and so is what lies behind an open modal
+// dialog, which is inert.
 (() => {
   const parse = (c) => {
     const m = /rgba?\(([^)]+)\)/.exec(c);
@@ -27,6 +28,7 @@
     return [{ r: 255, g: 255, b: 255, a: 1 }];
   };
   const modal = document.querySelector("dialog[open]");
+  const floor = ["light", "dark"].includes(document.documentElement.dataset.theme) ? 7 : 4.5;
   const failures = new Set();
   const audit = (el, color, text) => {
     if (!text || (modal && !modal.contains(el)) || el.closest(":disabled")) return;
@@ -34,7 +36,7 @@
     if (!box.width || !box.height) return;
     const fg = parse(color);
     const worst = Math.min(...backgrounds(el).map((bg) => ratio(fg, bg)));
-    if (worst < 4.5) failures.add(`${worst.toFixed(2)} "${text.slice(0, 30)}"`);
+    if (worst < floor) failures.add(`${worst.toFixed(2)} "${text.slice(0, 30)}"`);
   };
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let node; (node = walker.nextNode());) {

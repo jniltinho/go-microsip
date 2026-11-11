@@ -65,7 +65,16 @@
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Inter", "Noto Sans",
     sans-serif;
   --font-size: 13px;
-  --radius: 0;
+  --radius: 10px;
+  --radius-pill: 999px;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 26px;
   --key-height: 44px;

@@ -24,11 +24,13 @@ export const NOTICE_TTL = 5000;
 /** How long an agent request must be on screen before Allow works. */
 export const APPROVAL_ARM = 1000;
 
-export type Tab = "phone" | "calls" | "contacts";
+/** The four destinations of the bottom navigation; "phone" is the keypad and the current call. */
+export type Tab = "home" | "calls" | "contacts" | "phone";
 export const TABS: readonly { id: Tab; label: string }[] = [
-  { id: "phone", label: "Dialpad" },
+  { id: "home", label: "Home" },
   { id: "calls", label: "Calls" },
   { id: "contacts", label: "Contacts" },
+  { id: "phone", label: "Keypad" },
 ];
 /** Which content replaces the tab body. */
 export type View = "main" | "settings" | "contactEdit";
@@ -113,7 +115,7 @@ export type Engine = Pick<
 >;
 
 export class UiState {
-  tab: Tab = "phone";
+  tab: Tab = "home";
   view: View = "main";
   /** Number entry buffer. */
   number = "";

@@ -63,7 +63,16 @@
   --dialog-bevel: 0 0 0 1px rgba(44, 0, 30, 0.5), 0 10px 28px rgba(44, 0, 30, 0.4);
   --font-ui: Ubuntu, "Ubuntu Sans", "Noto Sans", "DejaVu Sans", sans-serif;
   --font-size: 13px;
-  --radius: 0;
+  --radius: 8px;
+  --radius-pill: 999px;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 28px;
   --key-height: 44px;

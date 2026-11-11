@@ -1,7 +1,8 @@
 #!/bin/sh
 # The screenshot matrix: every screen in every skin, driven with agent-browser against the mock
-# backend, by keyboard wherever a step is an action. Each screen is also audited for 4.5:1 text
-# contrast as drawn (contrast.js); the results go to <output directory>/contrast.txt and any
+# backend, by keyboard wherever a step is an action. Each screen is also audited for text contrast
+# as drawn (contrast.js: 7:1 in light and dark, 4.5:1 in the other skins); the results go to
+# <output directory>/contrast.txt and any
 # failure makes the run fail. Run from the repository root with the dev server up (see
 # docs/ui/go-frontend.md):
 #   frontend/scripts/prints.sh [base URL] [output directory] [skins...]
@@ -26,7 +27,7 @@ shot() {
 	if [ "$low" = '""' ]; then
 		echo "$skin/$1: ok" >>"$out/contrast.txt"
 	else
-		echo "$skin/$1: BELOW 4.5:1 $low" | tee -a "$out/contrast.txt"
+		echo "$skin/$1: BELOW THE FLOOR $low" | tee -a "$out/contrast.txt"
 	fi
 }
 click() { ab eval "document.querySelector('$1').click()"; }
@@ -39,10 +40,14 @@ for skin in $skins; do
 	ab open "$base/"
 	ab eval "localStorage.setItem('go-microsip.mock.theme','$skin');localStorage.setItem('go-microsip.skin','$skin')"
 
-	# Dialpad, then a whole call by keyboard: Ctrl+L, type, Enter, DTMF, Escape.
+	# Home and its search, then the keypad and a whole call by keyboard: Ctrl+L, type, Enter, DTMF,
+	# Escape.
 	scene ""
-	shot dialpad
+	shot home
+	ab keyboard type "a"
+	shot home-search
 	keys Control+l
+	shot dialpad
 	ab keyboard type "1002"
 	shot dialpad-number
 	keys Enter
@@ -59,6 +64,8 @@ for skin in $skins; do
 	scene held
 	shot call-held
 	scene active
+	click '[aria-label="Call controls"] button:nth-child(3)'
+	shot call-keypad
 	click '[aria-label="Call controls"] button:nth-child(4)'
 	ab keyboard type "1003"
 	shot call-transfer
@@ -74,7 +81,8 @@ for skin in $skins; do
 	ab focus '.tab[aria-selected="true"]'
 	keys ArrowRight
 	shot calls
-	keys Tab Tab Tab Tab Tab Tab ArrowDown Enter
+	ab focus '.row'
+	keys ArrowDown Enter
 	shot calls-selected
 	click 'section[aria-label="Calls"] > div:last-child button'
 	shot confirm

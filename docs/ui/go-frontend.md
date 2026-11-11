@@ -12,14 +12,24 @@ Notes of the frontend work done in parallel with the G0 spike of `openspec/chang
 | Mock engine | `frontend/src/mock.ts` | Imported only by `api.ts`, only in the mock build. Registration, outgoing and incoming calls, hold, mute, DTMF, blind transfer, DND, agent requests, notices and failures, with fictional data (`pbx.invalid`, `192.0.2.1`, extensions 1001 to 1009). |
 | Reducer | `frontend/src/state.ts`, `state.test.ts` | Port of `apps/rust-microsip/src/ui/state.rs`: intents go through `dispatch` (at most one command each); registration and call state change only in `applyEvent`. |
 | Store | `frontend/src/store.ts` | The reducer made reactive, fed by `subscribe`; calls `ready()` once the page has drawn, also when the backend is missing. |
-| Screens | `frontend/src/App.vue`, `src/components/*.vue` | Dialpad, Calls, Contacts, contact editor, in-call panel, incoming call, settings, menu, status bar, agent approval and confirmation dialogs, engine-unavailable and stopped states. |
+| Screens | `frontend/src/App.vue`, `src/components/*.vue` | Layout B of `docs/ui/layouts/` (owner's decision of 2026-11-11): the header, Home, Calls, Contacts, Keypad, the call view, the incoming-call sheet, contact editor, settings, menu, agent approval and confirmation dialogs, engine-unavailable and stopped states. |
 | Skins | `frontend/src/themes/` | Registry `index.ts`, one CSS file per skin (`light`, `dark`, `xp`, `macos`, `ubuntu`, `win98`) and `system`. Tests in `themes.test.ts`. |
-| Checks | `frontend/scripts/prints.sh`, `contrast.js`, `keyboard-check.sh` | Screenshot matrix with a contrast audit of each screen as drawn, and a keyboard walkthrough, both driven with `agent-browser`. |
-| Screenshots | `docs/prints/go/<skin>/*.png`, `docs/prints/go/contrast.txt`, `docs/prints/go/window.png` | 25 screens in each of the 6 skins from the mock; `window.png` is the real Wails window of this commit (`make go-prints`). |
+| Checks | `frontend/scripts/prints.sh`, `contrast.js`, `keyboard-check.sh`, `scale-check.sh` | Screenshot matrix with a contrast audit of each screen as drawn, a keyboard walkthrough, and the window at 100, 150 and 200 %, all driven with `agent-browser`. |
+| Screenshots | `docs/prints/go/<skin>/*.png`, `docs/prints/go/contrast.txt`, `docs/prints/go/scale/scale-150-*.png` | 28 screens in each of the 6 skins, and the call at 150 %, from the mock on layout B. `window.png`, `window-kde.png`, `appimage/` and `scale/scale-200-*.png` are the real window on the earlier tab layout and are to be taken again. |
 
-Window layout follows MicroSIP: tabs on top with the menu button at the right, the keypad with `Backspace + C` under it, Call and End, the `DND / Mute / Hold / Xfer` row, and the status bar at the bottom with the registration state and the account.
+Window layout is layout B of [`docs/ui/layouts/`](layouts/README.md), chosen by the owner on 2026-11-11 in place of the MicroSIP-like tabs:
 
-Keyboard: `Ctrl+L` focuses the number, `Enter` calls or answers, `Escape` hangs up, rejects or leaves a view, digits `*` `#` type the number or send DTMF during a call (`A` to `D` too), arrow keys move in tabs, lists and the menu. Dialogs are native `<dialog>` elements: focus is trapped, the safe button has the focus (Deny, Cancel; Answer for an incoming call), and `Escape` cancels.
+- **Header** on every screen: the account, the registration state (icon and label), the DND toggle and the menu button.
+- **Bottom navigation** with four destinations: Home, Calls, Contacts, Keypad.
+- **Home**: a search that takes a name or a number, up to four favorites, and the recent calls, each with its own Call button. Enter dials a number as typed, calls the only contact a name matches, and moves to the list when several match.
+- **Keypad**: the number with a clear button, twelve round keys, and `+`, Call and Backspace on a fifth row. Call is never disabled; without a number the window says why.
+- **Call**: takes the place of the keypad, and the window goes there when a call is dialed or answered (not while a form is open). State chips, the caller, the timer, and Mute, Hold, Keypad and Transfer once the call is connected; Keypad swaps the caller for the DTMF keys. A control that cannot work is not drawn.
+- **Incoming call**: a modal sheet at the bottom edge, Reject at the left and Answer at the right with the focus.
+- **Calls**: filters as pills (the selected one carries a check mark), the entries under Today, Yesterday or their date.
+
+Differences from the drawing in `docs/ui/layouts/`: the navigation stays visible during a call, so a contact can be looked up for a transfer; the number on the keypad is a bordered field, because it is an input; the registration label is in the text color with the state's color on its icon only; Calls keeps its search and Clear all; the icons keep square caps.
+
+Keyboard: the window opens with the focus in Home's search; `Ctrl+L` goes to the keypad's number, `Enter` calls or answers, `Escape` hangs up, rejects or leaves a view, digits `*` `#` type the number or send DTMF during a call (`A` to `D` too), arrow keys move in the navigation, lists and the menu. Dialogs are native `<dialog>` elements: focus is trapped, the safe button has the focus (Deny, Cancel; Answer for an incoming call), and `Escape` cancels.
 
 ## Running the mock
 
@@ -43,6 +53,8 @@ frontend/scripts/scale-check.sh                 # 100, 150 and 200 % in every sk
 frontend/scripts/prints.sh http://127.0.0.1:5173 docs/prints/go
 ```
 
+The three scripts drive `agent-browser`'s default browser session. Two checkouts running them at once must each name their own (`AGENT_BROWSER_SESSION=<name> frontend/scripts/prints.sh ...`), or they navigate each other's page.
+
 The mock offers its scenarios in the menu ("Simulate (mock engine)") and as `?scene=<id>` in the address: `incoming`, `hostile`, `active`, `held`, `muted`, `transfer-failed`, `approval`, `register-failed`, `audio`, `engine-failed`, `no-engine`. Scripted numbers: `1007` not acceptable, `1008` no answer, `1009` busy (as a transfer target it fails with 486). Registering with the password `wrong` is refused; the server `down.invalid` times out. The status bar shows "Mock" in this build.
 
 Do not run `make go-frontend` (it runs `npm ci`) while the development server is up: it replaces `node_modules` under it.
@@ -52,25 +64,26 @@ Do not run `make go-frontend` (it runs `npm ci`) while the development server is
 | Check | Result |
 | --- | --- |
 | `vp check` (format, lint, type check of `.ts`) | pass, 24 files |
-| `vp test run` | pass, 26 tests: 17 reducer and validation tests (ported from Rust, plus agent-request arming and confirmations), 9 skin tests |
+| `vp test run` | pass, 27 tests: 17 reducer and validation tests (ported from Rust, plus agent-request arming and confirmations), 10 skin tests |
 | `vp build` and `make go-self-test` | pass: "window opened and the page called the backend" |
 | Embedded build free of the mock | pass: no mock chunk and no fictional data in `internal/gui/dist` |
-| `frontend/scripts/keyboard-check.sh` | pass, 34 of 34 |
-| `frontend/scripts/prints.sh` | 150 screenshots (25 screens x 6 skins); 150 of 150 pass the contrast audit |
-| Clipping at 360x560 and at the minimum 320x480 | none in `win98` and `ubuntu` (the widest fonts) on dialpad, in-call, approval, incoming, calls, contacts, menu, settings |
+| `frontend/scripts/keyboard-check.sh` | pass, 37 of 37 ([log](../receipts/go-m2/keyboard-check-layout-b.log)) |
+| `frontend/scripts/scale-check.sh` | pass, 120 of 120: the call, the contacts, the settings, Home and the keypad at 100, 150 and 200 % in the six skins, then the call, its DTMF keys, the incoming call, Home and the keypad at the minimum window of 320x480 ([log](../receipts/go-m2/scale-check-layout-b.log)) |
+| `frontend/scripts/prints.sh` | 168 screenshots (28 screens x 6 skins); 168 of 168 pass the contrast audit |
+| Clipping at 360x560 and at the minimum 320x480 | none in the six skins (the scale check above): nothing wider than the window, no control off its side, no key or caller text cut. At 320x480 the caller's avatar is not drawn and the DTMF keys in a call are wider than tall, so everything fits. |
 
 Ported reducer tests: dial validation, DTMF only when established, incoming answer/reject, hold and mute following snapshots, DND and the transfer prompt, sticky engine failure, overload notice, version dedup and final snapshots, redial needing an explicit action, quitting during a call, skin change during a call, settings validation and registration without printing the password, account and dial-target rules, ages and durations. The Rust tests of storage, keyring, CSV import, audio test and the link handler were not ported: that logic belongs to the Go core, not to the page.
 
-Skin tests fail when: fewer or other skins than the six are registered; a skin misses or adds a token (the skin and the token are named); a skin block holds anything but token declarations; `--radius` is not `0` or a source rounds a corner; a hex/`rgb()`/named color or a Tailwind palette class appears outside `src/themes/`; a source uses `v-html`, `innerHTML` or `outerHTML`; a module other than `api.ts` imports the Wails runtime or the mock; a text token is below 4.5:1 on its background; the focus ring is below 3:1.
+Skin tests fail when: fewer or other skins than the six are registered; a skin misses or adds a token (the skin and the token are named); a skin block holds anything but token declarations; `xp` or `win98` rounds a corner, or a source names a radius other than the `--radius` and `--radius-pill` tokens; a hex/`rgb()`/named color or a Tailwind palette class appears outside `src/themes/`; a source uses `v-html`, `innerHTML` or `outerHTML`; a module other than `api.ts` imports the Wails runtime or the mock; a text token is below its floor on its background (7:1 in `light` and `dark`, 4.5:1 in the other four); the focus ring is below 3:1; a control boundary of `light` or `dark` is below 3:1.
 
 ### Contrast
 
-Two audits, both at 4.5:1 for text:
+Two audits of text, at 7:1 in `light` and `dark` (WCAG AAA) and 4.5:1 in the four other skins:
 
-1. Tokens (`themes.test.ts`): 39 text-on-background pairs per skin, gradients checked at every stop. Lowest ratio per skin: light 5.02, dark 5.02, xp 5.01, macos 4.99, ubuntu 5.03, win98 5.60.
-2. Rendered (`contrast.js` in `prints.sh`): every visible text, field value and placeholder of each screenshot against its nearest painted background. 150 of 150 screens pass (`docs/prints/go/contrast.txt`).
+1. Tokens (`themes.test.ts`): 47 text-on-background pairs per skin, gradients checked at every stop. Lowest ratio per skin: light 7.23, dark 7.13, xp 5.01, macos 4.99, ubuntu 5.03, win98 5.60. In `light` and `dark` the borders of buttons and fields and the fills of the accent, call and hang-up buttons are also held to 3:1 against the window and the panels.
+2. Rendered (`contrast.js` in `prints.sh`): every visible text, field value and placeholder of each screenshot against its nearest painted background. 168 of 168 screens pass (`docs/prints/go/contrast.txt`).
 
-Fixed on the way: the call button of `xp` (4.37) and `macos` (4.41) and the hang-up button of `xp` (4.50) were darkened; the secondary text of a selected row took the muted color on the selection color and now takes the selection's text color.
+Fixed on the way: the call button of `xp` (4.37) and `macos` (4.41) and the hang-up button of `xp` (4.50) were darkened; the secondary text of a selected row took the muted color on the selection color and now takes the selection's text color. With layout B, the engine-failure text on the dark notice was 6.92:1 as drawn, below the new floor, and the notice was darkened.
 
 Exempt, as in WCAG 1.4.3: the text of disabled controls, and what lies behind an open modal dialog (inert). The icon colors in the status bar are not text and were not audited.
 
@@ -143,10 +156,11 @@ Rules the page relies on:
 
 Where two layouts were reasonable, the one closest to MicroSIP was taken:
 
-- **Menu at the top right, status at the bottom**, as in MicroSIP, instead of a menu in the status bar.
+- **Layout B**, the owner's choice of 2026-11-11 among the three proposals of `docs/ui/layouts/`. The three items below that describe the MicroSIP arrangement (menu and status positions, the in-call panel over the keypad, the centered incoming dialog) are replaced by it.
+- ~~Menu at the top right, status at the bottom, as in MicroSIP.~~ The account and the registration state are in the header, with DND and the menu.
 - **No title bar inside the page.** The native window already has one; the skins' title chrome (`--title`) dresses dialogs and the Settings and contact-editor headers.
-- **In-call panel in place of the number field**, on the Dialpad tab, with the keypad below it as the DTMF pad (as in the Rust candidate). Another tab shows a "Show call" strip.
-- **Incoming call as a modal dialog** over any tab, focus on Answer; `Enter` answers and `Escape` rejects (the Rust candidate's keys).
+- **The call takes the Keypad destination**, with the DTMF keys behind its Keypad control. Another destination shows a "Show call" strip.
+- **Incoming call as a modal sheet** at the bottom edge, over any destination, focus on Answer; `Enter` answers and `Escape` rejects (the Rust candidate's keys).
 - **Volume sliders are absent.** MicroSIP has them, but the contract has no volume command; Settings lists them under "Not available in this build" together with the audio test, CSV import and agent grants.
 - **Settings and the contact editor are views inside the window**, not separate windows.
 - **Mock by Vite mode**, not by `.env` files: the repository's `.gitignore` excludes `.env.*`. `vp dev` (development) and `--mode mock` select the mock; every other build selects Wails.
@@ -154,6 +168,10 @@ Where two layouts were reasonable, the one closest to MicroSIP was taken:
 - **Retro font stacks use system fonts only** (see the refinement pass). Nothing is fetched from the network.
 
 ## Open
+
+- **The lab scenario of the real window** (`internal/platform/audio/window_linux_test.go`, `make go-window-call` and `make go-appimage-call`) still drives the tab layout and was not run on layout B. Three of its steps name what no longer exists: it waits for the text `Dialpad` (the destination is `Keypad`), clicks `Show call` after answering (the window now goes to the call by itself, so the strip is not there) and clicks `Xfer` (the control is `Transfer`, a label the transfer form's own button shares once it is open). Until it is updated and run, tasks 4.4, 4.6 and 4.7 stay open.
+- **Disabled controls that remain**: Allow in an agent request during its first second, End while the call is ending, Call and Add in a history row's actions, Clear all with an empty history. Their text is exempt from the contrast floors.
+- **The menu button is an icon** with the accessible name "Menu"; DND keeps its label.
 
 - **Go side**: done in milestone M2 (`internal/gui/service.go` over `internal/core/app`'s `Phone`): every method of the table and the event. `Approve`, `Deny` and `DenyAll` answer that agent requests are not available until the control channel exists (M4), and the approvals list is always empty. `docs/prints/go/window.png` is the real window on the real engine with an empty profile. Two things differ from the table: the engine also sends the notice `microphone_lost`, which the page now knows; and `Register` answers `invalid_state` when the account is not valid or no password is at hand, which the page checks before it asks.
 - **Saved settings and other sources**: `SaveSettings` writes to the database, the lowest source. A field that the configuration file, the environment or a flag holds is refused with an error that names it; the form does not yet show such fields as fixed. A new microphone, speaker or CA bundle applies at the next start: the running engine keeps the ones it started with.

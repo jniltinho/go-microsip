@@ -1,6 +1,14 @@
 # Layout proposals for the go-microsip window (2026-11-11)
 
-Three proposals for a more modern window that meets WCAG AAA contrast, for the owner to choose from. **Nothing here is implemented**: `frontend/src/`, the shipped skins and the backend contract (`frontend/src/api.ts`) are untouched, and no OpenSpec task is ticked by this work. The screens are drawings with fictional data (`pbx.invalid`, extensions 1001 to 1006), not screenshots of the application.
+Three proposals for a more modern window that meets WCAG AAA contrast, for the owner to choose from. The screens here are drawings with fictional data (`pbx.invalid`, extensions 1001 to 1006), not screenshots of the application.
+
+**Decision (2026-11-11): the owner chose layout B.** It is implemented in `frontend/` on the branch of this work; [`../go-frontend.md`](../go-frontend.md) describes the window as built, where it differs from the drawing, and what was checked. Design D7 was revised with it: `light`, `dark`, `macos` and `ubuntu` round their corners, `xp` and `win98` stay square, and only `light` and `dark` go to AAA. The sections below are the proposals as they were put to the owner; "would" in them is the state before that decision.
+
+Layout B as built, from the mock (Home, the keypad, a muted call, an incoming call, Calls; light above, dark below), and Home and the call in the four other skins:
+
+![Layout B as built](prints/b-call-first-built.png)
+
+![Layout B in macOS, Ubuntu, Windows XP and Windows 98](prints/b-call-first-built-skins.png)
 
 | | Layout | Idea | Corners |
 | --- | --- | --- | --- |
