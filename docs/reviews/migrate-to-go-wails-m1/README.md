@@ -14,6 +14,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | 8 | `0ef5947` | UNSOUND: round 7's fix partial (a hold or mute between the sender's reading of the state and of the microphone); nothing else | [codex-round8.md](codex-round8.md) |
 | 9 | `8da40b9` | UNSOUND: round 8's fix partial (the sender reading between the two steps of one change of hold or mute); nothing else | [codex-round9.md](codex-round9.md) |
 | 10 | `9cf56bf` | UNSOUND: round 9's race resolved; 2 major (the adapter's 100 ms discard window, added in that commit; the jitter buffer's catch-up before a gap further on) | [codex-round10.md](codex-round10.md) |
+| 11 | `0308c18` | SOUND: both problems of round 10 resolved; no new problem | [codex-round11.md](codex-round11.md) |
 
 ## What was done about round 1
 
@@ -116,3 +117,13 @@ Of the fourteen findings of round 1, after both rounds: thirteen are fixed in co
 | 2 | Catch-up before a gap further on brings the missing packet's deadline forward | Fixed. The buffer catches up only while nothing is queued behind a gap. `TestJitterBufferWaitsForALatePacketBehindABurst` gained the reviewer's case (packet 8 missing behind 4 to 7); it fails on the previous code. |
 
 What remains and is recorded in the receipt: the count dropped after a confirmed discard stands for what a device has recorded and not handed over yet. It is taken from the service's own report, with a floor; it is not a recording time, which the protocol does not give. The WASAPI path is compiled and not run: Windows audio on real hardware is the open task 2.8.
+
+## Round 11
+
+Sound, on `0308c18`, with nothing to change. What the report leaves standing is already in the receipt as not covered:
+
+- A frame taken before a hold or a mute began can leave after it: 20 ms of sound from before the change, at most.
+- The privacy tests drive the decision of what is sent and the adapter each on its own, not a held or muted call on the engine with a real sound device.
+- The count of samples dropped after a confirmed discard comes from the sound service's report and is not validated on physical devices; the Windows path is compiled, not run (task 2.8).
+
+The reviewer did not build or run anything: the test runs, the lab and the sound measurements are the receipt's, not the review's.
