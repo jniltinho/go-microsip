@@ -687,7 +687,7 @@ func (a *actor) hold(id domain.CallID, hold bool) {
 	}
 	c.busy = true
 	if hold {
-		c.private(&c.held, true) // the microphone stops before the other side is told
+		c.private(onHold, true) // the microphone stops before the other side is told
 	}
 	d := c.dialog
 	go func() {
@@ -706,11 +706,11 @@ func (a *actor) hold(id domain.CallID, hold bool) {
 			}
 			if err != nil {
 				a.e.opts.Log.Warn("hold or resume failed", "error", err)
-				c.private(&c.held, !hold)
+				c.private(onHold, !hold)
 				a.notice(domain.NoticeInvalidState)
 				return
 			}
-			c.private(&c.held, hold)
+			c.private(onHold, hold)
 			if hold {
 				a.move(c, domain.CallPhase{Kind: domain.Held})
 			} else {
@@ -731,7 +731,7 @@ func (a *actor) mute(id domain.CallID, muted bool) {
 	}
 	if c.snap.Muted != muted {
 		c.snap.Muted = muted
-		c.private(&c.muted, muted)
+		c.private(onMute, muted)
 		a.publish(c)
 	}
 }

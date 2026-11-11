@@ -12,6 +12,7 @@ Each round reviews a sanitized extract made with `git archive` (no third-party s
 | 6 | `c2fe87a` | UNSOUND: everything earlier resolved; 1 new major | [codex-round6.md](codex-round6.md) |
 | 7 | `1d2ff41` | UNSOUND: round 6's fix partial (a hold or mute between two sender ticks); nothing else | [codex-round7.md](codex-round7.md) |
 | 8 | `0ef5947` | UNSOUND: round 7's fix partial (a hold or mute between the sender's reading of the state and of the microphone); nothing else | [codex-round8.md](codex-round8.md) |
+| 9 | `8da40b9` | UNSOUND: round 8's fix partial (the sender reading between the two steps of one change of hold or mute); nothing else | [codex-round9.md](codex-round9.md) |
 
 ## What was done about round 1
 
@@ -97,3 +98,11 @@ Of the fourteen findings of round 1, after both rounds: thirteen are fixed in co
 | --- | --- | --- |
 | 1 | A hold or a mute after the sender read the call's state and before it read the microphone | Fixed. The sender reads the count of changes again once it has the frame, and does not send a frame taken while the count moved; the count, still not acted on, makes the next tick drop what the device holds. As the count moves before the flag does, a frame that passes was recorded before any change began. `TestPrivacyBetweenTwoTicksIsNotMissed` now also mutes, records and unmutes (and the same with a hold) from inside the reading of the microphone; with the second reading switched off it fails. It is still the helper that is tested, with the actor's part played inside one goroutine. |
 | - | Round 8 on `mediaGrace` | Recorded as a limitation in the receipt: a dialog that takes longer than half a second to report its end after the audio stopped is ended as failed. A media direction that fails alone still has no test of its own. |
+
+## What was done about round 9
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | A change of hold or mute seen half done: the count moved, the flag not yet | Fixed at the root of rounds 7 to 9: hold, mute and the count of their changes are now one atomic word, changed in one step, so there is no half-done change to see and the sender never reads one without the others. A frame is sent only if the word was the same, without hold or mute, when the device's queue was last dropped, before the frame was taken and after. `TestPrivacyWordChangesAtOnce` checks the word; `TestPrivacyBetweenTwoTicksIsNotMissed` gained a hold or mute that begins inside the reading of the microphone and stays; `TestNothingPrivateIsSentAgainstARacingActor` runs the device, the actor's changes and the sender's decision on three goroutines under the race detector, with every sample marked by what the call was when it was recorded, and fails with the second reading switched off. |
+| - | Round 9 on the receipt's wording | Narrowed: a frame taken before a hold or a mute began can leave just after it (up to one 20 ms frame of audio from before the change); "nothing while held by construction" is gone. The racing test drives the helper and the word, not the engine's send loop on a call with a real sound device. |
+| - | Found while answering | A real device delivers a sample some time after it recorded it, so sound from the last moments of a mute could reach the adapter's queue after the queue was dropped. The adapter's discard now also refuses what the device delivers in the next 100 ms, a fixed bound (five times the delay asked of the sound server) that is not measured on real hardware; `TestDiscardDropsEverythingCaptured` covers the late delivery. The first 100 ms after a resume or an unmute are therefore silence. |

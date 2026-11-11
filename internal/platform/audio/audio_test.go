@@ -135,13 +135,22 @@ func TestDiscardDropsEverythingCaptured(t *testing.T) {
 	if b.Capture(&frame) {
 		t.Fatal("a frame came out right after the discard")
 	}
+	fill(7, 2*FrameSamples) // recorded before the discard, delivered by the device after it
+	if b.Capture(&frame) {
+		t.Fatal("what the device delivered late came out after the discard")
+	}
+	time.Sleep(captureDelay)
 	fill(1, 4*FrameSamples)
-	for n := 0; b.Capture(&frame); n++ {
+	n := 0
+	for ; b.Capture(&frame); n++ {
 		for i, v := range frame {
 			if v != 1 {
 				t.Fatalf("frame %d, sample %d is %d: it was captured before the discard", n, i, v)
 			}
 		}
+	}
+	if n != 4 {
+		t.Errorf("%d frames after the discard, want the 4 recorded after it", n)
 	}
 	if st := b.Stats(); st.CaptureDropped != 0 {
 		t.Errorf("%d samples counted as dropped: a discard is not a loss", st.CaptureDropped)

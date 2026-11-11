@@ -2,7 +2,7 @@ package engine
 
 import (
 	"slices"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -219,13 +219,14 @@ func TestNothingRecordedOnHoldIsEverSent(t *testing.T) {
 	q := &queuedMicrophone{Stream: &memory.Stream{}}
 	mic := microphone{audio: q}
 	var sent []int16
-	changes := uint64(0) // moved by the actor at every change of hold or mute
-	was := [2]bool{}
+	c := &call{}
 	tick := func(held, muted bool) {
-		if now := [2]bool{held, muted}; now != was {
-			was, changes = now, changes+2
+		if w := c.privacy.Load(); (w&onHold != 0) != held {
+			c.private(onHold, held)
+		} else if (w&onMute != 0) != muted {
+			c.private(onMute, muted)
 		}
-		if out, _ := mic.next(func() (bool, bool, uint64) { return held, muted, changes }); out != nil {
+		if out, _ := mic.next(c.privacy.Load); out != nil {
 			sent = append(sent, out[:]...)
 		}
 	}
@@ -289,13 +290,13 @@ func TestPrivacyBetweenTwoTicksIsNotMissed(t *testing.T) {
 	c := &call{}
 	var sent []int16
 	tick := func() {
-		if out, _ := mic.next(c.privacyState); out != nil {
+		if out, _ := mic.next(c.privacy.Load); out != nil {
 			sent = append(sent, out[:]...)
 		}
 	}
 	q.record(talk, media.FrameSamples)
 	tick()
-	for _, flag := range []*atomic.Bool{&c.muted, &c.held} {
+	for _, flag := range []uint64{onMute, onHold} {
 		// The sender is busy elsewhere (a DTMF key, say) while the user mutes, speaks and unmutes.
 		c.private(flag, true)
 		q.record(private, 3*media.FrameSamples+40)
@@ -313,7 +314,7 @@ func TestPrivacyBetweenTwoTicksIsNotMissed(t *testing.T) {
 	}
 	// The same, later still: the sender has read the call's state and is about to read the
 	// microphone when the user mutes, speaks and unmutes. The frame it then takes is not sent.
-	for _, flag := range []*atomic.Bool{&c.muted, &c.held} {
+	for _, flag := range []uint64{onMute, onHold} {
 		before := len(sent)
 		q.taking = func() {
 			c.private(flag, true)
@@ -332,5 +333,144 @@ func TestPrivacyBetweenTwoTicksIsNotMissed(t *testing.T) {
 		if len(got) != 7*media.FrameSamples || got[len(got)-1] != talk {
 			t.Errorf("after the overlap: %d samples sent, the last one %d", len(got), got[len(got)-1])
 		}
+	}
+	// And a mute or a hold that begins there and stays: the frame is not sent either, nor anything
+	// of it once it is over.
+	for _, flag := range []uint64{onMute, onHold} {
+		before := len(sent)
+		q.taking = func() {
+			c.private(flag, true)
+			q.record(private, media.FrameSamples)
+		}
+		tick()
+		for range 4 {
+			q.record(private, media.FrameSamples*3/2)
+			tick()
+		}
+		c.private(flag, false)
+		for range 6 {
+			q.record(talk, media.FrameSamples)
+			tick()
+		}
+		got := sent[before:]
+		if slices.Contains(got, private) || got[len(got)-1] != talk {
+			t.Fatalf("a mute or a hold that began while the microphone was read: private sent %v, last %d", slices.Contains(got, private), got[len(got)-1])
+		}
+	}
+}
+
+// A change of hold or mute is one step for whoever reads the word: the flag and the count are
+// never seen apart, and no two changes leave the same word.
+func TestPrivacyWordChangesAtOnce(t *testing.T) {
+	c := &call{}
+	seen := map[uint64]bool{0: true}
+	for _, step := range []struct {
+		flag uint64
+		on   bool
+	}{{onMute, true}, {onHold, true}, {onMute, false}, {onHold, false}, {onMute, true}, {onMute, false}, {onHold, false}} {
+		c.private(step.flag, step.on)
+		w := c.privacy.Load()
+		if seen[w] || (w&step.flag != 0) != step.on {
+			t.Fatalf("after %+v the word is %b", step, w)
+		}
+		seen[w] = true
+	}
+	if w := c.privacy.Load(); w&(onHold|onMute) != 0 {
+		t.Errorf("word %b at the end: a flag is still set", w)
+	}
+}
+
+// racingMicrophone records on a goroutine of its own and marks every sample with what the call
+// was when it was recorded: 1 for talk, 7 while held or muted.
+type racingMicrophone struct {
+	*memory.Stream
+	c       *call
+	mu      sync.Mutex
+	samples []int16
+}
+
+func (r *racingMicrophone) record(samples int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	value := int16(1)
+	if r.c.privacy.Load()&(onHold|onMute) != 0 {
+		value = 7
+	}
+	for range samples {
+		r.samples = append(r.samples, value)
+	}
+}
+
+func (r *racingMicrophone) Discard() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.samples = r.samples[:0]
+}
+
+func (r *racingMicrophone) Capture(frame *[media.FrameSamples]int16) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.samples) < media.FrameSamples {
+		return false
+	}
+	copy(frame[:], r.samples)
+	r.samples = r.samples[media.FrameSamples:]
+	return true
+}
+
+// The same promise with the three parties on their own goroutines, as in a call: the device
+// records, the actor holds and mutes at any moment, the sender takes frames. No sample recorded
+// while the call was held or muted is ever in a frame to send.
+func TestNothingPrivateIsSentAgainstARacingActor(t *testing.T) {
+	c := &call{}
+	r := &racingMicrophone{Stream: &memory.Stream{}, c: c}
+	mic := microphone{audio: r}
+	stop := make(chan struct{})
+	var others sync.WaitGroup
+	defer others.Wait()
+	defer close(stop)
+	running := func() bool {
+		select {
+		case <-stop:
+			return false
+		default:
+			return true
+		}
+	}
+	others.Add(2)
+	go func() { // the device
+		defer others.Done()
+		for running() {
+			r.record(40)
+		}
+	}()
+	go func() { // the actor
+		defer others.Done()
+		for i := 0; running(); i++ {
+			flag := onMute
+			if i%3 == 0 {
+				flag = onHold
+			}
+			c.private(flag, true)
+			time.Sleep(time.Duration(i%4) * 50 * time.Microsecond)
+			c.private(flag, false)
+			time.Sleep(time.Duration(i%5) * 100 * time.Microsecond)
+		}
+	}()
+	talk := 0
+	for end := time.Now().Add(500 * time.Millisecond); time.Now().Before(end); {
+		out, fed := mic.next(c.privacy.Load)
+		if out == nil {
+			continue
+		}
+		if slices.Contains(out[:], 7) {
+			t.Fatal("a frame to send holds audio recorded while the call was held or muted")
+		}
+		if fed && out[0] == 1 {
+			talk++
+		}
+	}
+	if changes := c.privacy.Load() / privacyChange; talk < 100 || changes < 100 {
+		t.Errorf("%d frames of talk across %d changes: the race was not exercised", talk, changes)
 	}
 }

@@ -9,6 +9,7 @@ package audio
 
 import (
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -26,6 +27,10 @@ const (
 	// primeSamples is the backlog capture builds before it hands out frames, so a fragment that
 	// arrives just after a tick does not become a missed frame. It costs 20 ms of delay.
 	primeSamples = 2 * FrameSamples
+	// captureDelay is the longest a sample is taken to need from the microphone to this adapter.
+	// shortcut: a fixed bound, five times the 20 ms asked of the sound server; measure it per
+	// device if real hardware turns out slower.
+	captureDelay = 100 * time.Millisecond
 	// playBacklog is the most the engine may be ahead of the device; beyond it new audio is dropped
 	// so delay cannot build up.
 	playBacklog = 4 * FrameSamples
@@ -102,6 +107,11 @@ type buffers struct {
 	in, out *ring
 	primed  bool // engine side only
 
+	// discard orders a discard against the device's deliveries; discardUntil is when what the
+	// device delivers is again newer than the last discard.
+	discard      sync.Mutex
+	discardUntil time.Time
+
 	lastCapture                          atomic.Int64 // UnixNano of the last captured fragment
 	captureDropped, playDropped, silence atomic.Uint64
 }
@@ -114,7 +124,13 @@ func newBuffers() *buffers {
 
 // captured is the device side of capture: it only copies into the ring.
 func (b *buffers) captured(p []int16) {
-	b.lastCapture.Store(time.Now().UnixNano())
+	b.discard.Lock()
+	defer b.discard.Unlock()
+	now := time.Now()
+	b.lastCapture.Store(now.UnixNano())
+	if now.Before(b.discardUntil) {
+		return // recorded before the discard, delivered after it
+	}
 	if n := b.in.write(p); n < len(p) {
 		b.captureDropped.Add(uint64(len(p) - n))
 	}
@@ -150,9 +166,13 @@ func (b *buffers) Capture(frame *[FrameSamples]int16) bool {
 	return true
 }
 
-// Discard drops everything captured and not yet handed out. The engine side is this ring's only
-// reader, so it may skip; what the device writes from now on forms whole new frames.
+// Discard drops everything recorded so far and not yet handed out: what waits in the ring, and
+// what the device recorded and delivers within captureDelay. The engine side is this ring's only
+// reader, so it may skip; what the device writes afterwards forms whole new frames.
 func (b *buffers) Discard() {
+	b.discard.Lock()
+	defer b.discard.Unlock()
+	b.discardUntil = time.Now().Add(captureDelay)
 	b.in.tail.Store(b.in.head.Load())
 	b.primed = false
 }
