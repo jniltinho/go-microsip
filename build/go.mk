@@ -27,7 +27,7 @@ GO_GUI     := GO_DOCKER_FLAGS="--init --security-opt seccomp=unconfined --securi
               --security-opt systempaths=unconfined -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
-	go-appimage go-windows go-licenses go-dist go-audio go-lab go-shell
+	go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
 	docker build -t $(GO_IMAGE) -f build/linux.Dockerfile build
@@ -58,6 +58,9 @@ go-headless: go-build ## Go: version, doctor and an MCP handshake with no displa
 
 go-self-test: go-build ## Go: the window opens under Xvfb and the page calls the backend
 	$(GO_GUI) build/qa/self-test.sh $(GO_BIN)
+
+go-prints: go-build ## Go: screenshots of the window into docs/prints/go/
+	$(GO_GUI) build/qa/prints.sh $(GO_BIN) docs/prints/go
 
 go-audio: ## Go: the audio adapter against PipeWire with virtual sound cards (SECONDS=300 for the G0 run)
 	$(GO_GUI) build/qa/audio.sh $(SECONDS)
