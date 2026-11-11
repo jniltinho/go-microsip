@@ -13,6 +13,8 @@
 *.db-wal
 *.db-shm
 *.sqlite*
+# The one exception: fictional fixtures of the store tests (see their README).
+!internal/core/store/testdata/*.sqlite3
 *.AppImage
 *.pcap
 *.pcapng

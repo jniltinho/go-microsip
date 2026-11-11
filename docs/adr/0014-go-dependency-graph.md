@@ -29,6 +29,7 @@ Desktop binary (`.`), Linux `-tags "production purego"` and Windows `-tags produ
 | github.com/godbus/dbus/v5 | v5.2.2 | BSD-2-Clause | session bus (Linux) |
 | github.com/spf13/cobra | v1.10.2 | Apache-2.0 | command line |
 | github.com/pelletier/go-toml/v2 | v2.4.3 | MIT | configuration file (`internal/core/config`), pure Go |
+| modernc.org/sqlite | v1.62.0 | BSD-3-Clause | storage (`internal/core/store`), SQLite translated to Go, no cgo; brings `modernc.org/libc`, `modernc.org/memory`, `modernc.org/mathutil` (BSD-3-Clause) |
 | github.com/spf13/pflag | v1.0.10 | BSD-3-Clause | flags |
 | github.com/inconshreveable/mousetrap | v1.1.0 | Apache-2.0 | cobra on Windows |
 | github.com/modelcontextprotocol/go-sdk | v1.8.0 | Apache-2.0 | stdio MCP server |
@@ -68,7 +69,6 @@ Embedded frontend (production bundle): `vue` 3.5.45 and its `@vue/*` packages, `
 
 | Module | Version | License | For |
 | --- | --- | --- | --- |
-| modernc.org/sqlite | v1.62.0 | BSD-3-Clause | storage (M1), pure Go |
 | github.com/zalando/go-keyring | v0.2.8 | MIT | Secret Service / Credential Manager (M4) |
 | github.com/moutend/go-wca | v0.3.0 | MIT | Windows WASAPI, first audio candidate |
 | github.com/gen2brain/malgo | v0.11.27 | Unlicense (miniaudio: public domain or MIT-0) | cgo audio fallback, only if a pure-Go backend fails |
