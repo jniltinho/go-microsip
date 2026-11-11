@@ -21,7 +21,7 @@ import (
 
 const (
 	desktopEntry  = "applications/" + appID + ".desktop"
-	desktopIcon   = "icons/hicolor/256x256/apps/go-microsip.png"
+	desktopIcon   = "icons/hicolor/256x256/apps/" + windowIconName + ".png"
 	desktopMarker = "X-go-microsip-Generated=true"
 )
 
@@ -98,7 +98,7 @@ func desktopText(exe string) (string, bool) {
 		return "", false
 	}
 	return "[Desktop Entry]\nType=Application\nName=go-microsip\nGenericName=SIP Softphone\n" +
-		"Comment=Compact SIP softphone\nExec=\"" + exe + "\"\nIcon=go-microsip\n" +
+		"Comment=Compact SIP softphone\nExec=\"" + exe + "\"\nIcon=" + windowIconName + "\n" +
 		"Terminal=false\nCategories=Network;Telephony;\nStartupWMClass=" + appID + "\n" +
 		desktopMarker + "\n", true
 }

@@ -37,6 +37,9 @@ var icon []byte
 // window's icon, and the single-instance lock is named after it.
 const appID = "io.github.jniltinho.go-microsip"
 
+// windowIconName is the name of the application's icon in the icon theme.
+const windowIconName = "go-microsip"
+
 // Options are the window's flags.
 type Options struct {
 	// SafeGPU starts the webview with GPU acceleration off (--safe-gpu, GO_MICROSIP_SAFE_GPU=1).
@@ -82,6 +85,7 @@ func Run(o Options) error {
 			slog.Warn("desktop entry not installed", "error", err) // only the Linux title-bar icon depends on it
 		}
 	}
+	setWindowIconName(windowIconName)
 	opts := application.Options{
 		Name:        "go-microsip",
 		Description: "Compact SIP softphone",

@@ -3,6 +3,7 @@ module github.com/jniltinho/go-microsip
 go 1.27
 
 require (
+	github.com/ebitengine/purego v0.11.1
 	github.com/emiago/diago v0.42.0
 	github.com/emiago/sipgo v1.7.0
 	github.com/go-ole/go-ole v1.3.0
@@ -22,7 +23,6 @@ require (
 require (
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/emiago/dtls/v3 v3.0.0-20260122183559-8b8d23e359c0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
