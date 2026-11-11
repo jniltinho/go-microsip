@@ -1,11 +1,329 @@
 @import "tailwindcss";
+@import "./themes/index.css";
 
-html,
-body,
-#app {
-  height: 100%;
-  margin: 0;
+/* Tailwind's own palette, radii and shadows are removed: color utilities exist only for the skin
+   tokens below, so a component cannot name a literal color or round a corner. */
+@theme {
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
 }
-body {
-  overflow: hidden; /* the window never scrolls as a page */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-line: var(--border);
+  --color-line-subtle: var(--border-subtle);
+  --color-link: var(--link);
+  --color-active: var(--state-active);
+  --color-ringing: var(--state-ringing);
+  --color-held: var(--state-held);
+  --color-mute: var(--state-muted);
+  --color-error: var(--state-error);
+  --color-secure: var(--state-secure);
+  --color-insecure: var(--state-insecure);
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+    margin: 0;
+  }
+  html {
+    font-size: var(--font-size); /* rem spacing follows the skin's text size */
+  }
+  body {
+    overflow: hidden; /* the window never scrolls as a page */
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-ui);
+    line-height: 1.35;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  input,
+  textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  button,
+  input,
+  select,
+  dialog {
+    border-radius: var(--radius);
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--accent);
+  }
+  :focus-visible {
+    outline: var(--focus-width) var(--focus-style) var(--focus);
+    outline-offset: 1px;
+  }
+  ::selection {
+    background: var(--selection);
+    color: var(--selection-text);
+  }
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: var(--ctl-height);
+    padding: 0 0.6rem;
+    background: var(--btn);
+    color: var(--btn-text);
+    border: var(--border-width) solid var(--btn-border);
+    box-shadow: var(--btn-bevel);
+    white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--btn-hover);
+  }
+  .btn:active:not(:disabled),
+  .btn[aria-pressed="true"],
+  .btn[aria-expanded="true"] {
+    background: var(--btn-active);
+    box-shadow: var(--btn-bevel-pressed);
+  }
+  .btn:disabled {
+    color: var(--text-disabled);
+  }
+  /* The call and hang-up buttons keep their own color in every state but disabled. */
+  .btn-call:not(:disabled),
+  .btn-call:hover:not(:disabled) {
+    background: var(--call);
+    color: var(--call-text);
+    font-weight: 600;
+  }
+  .btn-hangup:not(:disabled),
+  .btn-hangup:hover:not(:disabled) {
+    background: var(--hangup);
+    color: var(--hangup-text);
+    font-weight: 600;
+  }
+  .btn-call:active:not(:disabled),
+  .btn-hangup:active:not(:disabled) {
+    filter: brightness(0.9);
+  }
+
+  .key {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: var(--key-height);
+    padding-left: 1.2rem; /* the digit column stays centered beside its letters */
+    background: var(--key);
+    color: var(--key-text);
+    border: var(--border-width) solid var(--btn-border);
+    box-shadow: var(--btn-bevel);
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+  .key:hover {
+    background: var(--btn-hover);
+  }
+  .key:active {
+    background: var(--btn-active);
+    box-shadow: var(--btn-bevel-pressed);
+  }
+  .key small {
+    width: 2.4rem;
+    padding-top: 0.35rem;
+    color: var(--key-sub);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-align: left;
+  }
+
+  .field {
+    width: 100%;
+    min-height: var(--ctl-height);
+    padding: 0 0.45rem;
+    background: var(--input);
+    color: var(--text);
+    border: var(--border-width) solid var(--field-border);
+    box-shadow: var(--field-bevel);
+  }
+  .field::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+  }
+  .field:disabled {
+    color: var(--text-disabled);
+  }
+
+  /* A sunken area holding a list or the call card. */
+  .well {
+    background: var(--panel);
+    border: var(--border-width) solid var(--field-border);
+    box-shadow: var(--field-bevel);
+  }
+
+  .tabbar {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 4px 4px 0;
+    background: var(--tab-bar);
+    border-bottom: var(--border-width) solid var(--tab-border);
+  }
+  .tab {
+    margin-bottom: calc(-1 * var(--border-width));
+    padding: 0.3rem 0.75rem;
+    background: var(--tab);
+    color: var(--tab-text);
+    border: var(--border-width) solid var(--tab-border);
+    box-shadow: var(--tab-bevel);
+  }
+  .tab[aria-selected="true"] {
+    background: var(--tab-active);
+    color: var(--tab-active-text);
+    border-bottom-color: transparent;
+    box-shadow:
+      inset 0 2px 0 var(--tab-accent),
+      var(--tab-bevel);
+    font-weight: 600;
+  }
+  .tabbar .btn {
+    margin-bottom: 3px;
+  }
+
+  .statusbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 3px 6px;
+    background: var(--status);
+    color: var(--status-text);
+    border-top: var(--border-width) solid var(--border);
+  }
+  .statusbar > * {
+    padding: 1px 5px;
+    box-shadow: var(--status-bevel);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--border-subtle);
+    text-align: left;
+  }
+  .row:hover {
+    background: var(--hover);
+  }
+  .row:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: var(--ctl-height);
+    padding: 0.2rem 0.3rem 0.2rem 0.6rem;
+    background: var(--title);
+    color: var(--title-text);
+    font-weight: var(--title-weight);
+  }
+  .titlebar .btn {
+    min-height: calc(var(--ctl-height) - 6px);
+    padding: 0 0.25rem;
+  }
+
+  .dialog {
+    width: min(calc(100vw - 2rem), 300px);
+    max-height: calc(100vh - 2rem);
+    margin: auto;
+    padding: 0;
+    overflow: auto;
+    background: var(--surface);
+    color: var(--text);
+    border: var(--border-width) solid var(--border);
+    box-shadow: var(--dialog-bevel);
+  }
+  .dialog::backdrop {
+    background: var(--overlay);
+  }
+
+  .menu {
+    min-width: 13rem;
+    padding: 2px;
+    background: var(--panel);
+    color: var(--text);
+    border: var(--border-width) solid var(--border);
+    box-shadow: var(--dialog-bevel);
+  }
+  .menuitem {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+  }
+  .menuitem:hover,
+  .menuitem:focus-visible {
+    background: var(--selection);
+    color: var(--selection-text);
+    outline: none;
+  }
+
+  .notice {
+    padding: 0.3rem 0.6rem;
+    background: var(--notice);
+    color: var(--notice-text);
+    border-top: var(--border-width) solid var(--border);
+  }
+
+  /* A state shown as icon + label inside an outline, never by color alone. */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0 0.35rem;
+    border: 1px solid currentColor;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .label {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .group {
+    padding: 0.5rem 0.6rem 0.6rem;
+    border: var(--border-width) solid var(--border);
+    box-shadow: var(--group-bevel);
+  }
+  .group > legend {
+    padding: 0 0.3rem;
+    font-weight: 600;
+  }
+}
+
+/* Outside the layers so it wins over the color utilities: everything in a selected row takes the
+   selection's text color. */
+.row[aria-current="true"],
+.row[aria-current="true"] * {
+  background: var(--selection);
+  color: var(--selection-text);
 }

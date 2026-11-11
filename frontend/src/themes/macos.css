@@ -1,0 +1,72 @@
+/* macOS, evoked with original CSS: light gray window chrome, white controls with a soft drop shadow,
+   subtle separators, blue accent, the system font stack. Square corners like every skin. */
+:root[data-theme="macos"] {
+  color-scheme: light;
+  --surface: #ececec;
+  --panel: #ffffff;
+  --input: #ffffff;
+  --overlay: rgba(0, 0, 0, 0.3);
+  --text: #1d1d1f;
+  --text-muted: #55555a;
+  --text-disabled: #9a9a9f;
+  --border: #b4b4b8;
+  --border-subtle: #dcdcdf;
+  --accent: #0a60d0;
+  --accent-text: #ffffff;
+  --link: #0a55bc;
+  --selection: #0a60d0;
+  --selection-text: #ffffff;
+  --hover: #e0e0e3;
+  --focus: #0a60d0;
+  --focus-style: solid;
+  --focus-width: 3px;
+  --btn: linear-gradient(180deg, #ffffff 0%, #f6f6f6 100%);
+  --btn-text: #1d1d1f;
+  --btn-border: #c4c4c8;
+  --btn-hover: linear-gradient(180deg, #ffffff 0%, #ededef 100%);
+  --btn-active: linear-gradient(180deg, #e2e2e5 0%, #d9d9dc 100%);
+  --btn-bevel: 0 1px 1px rgba(0, 0, 0, 0.12);
+  --btn-bevel-pressed: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  --field-border: #c4c4c8;
+  --field-bevel: inset 0 1px 1px rgba(0, 0, 0, 0.08);
+  --key: linear-gradient(180deg, #ffffff 0%, #f6f6f6 100%);
+  --key-text: #1d1d1f;
+  --key-sub: #55555a;
+  --call: linear-gradient(180deg, #1b7f38 0%, #18783a 100%);
+  --call-text: #ffffff;
+  --hangup: linear-gradient(180deg, #d0342c 0%, #bb2a23 100%);
+  --hangup-text: #ffffff;
+  --state-active: #14692b;
+  --state-ringing: #0a55bc;
+  --state-held: #8a4b00;
+  --state-muted: #9a3412;
+  --state-error: #b3261e;
+  --state-secure: #14692b;
+  --state-insecure: #8a4b00;
+  --notice: #fff4c2;
+  --notice-text: #4a3500;
+  --title: linear-gradient(180deg, #e9e7e9 0%, #d5d3d5 100%);
+  --title-text: #2b2b2d;
+  --title-weight: 600;
+  --tab-bar: linear-gradient(180deg, #e9e7e9 0%, #d5d3d5 100%);
+  --tab: #dddde0;
+  --tab-text: #2b2b2d;
+  --tab-active: #ffffff;
+  --tab-active-text: #1d1d1f;
+  --tab-border: #b4b4b8;
+  --tab-accent: #ffffff;
+  --tab-bevel: none;
+  --status: #e3e3e6;
+  --status-bevel: none;
+  --status-text: #2b2b2d;
+  --group-bevel: none;
+  --dialog-bevel: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 14px 36px rgba(0, 0, 0, 0.35);
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Inter", "Noto Sans",
+    sans-serif;
+  --font-size: 13px;
+  --radius: 0;
+  --border-width: 1px;
+  --ctl-height: 26px;
+  --key-height: 44px;
+}

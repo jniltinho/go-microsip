@@ -1,0 +1,73 @@
+/* Windows XP (Luna blue), evoked with original CSS: beige dialog face, blue gradient title bars with
+   bold white text, gradient buttons with a navy outline, an orange line on the active tab.
+   DejaVu Sans leads the font stack because it is always present on the Linux targets (a Tahoma
+   substitute found there drops glyphs at small sizes); Windows falls through to Tahoma.
+   Square corners like every skin. */
+:root[data-theme="xp"] {
+  color-scheme: light;
+  --surface: #ece9d8;
+  --panel: #ffffff;
+  --input: #ffffff;
+  --overlay: rgba(0, 20, 80, 0.35);
+  --text: #000000;
+  --text-muted: #404040;
+  --text-disabled: #8d8a7b;
+  --border: #7f9db9;
+  --border-subtle: #d6d2c2;
+  --accent: #316ac5;
+  --accent-text: #ffffff;
+  --link: #0046d0;
+  --selection: #316ac5;
+  --selection-text: #ffffff;
+  --hover: #c1d2ee;
+  --focus: #000000;
+  --focus-style: dotted;
+  --focus-width: 1px;
+  --btn: linear-gradient(180deg, #ffffff 0%, #f3f1e9 60%, #d9d4c5 100%);
+  --btn-text: #000000;
+  --btn-border: #003c74;
+  --btn-hover: linear-gradient(180deg, #fffdf2 0%, #fbeec0 60%, #f1cf7a 100%);
+  --btn-active: linear-gradient(180deg, #d5d0c0 0%, #e8e5d8 40%, #f4f2ea 100%);
+  --btn-bevel: inset 0 0 0 1px #ffffff;
+  --btn-bevel-pressed: inset 1px 1px 0 #b8b4a2;
+  --field-border: #7f9db9;
+  --field-bevel: none;
+  --key: linear-gradient(180deg, #ffffff 0%, #f3f1e9 60%, #d9d4c5 100%);
+  --key-text: #000000;
+  --key-sub: #404040;
+  --call: linear-gradient(180deg, #2a7d30 0%, #26772c 50%, #1c5f22 100%);
+  --call-text: #ffffff;
+  --hangup: linear-gradient(180deg, #c24224 0%, #b83a1e 50%, #992c14 100%);
+  --hangup-text: #ffffff;
+  --state-active: #1f6b1f;
+  --state-ringing: #0046d0;
+  --state-held: #8a4b00;
+  --state-muted: #9a3412;
+  --state-error: #b00000;
+  --state-secure: #1f6b1f;
+  --state-insecure: #8a4b00;
+  --notice: #ffffe1;
+  --notice-text: #000000;
+  --title: linear-gradient(180deg, #1268ea 0%, #0a5fe8 12%, #0050e0 50%, #0046d0 88%, #003cbe 100%);
+  --title-text: #ffffff;
+  --title-weight: 700;
+  --tab-bar: #ece9d8;
+  --tab: #f4f2e8;
+  --tab-text: #000000;
+  --tab-active: #fcfcfe;
+  --tab-active-text: #000000;
+  --tab-border: #919b9c;
+  --tab-accent: #e68b2c;
+  --tab-bevel: none;
+  --status: #ece9d8;
+  --status-bevel: none;
+  --status-text: #000000;
+  --group-bevel: none;
+  --dialog-bevel: 0 0 0 1px #0046d0, 0 0 0 3px #0a5fe8, 3px 4px 10px 3px rgba(0, 0, 0, 0.4);
+  --font-ui: "DejaVu Sans", Tahoma, Verdana, "Noto Sans", sans-serif;
+  --font-size: 12px;
+  --radius: 0;
+  --border-width: 1px;
+  --ctl-height: 24px;
+  --key-height: 40px;
+}

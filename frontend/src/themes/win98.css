@@ -1,0 +1,81 @@
+/* Windows 98, evoked with original CSS: gray #c0c0c0 faces, 2-px bevels drawn with inset shadows,
+   navy title bars, sunken white fields, etched group boxes, dotted focus. The font stack starts
+   with DejaVu Sans for the reason given in xp.css; bitmap faces are left out because the webview
+   cannot draw them. */
+:root[data-theme="win98"] {
+  color-scheme: light;
+  --surface: #c0c0c0;
+  --panel: #ffffff;
+  --input: #ffffff;
+  --overlay: rgba(0, 0, 0, 0.3);
+  --text: #000000;
+  --text-muted: #383838;
+  --text-disabled: #7a7a7a;
+  --border: #808080;
+  --border-subtle: #dfdfdf;
+  --accent: #000080;
+  --accent-text: #ffffff;
+  --link: #000080;
+  --selection: #000080;
+  --selection-text: #ffffff;
+  --hover: #d0d0d0;
+  --focus: #000000;
+  --focus-style: dotted;
+  --focus-width: 1px;
+  --btn: #c0c0c0;
+  --btn-text: #000000;
+  --btn-border: #c0c0c0;
+  --btn-hover: #c0c0c0;
+  --btn-active: #c0c0c0;
+  --btn-bevel:
+    inset -1px -1px 0 #000000, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080,
+    inset 2px 2px 0 #dfdfdf;
+  --btn-bevel-pressed:
+    inset 1px 1px 0 #000000, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080,
+    inset -2px -2px 0 #dfdfdf;
+  --field-border: #c0c0c0;
+  --field-bevel:
+    inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #000000,
+    inset -2px -2px 0 #dfdfdf;
+  --key: #c0c0c0;
+  --key-text: #000000;
+  --key-sub: #383838;
+  --call: #006400;
+  --call-text: #ffffff;
+  --hangup: #8b0000;
+  --hangup-text: #ffffff;
+  --state-active: #004d00;
+  --state-ringing: #000080;
+  --state-held: #5c3200;
+  --state-muted: #6e2400;
+  --state-error: #800000;
+  --state-secure: #004d00;
+  --state-insecure: #5c3200;
+  --notice: #ffffe1;
+  --notice-text: #000000;
+  --title: linear-gradient(90deg, #000080 0%, #1060a8 100%);
+  --title-text: #ffffff;
+  --title-weight: 700;
+  --tab-bar: #c0c0c0;
+  --tab: #c0c0c0;
+  --tab-text: #000000;
+  --tab-active: #c0c0c0;
+  --tab-active-text: #000000;
+  --tab-border: #c0c0c0;
+  --tab-accent: #c0c0c0;
+  --tab-bevel:
+    inset 1px 1px 0 #ffffff, inset -1px 0 0 #000000, inset -2px 0 0 #808080, inset 2px 2px 0 #dfdfdf;
+  --status: #c0c0c0;
+  --status-bevel: inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff;
+  --status-text: #000000;
+  --group-bevel: 1px 1px 0 #ffffff, inset 1px 1px 0 #ffffff;
+  --dialog-bevel:
+    inset -1px -1px 0 #000000, inset 1px 1px 0 #dfdfdf, inset -2px -2px 0 #808080,
+    inset 2px 2px 0 #ffffff, 2px 2px 0 rgba(0, 0, 0, 0.35);
+  --font-ui: "DejaVu Sans", Tahoma, "Microsoft Sans Serif", "Noto Sans", sans-serif;
+  --font-size: 12px;
+  --radius: 0;
+  --border-width: 1px;
+  --ctl-height: 24px;
+  --key-height: 40px;
+}
