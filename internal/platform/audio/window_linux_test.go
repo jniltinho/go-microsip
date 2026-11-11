@@ -178,6 +178,22 @@ func (w *window) until(d time.Duration, what string, cond func() bool) {
 	}
 }
 
+// unregistered follows the trace until the engine has reported itself stopped, which comes after
+// the account is unregistered. An AppImage's launcher can exit before its softphone has finished,
+// so the process's end alone does not say the extension is free.
+func (w *window) unregistered(d time.Duration) bool {
+	timeout := time.After(d)
+	for !w.stopped {
+		select {
+		case line := <-w.lines:
+			w.take(line)
+		case <-timeout:
+			return false
+		}
+	}
+	return true
+}
+
 func (w *window) shows(texts ...string) bool {
 	for _, text := range texts {
 		if !strings.Contains(w.page.Text, text) {
@@ -377,6 +393,7 @@ func windowAtScale(t *testing.T, bin, server, password, skin, name string, env [
 	cmd, exited := softphoneWith(t, env, bin, dir, password, "--config", file, "--ui-trace", trace)
 	// The account is unregistered at the end: the PBX keeps one registration per extension, and the
 	// next scale uses the same one.
+	w := &window{t: t, lines: follow(t, trace)}
 	defer func() {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		select {
@@ -384,8 +401,10 @@ func windowAtScale(t *testing.T, bin, server, password, skin, name string, env [
 		case <-time.After(15 * time.Second):
 			t.Error("the window did not exit after the termination signal")
 		}
+		if !w.unregistered(15 * time.Second) {
+			t.Error("the window did not unregister after the termination signal")
+		}
 	}()
-	w := &window{t: t, lines: follow(t, trace)}
 	whole := func(screen string) {
 		t.Helper()
 		time.Sleep(600 * time.Millisecond) // the screen has settled
@@ -745,6 +764,9 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	case <-gone:
 	case <-time.After(15 * time.Second):
 		t.Error("the restarted window did not exit after the termination signal")
+	}
+	if !next.unregistered(15 * time.Second) {
+		t.Error("the restarted window did not unregister after the termination signal")
 	}
 	t.Logf("%s: %s", user, strings.Join(w.story, "; "))
 }

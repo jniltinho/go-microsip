@@ -39,6 +39,7 @@ scripts/go-docker.sh sh -c 'cd frontend && npx vp build --mode mock'
 
 # With the development server up, from the repository root (agent-browser on the host):
 frontend/scripts/keyboard-check.sh
+frontend/scripts/scale-check.sh                 # 100, 150 and 200 % in every skin
 frontend/scripts/prints.sh http://127.0.0.1:5173 docs/prints/go
 ```
 
