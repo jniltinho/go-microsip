@@ -1,14 +1,345 @@
-// The window's API: github.com/jniltinho/go-microsip/internal/gui.App, bound by Wails v3.
-import { Call } from "@wailsio/runtime";
+// The backend contract, and the only module that reaches the backend. Screens and the reducer import
+// from here; nothing else imports the Wails runtime or the mock.
+//
+// Two transports, chosen at build time by the Vite mode (vite.config.ts defines VITE_BACKEND):
+//   - wails (`vp build`): methods bound on internal/gui.App, events on EVENT_NAME;
+//   - mock (`vp dev`, `vp build --mode mock`): a simulated engine with fictional data (mock.ts).
+//
+// The types mirror docs/migration/parity-matrix.md B1 (commands) and B2 (events).
 
-const svc = "github.com/jniltinho/go-microsip/internal/gui.App.";
-// A failed call rejects with the Go error's text alone.
-const call = <T>(method: string, ...args: unknown[]) =>
-  (Call.ByName(svc + method, ...args) as Promise<T>).catch((e: unknown) => {
-    throw e instanceof Error ? e.message : e;
-  });
+/** SIP signaling transport. Default ports: udp/tcp 5060, tls 5061. */
+export type SipTransport = "udp" | "tcp" | "tls";
+/** Media protection; "srtp" is valid only with "tls". */
+export type MediaSecurity = "rtp" | "srtp";
 
-/** The application's version and the commit it was built from. */
-export const version = () => call<string>("Version");
-/** Tells the backend the page has drawn; `--self-test` then exits 0. */
-export const ready = () => call<void>("Ready");
+/** The single SIP account (B1.14). It never carries the password. */
+export interface AccountSettings {
+  displayName: string;
+  username: string;
+  /** Empty: authenticate with `username`. */
+  authUsername: string;
+  domain: string;
+  server: string;
+  port: number;
+  transport: SipTransport;
+  media: MediaSecurity;
+  /** Registration lifetime in seconds. */
+  expires: number;
+}
+
+/** Why registration failed (B2.1); `code` accompanies "rejected". */
+export type RegistrationFailure =
+  | "unauthorized"
+  | "timeout"
+  | "certificate"
+  | "network"
+  | "rejected";
+/** Registration state (B2.1). */
+export interface Registration {
+  state: "disabled" | "registering" | "registered" | "failed";
+  reason?: RegistrationFailure;
+  code?: number;
+}
+
+export type Direction = "outgoing" | "incoming";
+/** Call lifecycle phase (B2.5); "ended" is final and carries `endReason`. */
+export type CallPhase = "dialing" | "ringing" | "established" | "held" | "terminating" | "ended";
+/** Why a call ended (B2.6). */
+export type EndReason =
+  | "normal"
+  | "canceled"
+  | "rejected"
+  | "busy"
+  | "no_answer"
+  | "transferred"
+  | "not_acceptable"
+  | "failed";
+/** Progress of a blind transfer (B2.7); `code` accompanies "failed". */
+export interface Transfer {
+  state: "pending" | "succeeded" | "failed";
+  code?: number;
+}
+
+/** Immutable view of one call (B2.2). */
+export interface CallSnapshot {
+  id: number;
+  direction: Direction;
+  /** Remote party user part or display text. Remote-controlled: render as text only. */
+  remote: string;
+  phase: CallPhase;
+  /** Present only when `phase` is "ended". */
+  endReason?: EndReason;
+  muted: boolean;
+  /** Media is SRTP-protected. */
+  secure: boolean;
+  transfer?: Transfer;
+  /** Increases with every change; older or equal versions are ignored. */
+  version: number;
+}
+
+/** A refused command or a fault (B2.3). */
+export type Notice =
+  | "busy"
+  | "not_registered"
+  | "unknown_call"
+  | "invalid_state"
+  | "audio_unavailable"
+  | "overloaded"
+  | "engine_failed";
+export const NOTICES: readonly Notice[] = [
+  "busy",
+  "not_registered",
+  "unknown_call",
+  "invalid_state",
+  "audio_unavailable",
+  "overloaded",
+  "engine_failed",
+];
+
+/** An agent (CLI/MCP) request waiting for the person at the window. */
+export interface Approval {
+  /** Operation id. */
+  id: string;
+  /** Who asks. Remote-controlled text. */
+  requester: string;
+  /** What would happen. Remote-controlled text. */
+  description: string;
+  /** Decision deadline, Unix milliseconds. */
+  deadline: number;
+}
+
+/** Everything the backend pushes, in order. Final call snapshots are never dropped. */
+export type UiEvent =
+  | { type: "registration"; registration: Registration }
+  | { type: "call"; call: CallSnapshot }
+  | { type: "notice"; notice: Notice }
+  /** The engine stopped after "shutdown" (B2.4). */
+  | { type: "stopped" }
+  /** The complete list of pending agent requests, oldest first. */
+  | { type: "approvals"; approvals: Approval[] };
+
+/** A request to the engine (B1.1-B1.13). */
+export type Command =
+  /** Persisted password is used when `password` is null. */
+  | { type: "register"; account: AccountSettings; password: string | null }
+  | { type: "unregister" }
+  /** `target`: 1..64 of alphanumerics and `*#+-_.`, `+` only first. */
+  | { type: "dial"; target: string }
+  | { type: "answer"; id: number }
+  | { type: "reject"; id: number }
+  | { type: "hangup"; id: number }
+  /** `key`: one of `0-9 * # A-D`. */
+  | { type: "dtmf"; id: number; key: string }
+  | { type: "hold"; id: number }
+  | { type: "resume"; id: number }
+  | { type: "transfer"; id: number; target: string }
+  | { type: "setMute"; id: number; muted: boolean }
+  | { type: "setDnd"; on: boolean }
+  | { type: "shutdown" };
+
+/** Saved, secret-free settings. */
+export interface Settings {
+  account: AccountSettings | null;
+  /** A password for `account` is held (session or keyring); it is never returned. */
+  hasPassword: boolean;
+  /** Skin id (`ui.theme`); unknown values resolve to "system". */
+  theme: string;
+  /** Capture device id; empty is the system default. */
+  audioInput: string;
+  /** Playback device id; empty is the system default. */
+  audioOutput: string;
+  dnd: boolean;
+}
+/** The persisted part of the settings the window may change. */
+export type SettingsPatch = Partial<
+  Pick<Settings, "account" | "theme" | "audioInput" | "audioOutput">
+>;
+
+export interface AudioDevice {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+export interface AudioDevices {
+  inputs: AudioDevice[];
+  outputs: AudioDevice[];
+}
+
+export interface ContactNumber {
+  number: string;
+  /** Optional label such as "work"; empty when none. */
+  label: string;
+}
+export interface Contact {
+  /** Row id; 0 in `saveContact` adds a new contact. */
+  id: number;
+  name: string;
+  favorite: boolean;
+  numbers: ContactNumber[];
+}
+
+export type HistoryFilter = "all" | "incoming" | "outgoing" | "missed";
+export type CallOutcome =
+  | "answered"
+  | "missed"
+  | "canceled"
+  | "rejected"
+  | "busy"
+  | "no_answer"
+  | "failed"
+  | "interrupted";
+export interface HistoryEntry {
+  id: number;
+  direction: Direction;
+  remote: string;
+  outcome: CallOutcome;
+  /** Start time, Unix seconds UTC. */
+  startedUtc: number;
+  /** Established time in milliseconds; absent when never answered. */
+  durationMs?: number;
+}
+
+/** A state the mock can be put in from the menu; the Wails transport has none. */
+export interface Scenario {
+  id: string;
+  label: string;
+}
+
+/**
+ * What a transport implements. Queries reject with a message (string). `send` resolves once the
+ * command is queued and rejects with a `Notice` when the engine refuses it.
+ */
+export interface Backend {
+  /** The application's version and the commit it was built from. */
+  version(): Promise<string>;
+  /** Tells the backend the page has drawn; `--self-test` then exits 0. */
+  ready(): Promise<void>;
+  /** Starts event delivery; the current registration, call and approvals are replayed first. */
+  subscribe(handler: (event: UiEvent) => void): Promise<() => void>;
+  send(command: Command): Promise<void>;
+  settings(): Promise<Settings>;
+  saveSettings(patch: SettingsPatch): Promise<void>;
+  audioDevices(): Promise<AudioDevices>;
+  /** Contacts whose name or number contains `search`, favorites first. */
+  contacts(search: string): Promise<Contact[]>;
+  saveContact(contact: Contact): Promise<Contact>;
+  deleteContact(id: number): Promise<void>;
+  /** History entries, newest first, whose remote party contains `search`. */
+  history(filter: HistoryFilter, search: string): Promise<HistoryEntry[]>;
+  deleteCall(id: number): Promise<void>;
+  clearHistory(): Promise<void>;
+  approve(id: string): Promise<void>;
+  deny(id: string): Promise<void>;
+  /** Denies every pending request and pauses new ones. */
+  denyAll(): Promise<void>;
+  scenarios(): Promise<Scenario[]>;
+  simulate(id: string): Promise<void>;
+}
+
+/** Wails event carrying one `UiEvent` as its data. */
+export const EVENT_NAME = "go-microsip:event";
+const SERVICE = "github.com/jniltinho/go-microsip/internal/gui.App.";
+
+type Wails = typeof import("@wailsio/runtime");
+
+function wails({ Call, Events }: Wails): Backend {
+  // A failed call rejects with the Go error's text alone.
+  const call = <T>(method: string, ...args: unknown[]) =>
+    (Call.ByName(SERVICE + method, ...args) as Promise<T>).catch((e: unknown) => {
+      throw e instanceof Error ? e.message : e;
+    });
+  const args = (c: Command): [string, ...unknown[]] => {
+    switch (c.type) {
+      case "register":
+        return ["Register", c.account, c.password];
+      case "unregister":
+        return ["Unregister"];
+      case "dial":
+        return ["Dial", c.target];
+      case "answer":
+        return ["Answer", c.id];
+      case "reject":
+        return ["Reject", c.id];
+      case "hangup":
+        return ["Hangup", c.id];
+      case "dtmf":
+        return ["Dtmf", c.id, c.key];
+      case "hold":
+        return ["Hold", c.id];
+      case "resume":
+        return ["Resume", c.id];
+      case "transfer":
+        return ["Transfer", c.id, c.target];
+      case "setMute":
+        return ["SetMute", c.id, c.muted];
+      case "setDnd":
+        return ["SetDnd", c.on];
+      case "shutdown":
+        return ["Shutdown"];
+    }
+  };
+  return {
+    version: () => call("Version"),
+    ready: () => call("Ready"),
+    subscribe: async (handler) => {
+      const off = Events.On(EVENT_NAME, (e: { data: UiEvent }) => handler(e.data));
+      await call("Subscribe");
+      return off;
+    },
+    // A refusal is the notice's name; anything else means the engine is not there.
+    send: (c) =>
+      call<void>(...args(c)).catch((e: unknown) => {
+        throw NOTICES.includes(e as Notice) ? e : "engine_failed";
+      }),
+    settings: () => call("Settings"),
+    saveSettings: (patch) => call("SaveSettings", patch),
+    audioDevices: () => call("AudioDevices"),
+    contacts: (search) => call("Contacts", search),
+    saveContact: (contact) => call("SaveContact", contact),
+    deleteContact: (id) => call("DeleteContact", id),
+    history: (filter, search) => call("History", filter, search),
+    deleteCall: (id) => call("DeleteCall", id),
+    clearHistory: () => call("ClearHistory"),
+    approve: (id) => call("Approve", id),
+    deny: (id) => call("Deny", id),
+    denyAll: () => call("DenyAll"),
+    scenarios: () => Promise.resolve([]),
+    simulate: () => Promise.reject("Not available"),
+  };
+}
+
+/** True in the mock build: the window says so and offers the scenarios. */
+export const isMock = import.meta.env.VITE_BACKEND === "mock";
+
+// Loaded on first use, so importing this module has no side effect.
+let loaded: Promise<Backend> | undefined;
+const backend = () =>
+  (loaded ??= isMock
+    ? import("./mock").then((m) => m.createMock())
+    : import("@wailsio/runtime").then(wails));
+
+const via =
+  <K extends keyof Backend>(method: K) =>
+  (...args: Parameters<Backend[K]>): ReturnType<Backend[K]> =>
+    backend().then((b) => (b[method] as (...a: unknown[]) => unknown)(...args)) as ReturnType<
+      Backend[K]
+    >;
+
+export const version = via("version");
+export const ready = via("ready");
+export const subscribe = via("subscribe");
+export const send = via("send");
+export const settings = via("settings");
+export const saveSettings = via("saveSettings");
+export const audioDevices = via("audioDevices");
+export const contacts = via("contacts");
+export const saveContact = via("saveContact");
+export const deleteContact = via("deleteContact");
+export const history = via("history");
+export const deleteCall = via("deleteCall");
+export const clearHistory = via("clearHistory");
+export const approve = via("approve");
+export const deny = via("deny");
+export const denyAll = via("denyAll");
+export const scenarios = via("scenarios");
+export const simulate = via("simulate");
