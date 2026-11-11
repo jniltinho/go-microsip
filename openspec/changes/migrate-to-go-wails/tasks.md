@@ -42,7 +42,7 @@ Spec references use the capability name and requirement title. Every milestone g
 ## 4. M2 — desktop window
 
 - [ ] 4.1 Implement `internal/gui` with bound services, event forwarding and the confined webview (no navigation, no UI listener, strict CSP); verify a navigation attempt is blocked and no listening socket exists for the UI (desktop-app: Confined web interface)
-- [ ] 4.2 Scaffold the SPA with the event reducer ported from `ui/state.rs` and a recorded-event backend for development; verify reducer tests ported from the Rust UI state tests pass in the frontend test runner
+- [x] 4.2 Scaffold the SPA with the event reducer ported from `ui/state.rs` and a recorded-event backend for development; verify reducer tests ported from the Rust UI state tests pass in the frontend test runner
 - [ ] 4.3 Build the Dialpad, Calls and Contacts tabs with keypad, search, favorites, status/menu bar and settings; verify with `agent-browser` that every action is reachable by keyboard and that fictional data renders at 100, 150 and 200 % (desktop-app: Compact softphone screens)
 - [ ] 4.4 Build the incoming-call, active, hold, transfer and error screens driven only by core events; verify with lab calls that each state shown matches the engine, that unavailable features are absent or marked unavailable, and that freezing the webview for five seconds during a call keeps audio within the threshold (desktop-app: States come from the backend)
 - [ ] 4.5 Add a lint rule forbidding raw HTML rendering of dynamic text and a test with a hostile display name; verify the name is shown literally and nothing executes

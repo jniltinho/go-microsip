@@ -811,3 +811,20 @@ func TestFieldsAndEnvironmentNames(t *testing.T) {
 		t.Error("the password is a field")
 	}
 }
+
+// A settings form opens before an account exists: the draft has what is there, says what is
+// missing, and names the source of each field.
+func TestDraftReadsWhatIsThereWithoutAnAccount(t *testing.T) {
+	c := Context{SQLite: SQLiteLayer(map[string]string{"ui.theme": "xp", "audio.input_device": "mic-7"}), Env: map[string]string{}}
+	draft, sources, err := Draft(c)
+	var missing *Error
+	if !errors.As(err, &missing) || missing.Kind != Missing {
+		t.Fatalf("Draft error = %v, want a missing field", err)
+	}
+	if draft.UI.Theme != ThemeXP || draft.Audio.InputDevice != "mic-7" || sources[UITheme] != SQLite {
+		t.Errorf("draft %+v, theme from %v", draft, sources[UITheme])
+	}
+	if _, err := Resolve(c); err == nil {
+		t.Error("Resolve accepted a configuration without an account")
+	}
+}

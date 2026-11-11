@@ -606,6 +606,7 @@ export const noticeText = (notice: Notice) =>
     audio_unavailable: "No audio device; the call continues without local audio",
     overloaded: "Busy; the action was dropped, try again",
     engine_failed: "The phone engine stopped; restart the application",
+    microphone_lost: "The microphone stopped; the call continues without it",
   })[notice] ?? "The phone engine stopped; restart the application";
 
 /** Visible label of a history outcome. */

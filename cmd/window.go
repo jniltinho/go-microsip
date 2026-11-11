@@ -11,7 +11,10 @@ import (
 // This file links the desktop window. A Linux build with neither cgo nor the purego tag leaves it
 // out and keeps the command line and the MCP server.
 func init() {
-	runWindow = func(*cobra.Command) error {
-		return gui.Run(gui.Options{SafeGPU: safeGPU, SelfTest: selfTest})
+	runWindow = func(_ *cobra.Command, s *session) error {
+		return gui.Run(gui.Options{
+			SafeGPU: safeGPU, SelfTest: selfTest,
+			Core: s.options(), Audio: s.platform.Audio, UserAgent: "go-microsip/" + s.version,
+		})
 	}
 }

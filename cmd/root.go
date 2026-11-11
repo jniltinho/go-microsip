@@ -34,7 +34,7 @@ var (
 
 // runWindow opens the desktop window. It is replaced by the build that links the GUI; a build
 // without it (CGO_ENABLED=0 on Linux, for instance) still provides every other command.
-var runWindow = func(c *cobra.Command) error {
+var runWindow = func(c *cobra.Command, _ *session) error {
 	return fmt.Errorf("this build has no desktop window; see `%s --help` for the commands", c.CommandPath())
 }
 
@@ -92,7 +92,7 @@ account.password_env, a private account.password_file, or the prompt of the wind
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
-			if err := runWindow(c); err != nil {
+			if err := runWindow(c, s); err != nil {
 				return failed(err)
 			}
 			return nil

@@ -3,13 +3,17 @@
 // the only package that imports Wails. Nothing here touches a display until Run is called, so the
 // command line and the MCP server, which link this package, still run headless.
 //
-// G0 scope: the window opens, the page calls Go, and --self-test proves both. The softphone
-// screens, the navigation guard and the tray arrive with milestones M2 and M4.
+// The page reaches the softphone only through App (service.go), which presents the core's phone
+// (internal/core/app); the engine's events reach the page as one Wails event. The page is confined
+// (confine.go): a content security policy on every asset, no navigation away from the embedded
+// page, no listener for the interface. --self-test proves the window, the call into Go and the
+// confinement. The tray arrives with milestone M4.
 package gui
 
 import (
 	"embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -17,8 +21,10 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
-	"github.com/jniltinho/go-microsip/internal/buildinfo"
+	"github.com/jniltinho/go-microsip/internal/core/app"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 )
 
 // The build constraint of this package is the window's: see cmd/window.go.
@@ -44,34 +50,20 @@ const windowIconName = "go-microsip"
 type Options struct {
 	// SafeGPU starts the webview with GPU acceleration off (--safe-gpu, GO_MICROSIP_SAFE_GPU=1).
 	SafeGPU bool
-	// SelfTest opens the window, waits until the page has called Go, and exits 0.
+	// SelfTest opens the window, waits until the page has called Go, checks that the page is
+	// confined, and exits 0. It starts no phone: nothing of the user's is read, written or
+	// registered.
 	SelfTest bool
+	// Core are the core's options: where the configuration and the database are.
+	Core app.Options
+	// Audio opens the sound devices; nil when this build has no sound service.
+	Audio ports.AudioDevices
+	// UserAgent is the product name sent to the PBX.
+	UserAgent string
 }
 
 // selfTestTimeout bounds --self-test: the page must report ready by then.
 const selfTestTimeout = 60 * time.Second
-
-// App is the service bound to the page.
-type App struct {
-	mu    sync.Mutex
-	ready func()
-}
-
-// Version is the application's version and commit, for the title and About.
-func (a *App) Version() string {
-	b := buildinfo.Get()
-	return b.Version + " (" + b.Commit + ")"
-}
-
-// Ready is called by the page once it has drawn; --self-test then quits.
-func (a *App) Ready() {
-	a.mu.Lock()
-	ready := a.ready
-	a.mu.Unlock()
-	if ready != nil {
-		ready()
-	}
-}
 
 // Run opens the window and returns when the application quits.
 func Run(o Options) error {
@@ -79,7 +71,7 @@ func Run(o Options) error {
 	if err != nil {
 		return err
 	}
-	svc := &App{}
+	svc := &App{unavailable: "self-test: the phone engine is not started"}
 	if !o.SelfTest { // a self-test leaves nothing behind in the user's profile
 		if _, err := installDesktopEntry(icon); err != nil {
 			slog.Warn("desktop entry not installed", "error", err) // only the Linux title-bar icon depends on it
@@ -92,7 +84,7 @@ func Run(o Options) error {
 		Icon:        icon,
 		LogLevel:    slog.LevelInfo, // never Debug: Wails logs binding arguments there
 		Services:    []application.Service{application.NewService(svc)},
-		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(dist), DisableLogging: true},
+		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(dist), Middleware: confine, DisableLogging: true},
 		Linux:       application.LinuxOptions{ApplicationID: appID}, // the program name follows it
 	}
 	win := application.WebviewWindowOptions{
@@ -122,29 +114,79 @@ func Run(o Options) error {
 			},
 		}
 	}
-	app := application.New(opts)
+	ui := application.New(opts) // a second instance ends here, after waking the first one
+	svc.emit = func(ev UIEvent) { ui.Event.Emit(EventName, ev) }
+	svc.quit = ui.Quit
+	if !o.SelfTest {
+		// The phone holds the instance lock of the database until the window is gone: calls are
+		// ended and the account unregistered, within the engine's bound, before Run returns.
+		phone, err := app.OpenPhone(o.Core, app.PhoneOptions{Audio: o.Audio, UserAgent: o.UserAgent})
+		if err != nil {
+			svc.unavailable = err.Error() // the window says so
+		} else {
+			svc.phone = phone
+			defer phone.Close()
+			go svc.forward()
+		}
+	}
+	main = ui.Window.NewWithOptions(win)
 
-	// --self-test: readiness and the timeout race for one result; the first one wins and quits.
+	// Once the page is loaded the webview is told to stay on it.
+	var guarding sync.Once
+	guarded := make(chan bool, 1)
+	main.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		guarding.Do(func() {
+			go func() {
+				ok := application.InvokeSyncWithResult(func() bool { return guardNavigation(main.NativeWindow()) })
+				if !ok {
+					slog.Warn("no navigation guard on this platform: the content security policy alone confines the page")
+				}
+				guarded <- ok
+			}()
+		})
+	})
+
+	// --self-test: the probe's verdict and the timeout race for one result; the first one wins and
+	// quits.
 	result := make(chan error, 1)
 	if o.SelfTest {
-		svc.ready = func() {
+		finish := func(err error) {
 			select {
-			case result <- nil:
-				app.Quit()
+			case result <- err:
+				ui.Quit()
 			default:
 			}
 		}
-		timer := time.AfterFunc(selfTestTimeout, func() {
-			select {
-			case result <- errors.New("self-test: the page did not call the backend in time"):
-				app.Quit()
-			default:
+		var probing sync.Once
+		isGuarded := false
+		svc.ready = func() {
+			probing.Do(func() {
+				go func() {
+					select {
+					case isGuarded = <-guarded:
+					case <-time.After(selfTestTimeout):
+						return // the timer below reports it
+					}
+					main.ExecJS(probeScript(isGuarded))
+					time.Sleep(2 * time.Second) // a navigation that was not refused has replaced the page by now
+					ui.Event.Emit(probeEvent)
+				}()
+			})
+		}
+		svc.probed = func(report string) {
+			listening, err := listeningSockets()
+			summary, err := probeVerdict(report, isGuarded, navigationsBlocked(), listening, err)
+			if err == nil {
+				fmt.Println("self-test:", summary)
 			}
+			finish(err)
+		}
+		timer := time.AfterFunc(selfTestTimeout, func() {
+			finish(errors.New("self-test: the page did not call the backend and answer the probe in time"))
 		})
 		defer timer.Stop()
 	}
-	main = app.Window.NewWithOptions(win)
-	if err := app.Run(); err != nil {
+	if err := ui.Run(); err != nil {
 		return err
 	}
 	if o.SelfTest {

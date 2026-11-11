@@ -14,6 +14,7 @@ sleep 1
 log=$(mktemp)
 if DISPLAY=:57 dbus-run-session timeout 120 "$bin" --self-test "$@" >"$log" 2>&1; then
 	echo "self-test: window opened and the page called the backend"
+	grep '^self-test:' "$log" || : # what the binary found about the page's confinement
 else
 	rc=$?
 	echo "self-test: exit $rc" >&2

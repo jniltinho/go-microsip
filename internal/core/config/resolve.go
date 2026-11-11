@@ -339,6 +339,18 @@ func Resolve(c Context) (*Effective, error) {
 	return e, nil
 }
 
+// Draft reads the configuration as far as it goes, for a settings form: every field that is present
+// and valid, defaults for the others, the source that holds each, and the error Resolve would give
+// (nil when the configuration is complete). Never register an account with a Draft that has an
+// error.
+func Draft(c Context) (Stored, map[Field]Source, error) {
+	in, err := load(c)
+	if err != nil {
+		return Stored{UI: UI{Theme: ThemeDark}}, map[Field]Source{}, err
+	}
+	return build(in.layers)
+}
+
 // SQLiteEdits returns the database writes for a settings edit, keyed as the store expects; a nil
 // value removes the key.
 //

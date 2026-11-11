@@ -85,7 +85,8 @@ export type Notice =
   | "invalid_state"
   | "audio_unavailable"
   | "overloaded"
-  | "engine_failed";
+  | "engine_failed"
+  | "microphone_lost";
 export const NOTICES: readonly Notice[] = [
   "busy",
   "not_registered",
@@ -94,6 +95,7 @@ export const NOTICES: readonly Notice[] = [
   "audio_unavailable",
   "overloaded",
   "engine_failed",
+  "microphone_lost",
 ];
 
 /** An agent (CLI/MCP) request waiting for the person at the window. */
@@ -278,6 +280,11 @@ function wails({ Call, Events }: Wails): Backend {
         return ["Shutdown"];
     }
   };
+  // `--self-test` asks what its probe left in the page; a page that was navigated away is not
+  // here to answer.
+  Events.On("go-microsip:probe", () =>
+    call("Probed", document.documentElement.dataset.probe ?? ""),
+  );
   return {
     version: () => call("Version"),
     ready: () => call("Ready"),
