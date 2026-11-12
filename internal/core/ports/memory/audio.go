@@ -49,11 +49,11 @@ func (a *Audio) Open(input, output string) (ports.MediaIO, error) {
 
 // OpenOutput returns a new stream that is only played to, or ports.ErrNoAudioService when
 // Unavailable is set.
-func (a *Audio) OpenOutput(string) (ports.Player, error) {
+func (a *Audio) OpenOutput(output string) (ports.Player, error) {
 	if a.Unavailable {
 		return nil, ports.ErrNoAudioService
 	}
-	s := &Stream{output: true}
+	s := &Stream{output: true, Output: output}
 	a.mu.Lock()
 	a.opened = append(a.opened, s)
 	a.mu.Unlock()

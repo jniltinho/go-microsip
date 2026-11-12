@@ -1390,7 +1390,8 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		if m := micLevel.FindStringSubmatch(w.page.Text); m != nil {
 			level, _ = strconv.Atoi(m[1])
 		}
-		return level > 0 && w.shows("Stop test")
+		// The settings also say when a device chosen there is used.
+		return level > 0 && w.shows("Stop test", "Used by the next call")
 	})
 	w.shot(user + "-1a-audio-test")
 	_, tested := sound.listen(2 * time.Second)

@@ -259,7 +259,9 @@ async function saveAudio() {
               <option v-for="d in devices?.outputs" :key="d.id" :value="d.id">{{ d.name }}</option>
             </select>
           </label>
-          <p class="text-[0.9rem] text-muted">Applied on the next start.</p>
+          <p class="text-[0.9rem] text-muted">
+            Used by the next call; a call in progress keeps its devices.
+          </p>
           <div class="flex items-center gap-1.5">
             <button
               class="btn"

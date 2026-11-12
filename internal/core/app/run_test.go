@@ -70,10 +70,26 @@ func lab(t *testing.T, invite int) (port int) {
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		if invite == 200 { // answered, with audio that nobody listens to
+			rtp, err := net.ListenPacket("udp", "127.0.0.1:0")
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { rtp.Close() })
+			sdp := fmt.Sprintf("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=sendrecv\r\n", rtp.LocalAddr().(*net.UDPAddr).Port)
+			res := gosip.NewResponseFromRequest(req, 200, "OK", []byte(sdp))
+			res.AppendHeader(gosip.NewHeader("Content-Type", "application/sdp"))
+			res.AppendHeader(gosip.NewHeader("Contact", fmt.Sprintf("<sip:lab@%s;transport=tcp>", addr)))
+			_ = tx.Respond(res)
+			return
+		}
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, invite, "Lab", nil))
 		if invite < 200 { // ringing: the caller gives up, and the transaction ends with 487
 			<-tx.Done()
 		}
+	})
+	srv.OnBye(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnCancel(func(req *gosip.Request, tx gosip.ServerTransaction) {
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))

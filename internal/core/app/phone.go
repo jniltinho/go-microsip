@@ -98,8 +98,8 @@ type Phone struct {
 	// caFile is the CA bundle the engine was started with ("" for none): the engine keeps it for
 	// its whole life.
 	caFile string
-	// input and output are the sound devices the engine was started with ("" for the system's
-	// default): it keeps them for its whole life.
+	// input and output are the sound devices of the settings ("" for the system's default), under
+	// mu: a call opens the ones chosen when it begins, and keeps them.
 	input, output string
 	// inCall: the engine has a call. It keeps its account for the length of it.
 	inCall atomic.Bool
@@ -134,7 +134,7 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 		p.password = p.kept()
 	}
 	draft, _, loaded, _ := config.Draft(p.context())
-	options := engine.Options{Audio: p.audio, UserAgent: r.UserAgent, Log: r.Log}
+	options := engine.Options{Audio: chosen{p.audio, p}, UserAgent: r.UserAgent, Log: r.Log}
 	// The CA bundle is read whether or not an account is complete yet: the window may complete a
 	// TLS account later in this session, and it must then be checked against the bundle that is
 	// configured, never against the system's roots. A bundle that cannot be used is told to the
@@ -514,10 +514,46 @@ func (p *Phone) SaveSettings(patch SettingsPatch) error {
 			return err
 		}
 	}
-	if len(edits) == 0 {
-		return nil
+	if len(edits) > 0 {
+		if err := s.SaveConfig(edits); err != nil {
+			return err
+		}
 	}
-	return s.SaveConfig(edits)
+	// The next call opens the devices chosen now.
+	p.mu.Lock()
+	if patch.AudioInput != nil {
+		p.input = *patch.AudioInput
+	}
+	if patch.AudioOutput != nil {
+		p.output = *patch.AudioOutput
+	}
+	p.mu.Unlock()
+	return nil
+}
+
+// chosen gives the engine the sound devices of the settings as they are when a call opens its
+// sound, whatever it was started with: a device chosen between calls is the next call's.
+type chosen struct {
+	ports.AudioDevices
+	p *Phone
+}
+
+func (c chosen) devices() (input, output string) {
+	c.p.mu.Lock()
+	defer c.p.mu.Unlock()
+	return c.p.input, c.p.output
+}
+
+// Open opens the devices of the settings.
+func (c chosen) Open(_, _ string) (ports.MediaIO, error) {
+	input, output := c.devices()
+	return c.AudioDevices.Open(input, output)
+}
+
+// OpenOutput opens the speaker of the settings.
+func (c chosen) OpenOutput(string) (ports.Player, error) {
+	_, output := c.devices()
+	return c.AudioDevices.OpenOutput(output)
 }
 
 // AudioDevices lists the capture and playback devices.

@@ -37,8 +37,7 @@ func (p *Phone) StartAudioTest() error {
 	if running {
 		return nil
 	}
-	s := p.Settings()
-	sound, err := p.audio.Open(s.AudioInput, s.AudioOutput)
+	sound, err := chosen{p.audio, p}.Open("", "")
 	if err != nil {
 		return err
 	}
