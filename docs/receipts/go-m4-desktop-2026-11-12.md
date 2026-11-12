@@ -43,13 +43,27 @@ A password typed in the settings is kept in the user's keyring and nowhere else;
 | `TestATypedPasswordIsKeptInTheKeyringForTheNextStart` (`internal/core/app`) | pass: the typed password registers, is the one entry of the keyring under a reference without the account, is in no file of the profile, registers by itself at the next start, is replaced by the next one typed; without a keyring it lives for the session and the next start asks again |
 | `make go-window-call`, subtest `the password is remembered` | pass: in the built window, with no password configured, the password is typed in the settings, the account registers; no file of the profile (database, its journal, configuration, the window's trace and output) holds the password; the next start registers by itself |
 
-Open in 6.2: notifications; the tray on a desktop that has one (the owner's report in the tray receipt); the keyring on a real desktop (KWallet, GNOME Keyring as installed) and a locked keyring there; removing the stored password when the account is replaced or the user asks to forget it; `doctor` does not yet say that the password comes from the keyring.
+`doctor` reports a password the configuration does not provide and the keyring holds as present, from "keyring". An imported configuration replaces the account, and the replaced account's password is removed from the keyring (both in `TestATypedPasswordIsKeptInTheKeyringForTheNextStart`).
+
+**Notifications.** A call that rings here is notified through `org.freedesktop.Notifications`, as in the Rust candidate (LIN-01): "Incoming call", the caller as plain text (control and text-direction characters removed, markup escaped, 64 characters), urgency critical, and Answer and Reject where the service offers buttons. The notification goes when the call is answered, refused or over. Answer also brings the window in sight. Requests are queued (eight) and never block the engine's events; without a notification service nothing is shown.
+
+| Check | Result |
+| --- | --- |
+| `make go-notify` | pass: the test is the notification service of a private session bus: the text and the buttons asked for, both buttons back as actions of their call, a button of another notification and a button never offered ignored, a call that rings on replaces its notification, Close closes once; then a bus without a service and a session without a bus: nothing shown, nothing blocked |
+| `TestCallerTextIsPlain` (`internal/platform/notify`) | pass |
+| `TestARingingCallIsNotifiedAndItsButtonsDecide` (`internal/gui`) | pass: only a call that rings here is notified, once; it is closed when answered or over; Answer and Reject reach the engine for that call |
+| `make go-window-call` | pass: the lab test is the notification service of its session; the second incoming call arrives with the window minimized, the notification names the caller and offers the two buttons, and Reject pressed there refuses the call (the caller is told) |
+
+Open in 6.2: the tray on a desktop that has one (the owner's report in the tray receipt); the keyring and the notifications on a real desktop (KWallet, GNOME Keyring, the desktop's own notification service) and a locked keyring there; a way for the user to forget the stored password; notifications on Windows (task 6.3).
 
 ## Task 6.3: Windows, as far as the VM shows
 
 - The instance lock (`LockFileEx`), which the database is opened under: `TestLockIsExclusiveAndReleased` passes in the Windows VM.
 - The database's address: a Windows path was handed to SQLite with its drive in the place of a host, so the database never opened there. Found once the lock let the window reach it; fixed, with `TestTheDatabaseAddressKeepsADriveInThePath`. The run in the Windows VM that shows settings, contacts and history available is in "Runs" below.
-- The Credential Manager adapter compiles and is vetted for Windows; it has not run on Windows yet.
+- The Credential Manager adapter: `TestKeyringStoresReplacesAndDeletes` passes in the Windows VM, in the desktop session of the logged-on user.
+- With the lock and the address fixed, the window on Windows opens its database: the seven-skin run there requires it, and its pictures show an empty history where the earlier ones showed "the database is not available" ([`docs/prints/go/windows/`](../prints/go/windows/)).
+
+Open in 6.3: notifications, the tray and link registration on Windows; the sound on real hardware (the VM's emulated card fails the threshold); the call walkthrough of the `.exe`; that credentials survive removing the application folder (they are in the Credential Manager, outside it, which is not the same as having tried).
 
 ## Runs
 
