@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -248,5 +249,32 @@ func TestACallWithoutSoundSaysWhy(t *testing.T) {
 			t.Errorf("%s: the call is not up", c.want)
 		}
 		p.Close()
+	}
+}
+
+// What the softphone says of itself in its requests: the Contact address carries the extension,
+// as a PBX and whatever inspects SIP on the way to it expect, and the product is in User-Agent.
+func TestTheSoftphoneNamesItsExtensionInContactAndItsProductInUserAgent(t *testing.T) {
+	port := ringingRegistrar(t)
+	o, _ := options(t, port)
+	p, err := OpenPhone(o, PhoneOptions{UserAgent: "go-microsip/test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	target, _ := domain.ParseDialTarget("1002")
+	if err := p.Send(domain.Dial{Target: target}); err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "the call ringing", func(ev domain.Event) bool {
+		c, ok := ev.(domain.CallChanged)
+		return ok && c.Call.Phase.Kind == domain.Ringing
+	})
+	for _, method := range []string{"REGISTER", "INVITE"} {
+		got, _ := sent.Load(fmt.Sprintf("%d %s", port, method))
+		if want := method + " contact 1001 product go-microsip/test"; got != want {
+			t.Errorf("the softphone sent %q, want %q", got, want)
+		}
 	}
 }

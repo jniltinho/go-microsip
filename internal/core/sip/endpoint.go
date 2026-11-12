@@ -77,11 +77,13 @@ type Endpoint struct {
 	// waiting here is answered 486.
 	Incoming chan *diago.DialogServerSession
 
-	peers  []net.IP
-	ua     *sipgo.UserAgent
-	dg     *diago.Diago
-	cancel context.CancelFunc
-	log    *slog.Logger
+	peers []net.IP
+	ua    *sipgo.UserAgent
+	// product is what the User-Agent header of a request says.
+	product string
+	dg      *diago.Diago
+	cancel  context.CancelFunc
+	log     *slog.Logger
 
 	// mu guards the binding. The library's registration is not safe for a renewal and another
 	// request at once, so halt stops the renewal loop before anything else touches it.
@@ -166,7 +168,10 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	if name == "" {
 		name = "go-microsip"
 	}
-	uaOpts := []sipgo.UserAgentOption{sipgo.WithUserAgent(name), sipgo.WithUserAgentHostname(s.Domain)}
+	// The library puts its user agent's name in the user part of every Contact address, where a
+	// PBX, and whatever inspects SIP on the way to it, expects the extension: the name it gets
+	// is the account's. The product goes in the User-Agent header of each request instead.
+	uaOpts := []sipgo.UserAgentOption{sipgo.WithUserAgent(s.Username), sipgo.WithUserAgentHostname(s.Domain)}
 	if s.Transport == domain.TLS {
 		conf, err := TLSConfig(s.Server, a.CA)
 		if err != nil {
@@ -189,7 +194,7 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Endpoint{Account: a, ua: ua, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log}
+	e := &Endpoint{Account: a, ua: ua, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, product: name}
 	e.dg = diago.NewDiago(ua,
 		diago.WithLogger(log),
 		diago.WithServerRequestMiddleware(e.registrarOnly),
@@ -293,6 +298,7 @@ func (e *Endpoint) register(ctx context.Context) error {
 	from.Params.Add("tag", gosip.GenerateTagN(16))
 	reg.Origin.AppendHeader(from)
 	reg.Origin.AppendHeader(&gosip.ToHeader{Address: from.Address})
+	reg.Origin.AppendHeader(gosip.NewHeader("User-Agent", e.product))
 	e.stopRenewal()
 	if err := reg.Register(ctx); err != nil {
 		return err
@@ -343,7 +349,7 @@ func (e *Endpoint) Dial(ctx context.Context, target string, onProgress func(stat
 	d, med, err := e.dg.Invite(ctx, e.uri(target), diago.InviteOptions{
 		Transport: e.Account.Settings.Transport.String(),
 		Username:  e.authUser(), Password: e.Account.Password.Reveal(),
-		Headers: []gosip.Header{e.identity()},
+		Headers: []gosip.Header{e.identity(), gosip.NewHeader("User-Agent", e.product)},
 		OnResponse: func(res *gosip.Response) error {
 			if onProgress != nil && res.StatusCode > 100 && res.StatusCode < 200 {
 				onProgress(res.StatusCode)

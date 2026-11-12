@@ -38,6 +38,10 @@ func registrar(t *testing.T) (port int) { return lab(t, 486) }
 // ringingRegistrar accepts every REGISTER and lets every call ring without an answer.
 func ringingRegistrar(t *testing.T) (port int) { return lab(t, 180) }
 
+// sent is how the softphone named itself in the last request of each method that each lab PBX
+// received: "<port> <method>" to "<method> contact <user> product <User-Agent>".
+var sent sync.Map
+
 // heard counts the REGISTER requests each lab PBX received, by its port.
 var heard sync.Map
 
@@ -64,12 +68,24 @@ func lab(t *testing.T, invite int) (port int) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	said := func(req *gosip.Request) {
+		who := req.Method.String() + " "
+		if c := req.Contact(); c != nil {
+			who += "contact " + c.Address.User
+		}
+		if ua := req.GetHeader("User-Agent"); ua != nil {
+			who += " product " + ua.Value()
+		}
+		sent.Store(fmt.Sprintf("%d %s", port, req.Method), who)
+	}
 	srv.OnRegister(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		said(req)
 		n, _ := heard.LoadOrStore(port, new(atomic.Int64))
 		n.(*atomic.Int64).Add(1)
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		said(req)
 		if invite == 200 { // answered, with audio that nobody listens to
 			rtp, err := net.ListenPacket("udp", "127.0.0.1:0")
 			if err != nil {
