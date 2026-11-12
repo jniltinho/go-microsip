@@ -373,6 +373,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
 	t.Run("every skin", func(t *testing.T) { skinsInTheWindow(t, bin, server, passwords["1002"]) })
 	t.Run("links", func(t *testing.T) { linksInTheWindow(t, bin, server, passwords["1002"]) })
+	t.Run("quit during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
 	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
@@ -387,6 +388,62 @@ func TestCallThroughTheWindow(t *testing.T) {
 				windowAtScale(t, bin, server, passwords["1002"], skin, desktop.name, append(desktop.env, "GO_MICROSIP_UI_THEME="+skin))
 			})
 		}
+	}
+}
+
+// Quitting during a call (desktop-app: "Quit during a call"): the close button asks, the yes ends
+// the call, the account unregisters and the process is gone within the engine's bound. The PBX
+// then takes the same extension again, which it would refuse had the contact stayed.
+func quitDuringACall(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	_, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered") })
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	w.keys("ctrl+l", "6", "0", "0", "Return")
+	w.until(30*time.Second, "the call connected", func() bool { return w.call.Phase == "established" && w.shows("Connected", "600") })
+	w.keys("alt+F4")
+	w.until(10*time.Second, "the question before quitting", func() bool { return w.shows("Hang up and quit?") && w.call.Phase == "established" })
+	asked := time.Now()
+	w.click("Hang up and quit")
+	select {
+	case <-exited:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the window was still there 10 s after the yes: the engine's bound is 5 s")
+	}
+	t.Logf("gone %v after the yes", time.Since(asked).Round(10*time.Millisecond))
+	if !w.unregistered(5 * time.Second) {
+		t.Error("the engine did not report itself stopped")
+	}
+	if w.call.Phase != "ended" || w.registered != "disabled" {
+		t.Errorf("at the end the call was %q and the registration %q, want ended and disabled", w.call.Phase, w.registered)
+	}
+	// The PBX's word: one contact per extension, and it takes this one again.
+	again := filepath.Join(dir, "ui-trace-2.jsonl")
+	probe, left := softphone(t, bin, dir, password, "--config", file, "--ui-trace", again)
+	after := &window{t: t, lines: follow(t, again)}
+	after.until(30*time.Second, "the extension registered again after the quit", func() bool { return after.registered == "registered" })
+	_ = syscall.Kill(-probe.Process.Pid, syscall.SIGTERM)
+	select {
+	case <-left:
+	case <-time.After(15 * time.Second):
+		t.Error("the second window did not exit after the termination signal")
+	}
+	if !after.unregistered(15 * time.Second) {
+		t.Error("the second window did not unregister after the termination signal")
 	}
 }
 

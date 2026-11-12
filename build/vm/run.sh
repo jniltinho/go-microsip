@@ -11,6 +11,7 @@ shift 3 2>/dev/null || shift $#
 status=0
 for vm in "$@"; do
 	log=$out/vm-$vm.log
+	rm -f "$log" # a VM that does not come up must not be reported with the last run's log
 	case $vm in
 	windows*) check="vagrant winrm $vm -s powershell -c \"C:\\vagrant\\check.ps1 -Version $version -Seconds $seconds\"" ;;
 	*) check="vagrant ssh $vm -c \"/vagrant/check.sh $version $seconds\"" ;;

@@ -26,7 +26,9 @@ foreach ($skin in 'light', 'dark', 'xp', 'macos', 'ubuntu', 'win98', 'matrix') {
     $trace = "$Work\skin-$skin.jsonl"
     Remove-Item $trace -ErrorAction SilentlyContinue
     $env:GO_MICROSIP_UI_THEME = $skin
-    Start-Process -FilePath $Exe -ArgumentList '--ui-trace', "`"$trace`"" | Out-Null
+    $err = "$Work\skin-$skin.err"
+    Remove-Item $err -ErrorAction SilentlyContinue
+    Start-Process -FilePath $Exe -ArgumentList '--ui-trace', "`"$trace`"" -RedirectStandardError $err | Out-Null
     $drawn = $false
     $deadline = (Get-Date).AddSeconds(90)
     while (-not $drawn -and (Get-Date) -lt $deadline) {
@@ -62,6 +64,14 @@ foreach ($skin in 'light', 'dark', 'xp', 'macos', 'ubuntu', 'win98', 'matrix') {
     Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Milliseconds 800
     if ($drawn) { "skin: $skin drawn on WebView2 in $($fonts[$skin] -join ', '), no font failed" }
-    else { "skin: $skin NOT drawn"; $failed++ }
+    else {
+        "skin: $skin NOT drawn"
+        $failed++
+        # What it did show and say, to tell why: the last report of the page and the last lines of
+        # its standard error.
+        $last = @(Get-Content $trace -ErrorAction SilentlyContinue | Where-Object { $_ -match '"page"' }) | Select-Object -Last 1
+        if ($last) { "skin: $skin last report: " + $last.Substring(0, [Math]::Min(400, $last.Length)) } else { "skin: $skin made no report" }
+        Get-Content $err -Tail 5 -ErrorAction SilentlyContinue | ForEach-Object { "skin: $skin stderr: $_" }
+    }
 }
 exit $failed
