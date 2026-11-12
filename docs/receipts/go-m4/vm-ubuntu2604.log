@@ -1,0 +1,27 @@
+vm-check: Ubuntu 26.04 LTS, kernel 7.0.0-22-generic
+vm-check: libgtk-4-1 4.22.4+ds-0ubuntu0.1 (ii )
+vm-check: libwebkitgtk-6.0-4 2.52.6-0ubuntu0.26.04.1 (ii )
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.6.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 300 s: capture 15000 of 15000 frames (longest miss 0 ticks, gap 23 ms, 0 samples dropped); speaker 29995 of 29995 10 ms pieces (longest silence 1 pieces, arrival gap 43 ms, 11 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 15 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 319 ms between frames); capture: 2560 samples dropped; playback: 30 of 196 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 319 ms without samples); playback: 2336 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 105.111µs, microphone back after 166.554933ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (308.13s)
+vm-check: audio: PASS
+vm-check: audio adapter OK on the distribution's audio service
+vm-check: desktop session: ubuntu:GNOME on wayland, GNOME Shell 50.1
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: system skin: followed the desktop to dark in 339 ms and back to light in 240 ms
+vm-check: tray: the desktop's tray host holds the window's icon: (<[':1.24@/org/ayatana/NotificationItem/software_update_available', ':1.24@/org/ayatana/NotificationItem/unattended_upgrade', ':1.182@/StatusNotifierItem']>,) (before the window: (<[':1.24@/org/ayatana/NotificationItem/software_update_available', ':1.24@/org/ayatana/NotificationItem/unattended_upgrade']>,))
+vm-check: notifications:     desktop_linux_test.go:31: the desktop's notification service: gnome-shell 50.1 (GNOME); buttons offered: true
+vm-check: notifications:     desktop_linux_test.go:47: the service took notification 5 away (reason 3) when the call was over
+vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.02s)
+vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 4ms, no prompt left open
+vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.01s)
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.02s)
+vm-check: keyring: --- PASS: TestALockedKeyringIsReportedAndNotPrompted (0.00s)
+vm-check: keyring: started with the login password, the desktop's keyring stores, replaces and removes a password, and says so when it is locked
+vm-check: PASS Ubuntu 26.04 LTS

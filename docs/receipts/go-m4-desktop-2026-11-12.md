@@ -69,7 +69,23 @@ By the owner's decision of 2026-11-12 there is no encrypted copy of the password
 | --- | --- |
 | `make go-window-call`, subtest `the tray` | pass: the test is the session's `org.kde.StatusNotifierWatcher`, so the built window registers its tray item with it. The item's menu, read over the bus, holds "Show go-microsip" and Quit, and after a call to 600 also "↗ 600"; the close button hides the window, the process stays and the account stays registered; activating the item shows the window again; with the window hidden, choosing the call in the menu shows it and calls 600; Quit in the menu unregisters and ends the process. The other subtests run on a session without a tray host, where the close button during a call asks before it quits |
 
-Not covered in 6.2: the keyring, the notifications and the tray on a real desktop beyond the owner's use of the tray on KDE (KWallet, GNOME Keyring, the desktop's own notification service, a locked keyring there); a way for the user to forget the stored password; notifications on Windows (task 6.3).
+**On the distributions' own desktops.** The check run in the desktop VMs (`build/vm/check.sh`, `make go-vm`) asks the services each distribution installs with its default desktop, with nothing added for go-microsip: Ubuntu 26.04 (GNOME Shell 50.1 on Wayland) and Debian 13 (GNOME Shell 48.7 on Wayland), the AppImage of commit `69c0dc9`.
+
+| Service | Ubuntu 26.04 | Debian 13 |
+| --- | --- | --- |
+| Notifications | the desktop's service (GNOME Shell) offers buttons; asked through the application's notifier, it shows a call's notification and, when the call is over, says it took it away (`TestTheDesktopsNotificationServiceShowsACall`) | the same |
+| Tray | the desktop has a tray host (Ubuntu ships one with its GNOME): the running window's icon is in the host's list, and was not before the window started | the desktop has no tray host: the window has no icon there |
+| Keyring, as the session has it | the test user is logged in without a password, so the session has no login keyring (the first run of each VM, whose log is not kept: "the keyring has no default collection") or a locked one once it exists (the recorded runs): the adapter says so in under 10 ms, stores nothing and leaves no prompt open (`TestTheDesktopsKeyringAsFound`). For the application this is a password kept for the session, with its warning | the same |
+| Keyring, started with the login password | the session's own keyring daemon (GNOME Keyring), started again with the login password as a login with a password leaves it: a password is stored, read, replaced and removed; locked, it says so and no prompt stays open (`TestKeyringStoresReplacesAndDeletes`, `TestALockedKeyringIsReportedAndNotPrompted`) | the same |
+
+Logs: [Ubuntu](go-m4/vm-ubuntu2604.log), [Debian](go-m4/vm-debian13.log). Found on the way: when GNOME locks its screen it turns its extensions off, and Ubuntu's tray host goes with them; the application asks for the host when the window is closed, so a window closed then asks and quits as on a desktop without a tray.
+
+Not covered in 6.2:
+
+- On those desktops the services are asked by the application's adapters from their test binaries and by the running AppImage for its tray icon; no call rings there (the VMs have no PBX), the notification's buttons are not pressed and the tray's menu is not opened. Those are driven in the lab, where the test is the service, and the close button that hides to the tray is the owner's report on KDE.
+- KWallet and KDE's notification service; a KDE session is in the manual checklist of task 7.2.
+- A user who logs in without a password types the SIP password at every start, unless the configuration provides it: nothing here creates a keyring or asks the desktop to.
+- A way for the user to forget the stored password; notifications on Windows (task 6.3).
 
 ## Task 6.3: Windows, as far as the VM shows
 
@@ -82,10 +98,10 @@ Open in 6.3: notifications, the tray and link registration on Windows; the sound
 
 ## Status
 
-42 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 1 of 7.
+43 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 2 of 7.
 
 - **6.1 is checked** on the lab evidence above: a second start with a link, the exit during a call (asked for, and on a termination signal) and a PBX that stopped answering, each with the built window. What "Not covered in 6.1" lists is left to the manual checklist of task 7.2.
-- **6.2 is not checked.** Each service is driven with and without it, and no password reaches a file or the database, but in the lab container: GNOME Keyring on a private bus, and the test itself as the notification service and as the tray host. On a real desktop there is the owner's report of the tray on KDE and nothing recorded for the keyring and the notifications.
+- **6.2 is checked**: each service is driven with and without it in the lab (GNOME Keyring on a private bus, the test itself as the notification service and as the tray host; a bus with none of them), where no password reaches a file or the database; and on the default desktops of the two supported distributions the services they bring are asked with the same adapters: one desktop with a tray host and one without, both with a notification service, both with a keyring that is missing or locked and then unlocked. What "Not covered in 6.2" lists stays open for 7.2.
 - **6.3 is not checked**: see "Open in 6.3".
 - 6.4 to 6.7 are not started.
 
@@ -93,14 +109,19 @@ Independent review: Codex round 6 found the M4 work in its extract sound with tw
 
 ## Runs
 
-Artifacts `0.3.0-m3` of commit `3b6b8bf` (`make go-dist`, `dirty false`, checksums verified) with the checks of that commit, except the virtual machines, which ran the artifacts and checks of commit `4a5bd14`.
+Artifacts `0.3.0-m3` of commit `69c0dc9` (`make go-dist`, `dirty false`, checksums verified). The checks ran on that commit's tree or, where said, on the commit before it (`aec4441`), from which `69c0dc9` differs only in the VM check and its two tests.
 
 | Command | Result |
 | --- | --- |
-| `make go-check`, `make go-test`, `make go-frontend-test` | pass (33 page tests) |
-| `make go-lab` | 68 of 68 scenarios |
-| `make go-appimage-call` | pass: the AppImage through the two accounts (with the notification's Reject), the wrong password, every skin, links, quitting during a call, a termination signal during a call and the remembered password ([log](go-m3/appimage-call.log)) |
-| `make go-self-test`, `make go-offline-skins` | pass |
-| `make go-keyring` | pass ([log](go-m3/keyring.log)) |
-| `make go-notify` | pass ([log](go-m3/notify.log)) |
-| `make go-vm GO_VMS="windows11 ubuntu2604 debian13"` (commit `4a5bd14`) | Ubuntu 26.04 and Debian 13 (GNOME on Wayland): pass ([log](go-m3/vm-ubuntu2604.log), [log](go-m3/vm-debian13.log)). Windows 11: the instance lock, the Credential Manager, the window, no listening port and the seven skins with their database pass; the emulated sound card fails the audio threshold, so the run as a whole fails ([log](go-m3/vm-windows11.log)) |
+| `make go-check`, `make go-test`, `make go-frontend-test` (`aec4441`) | pass (33 page tests) |
+| `make go-window-call` (`aec4441`) | pass ([log](go-m3/window-call.log)) |
+| `make go-appimage-call` | pass: the AppImage through the two accounts (with the notification's Reject), the wrong password, every skin, links, quitting during a call, a termination signal during a call, the remembered password, a PBX that stopped answering and the tray ([log](go-m4/appimage-call.log)) |
+| `make go-self-test` | pass |
+| `make go-offline-skins` (`aec4441`) | pass, seven of seven |
+| `make go-notify` (`aec4441`) | pass ([log](go-m3/notify.log)) |
+| `make go-keyring` | not run again: the adapter is as in commit `3b6b8bf`, but for a comment ([log](go-m3/keyring.log)) |
+| `make go-lab` | not run again: nothing under it changed since its 68 of 68 on commit `3b6b8bf` |
+| `KEEP=1 make go-vm GO_VMS="ubuntu2604 debian13"` | Ubuntu 26.04: pass, with five minutes of sound, the window, the System skin and the desktop's services ([log](go-m4/vm-ubuntu2604.log)). Debian 13: the window, the System skin and the desktop's services pass; **the sound fails**: in five minutes one stretch of 99 ms without samples on the speaker, over the 60 ms allowed (29929 of 29995 pieces arrived), so the run as a whole fails ([log](go-m4/vm-debian13.log)). A repeat of one minute passed ([log](go-m4/vm-debian13-repeat.log)), and so did this VM's first run, when it was a clean installation (20 s of sound, not recorded here). The sound adapter is the one that passed five minutes on a clean Debian VM at commit `4a5bd14` ([log](go-m3/vm-debian13.log)); what changed is that the VM is reused and shares the host with the Ubuntu one. Not explained further: the five-minute threshold on Debian is to be run again on a clean VM before task 7.2 relies on it |
+| Windows 11 VM | not run again: the run of commit `4a5bd14` stands (the instance lock, the Credential Manager, the window, no listening port and the seven skins pass; the emulated sound card fails the audio threshold: [log](go-m3/vm-windows11.log)) |
+
+The two Linux VMs are kept up between runs from here on, by the owner's decision of 2026-11-12, and are destroyed when the change's tasks are done (`cd build/vm && vagrant destroy -f`). They stay on VirtualBox's NAT, with the two read-only shared folders. A run in a VM that was used before is not a run on a clean installation: the first run of each VM in this session was one, the later ones were not.
