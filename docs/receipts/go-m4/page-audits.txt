@@ -1,0 +1,10 @@
+prints.sh: (210 screens pass the contrast audit, 84 states carry an icon and a label, 84 screens show a ring on every control, 12 of 12 controls caught)
+keyboard-check.sh: 57 checks pass, 0 fail
+PASS  Space ticks a permission of a grant
+PASS  Tab reaches Create grant file
+PASS  Enter makes the grant: its file is named and it is listed
+PASS  Tab reaches Revoke
+PASS  Enter revokes a grant
+PASS  an agent request opens with the focus on Deny and Allow disarmed
+PASS  Allow arms after a second
+scale-check.sh: 140 checks pass, 0 fail

@@ -117,10 +117,10 @@ Not covered in 6.2:
 | the fence | pass: with a list that names another address, the Windows VM gets no connection to the PBX's SIP port; once listed, it does ([log](go-m4/vm-lab.log)) |
 | open and register, over UDP (1001) and over TCP (1101) | pass: the window opens and shows "Registered" ([UDP](../prints/go/windows/windows-call-udp-1-registered.png), [TCP](../prints/go/windows/windows-call-tcp-1-registered.png)) |
 | dial the echo extension | pass: Ctrl+L, `600`, Enter in the number field; the window shows "Connected", 600 and the running time ([UDP](../prints/go/windows/windows-call-udp-2-connected.png), [TCP](../prints/go/windows/windows-call-tcp-2-connected.png)) |
-| Windows' firewall question | at the first call Windows asks whether its firewall should let go-microsip accept connections, in a window of its own that takes the keyboard ([picture](../prints/go/windows/windows-call-firewall-question.png)). Cancel was pressed: the calls before and after it go on, in both directions, an incoming call included |
+| Windows' firewall question | at the first call Windows makes its firewall rules for go-microsip (it refuses incoming connections) and asks whether to allow them, in a window of its own that keeps the keyboard and that desktop automation cannot read ([picture](../prints/go/windows/windows-call-firewall-question.png), taken before the key). Escape, its Cancel, was pressed while that window kept the keyboard from the softphone: the calls before and after it go on, in both directions, an incoming call included |
 | hang up | pass: Escape after eight seconds in the call; the window goes back to its home screen with the call in its history ([UDP](../prints/go/windows/windows-call-udp-3-ended.png), [TCP](../prints/go/windows/windows-call-tcp-3-ended.png)) |
-| a call from the PBX (1002, UDP) | pass: it rings in the window ([picture](../prints/go/windows/windows-call-incoming-1-ringing.png)) and as a notification; Enter answers it ([picture](../prints/go/windows/windows-call-incoming-2-answered.png)), Escape ends it, and its notification is gone |
-| sound in the calls | the PBX's fence counted the RTP of the run's three calls: 1710 packets from the Windows VM and 1709 back, through the PBX's echo. This is sound as packets, in both directions and through the address rewriting: the VM's sound card is emulated, so nothing was heard and the quality threshold is not met there (below) |
+| a call from the PBX (1002, UDP) | pass: it rings in the window ([picture](../prints/go/windows/windows-call-incoming-1-ringing.png)) and Windows holds its notification; Enter answers it ([picture](../prints/go/windows/windows-call-incoming-2-answered.png)), Escape ends it, and after the call Windows holds no notification of go-microsip |
+| sound in the calls | the PBX's fence counted the RTP of the run's three calls together: 1712 packets from the Windows VM and 1712 back, through the PBX's echo. This is sound as packets, in both directions and through the address rewriting, not per call and not as heard: the VM's sound card is emulated, and the quality threshold is not met there (below) |
 
 What the calls showed, and what was done:
 
@@ -225,9 +225,30 @@ Not covered in 6.5:
 
 Not covered in 6.6: the documented commands are not each run on the built binary, only those of the lab walkthrough; `claude mcp add` and `codex mcp add` are other programs' commands and are not run; the README's notes on a desktop other than GNOME (the packages it may have to install) and on KDE's tray rest on the owner's report and on the package names, not on a run.
 
+## Task 6.7: closing M4
+
+What the task asks, and what was done on the artifacts `0.3.0-m3` of commit `cf3e8ef` (`make go-dist`, `dirty false`, checksums verified).
+
+**Driving the artifacts.** The task names `agent-desktop`. As for 4.7 and 5.8, the AppImage was driven in the lab with `xdotool` on a private display, where the test is also the notification service and the tray host, and the `.exe` in the Windows VM with the keyboard and Windows' own UI automation from PowerShell: neither environment has `agent-desktop`, and nothing is installed in the Windows guest. That substitution is the owner's to accept for this task; it is not accepted yet.
+
+| Step | AppImage, in the lab (`make go-appimage-call`) | `.exe`, in the Windows 11 VM (`make go-vm GO_VMS=windows11 GO_VM_LAB=1`) |
+| --- | --- | --- |
+| tray | pass (`the tray`): the icon registers with the host, the close button hides the window and nothing quits, a click on the icon brings it back, the menu lists the window, the latest calls and Quit, a call chosen there is called again, and Quit quits, unregistering | pass: the close button hides the window and the softphone goes on; a second start brings it back. Its menu is not opened |
+| notification | pass: the second incoming call arrives with the window minimized, the notification names the caller and offers the two buttons, and Reject pressed there refuses the call | pass in part: a call from the lab PBX is a toast while it rings and none after it was answered in the window; the toast's buttons are not pressed (task 7.2) |
+| link hand-off | pass (`links`): the window started with a link asks before it calls; a second start with one wakes the running window, which asks, and no second window stays; what is not a link starts nothing | pass: `go-microsip.exe tel:600` ends with 0 and the running window asks; Escape cancels |
+| approval dialog | pass (`agent control`, `the command line and MCP`): a call asked for by the command line and by the MCP server waits, the dialog names who asks and what, Allow and Deny decide, nothing is sent before the yes | pass: `call dial 600` from the command line waits, the window shows who asks and for what, Escape denies and the operation is recorded as denied |
+| the Agent access screen | pass (`the Agent access form`, new): a permission ticked, a grant file made (mode 0600), `history list` answered with it and `contacts search` still refused, the grant revoked and refused again, the audit log on the screen ([made](../prints/go/appimage/agent-access-1-granted.png), [revoked and audited](../prints/go/appimage/agent-access-2-revoked-and-audited.png)) | not driven on Windows |
+| all | 28 subtests pass ([log](go-m4/appimage-call.log)) | every step passes but the sound test of the emulated card ([log](go-m4/vm-windows11.log)) |
+
+**The page** (`agent-browser`, against the mock backend, the page's source as in the artifacts): the screenshot matrix passes with the grant, audit and approval screens in every skin (210 screens through the contrast audit, 84 states with an icon and a label, 84 screens with a ring on every control, 12 of 12 controls caught); the keyboard check passes its 57 steps, five of them new: a permission ticked, a grant made and one revoked by keys alone, beside the approval dialog's focus and arming; the scale check passes its 140 ([summary](go-m4/page-audits.txt)).
+
+**The parity matrix** has the Windows rows the VM runs support (control channel, the executable, WASAPI as far as a VM shows, a clean machine, single instance and links, notifications and tray, secrets), each partial, with what is left for 7.2 named.
+
+**Independent review**: Codex round 3 found milestone M4 and task 7.1 sound with changes, nine minor findings, all answered ([record](../reviews/migrate-to-go-wails-m4/README.md)); the answers are not reviewed. One of them broke the first toast of a run, which the Windows run caught and the last commit fixes.
+
 ## Status
 
-46 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 5 of 7.
+48 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 6 of 7, M5 with 1 of 10 (7.1, [receipt](go-m5-freepbx-2026-11-12.md)).
 
 - **6.1 is checked** on the lab evidence above: a second start with a link, the exit during a call (asked for, and on a termination signal) and a PBX that stopped answering, each with the built window. What "Not covered in 6.1" lists is left to the manual checklist of task 7.2.
 - **6.2 is checked**: each service is driven with and without it in the lab (GNOME Keyring on a private bus, the test itself as the notification service and as the tray host; a bus with none of them), where no password reaches a file or the database; and on the default desktops of the two supported distributions the services they bring are asked with the same adapters: one desktop with a tray host and one without, both with a notification service, both with a keyring that is missing or locked and then unlocked. What "Not covered in 6.2" lists stays open for 7.2.
@@ -235,23 +256,27 @@ Not covered in 6.6: the documented commands are not each run on the built binary
 - **6.4 is checked**: the tests of `crates/control` are ported and pass, with those of the Rust owner and of its ledger; the built window serves the contract and a call asked for waits for the person; the two applications ran side by side in both supported desktops without sharing a lock, a socket or a file. The headless service was left out of it and came with 6.5.
 - **6.5 is checked**: the control commands, the MCP server with the Rust tool set and rules, and the headless service; an unapproved call from the built command line and from the built MCP server waits for Allow in the built window and is audited, and the tools that need a grant are refused without one. What "Not covered in 6.5" lists stays open.
 - **6.6 is checked**: the command line, the MCP server and the service are documented for go-microsip, the README has the platform notes, and a test runs or checks every command the two documents write.
-- 6.7 is not started.
+- **6.7 is not checked**: everything it asks was run on the artifacts of commit `cf3e8ef` and passes, except that the artifacts were driven with `xdotool` and PowerShell instead of `agent-desktop` (above), which waits for the owner, and that the Windows run as a whole fails on the emulated sound card, as every run there.
 
 Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). Agent control (6.4 to 6.6) had its first Codex round, which found it unsound for one major finding (a revocation the database refused was reported as done) and nine minor ones; all ten were answered ([record](../reviews/migrate-to-go-wails-m4/README.md)), and no round has reviewed the answers or the Windows work of 6.3 yet. A review is not call evidence.
 
 ## Runs
 
-Artifacts `0.3.0-m3` of commit `6107125` (`make go-dist`, `dirty false`, checksums verified), which adds the VM lab, the call walkthrough and the toast that is taken away. The wording of one line of `build/vm/desktop.ps1` was changed after the run (it named Windows' do-not-disturb as the reason the toast's button was not found, which no longer holds).
+Artifacts `0.3.0-m3` of commit `cf3e8ef` (`make go-dist`, `dirty false`, checksums verified; 82 components in the third-party notices). The checks ran on that commit's tree.
 
 | Command | Result |
 | --- | --- |
-| `make go-check`, `make go-test` | pass |
-| `sh docker/asterisk/lab.sh unit-test`, `config-check` | pass: 21 tests, with the VM profile's addresses; the normalized Compose output of the internal, host and VM profiles |
-| `KEEP=1 make go-vm GO_VMS=windows11 SECONDS=60 GO_VM_LAB=1` | every step but the sound test passes on the exact `.exe`: the lock, the control transport, the Credential Manager and the application folder, the window, no listening port, the seven skins, links, the command line against the window, the second start, the call that waits and is denied, the tray, the toast; then the call walkthrough against the lab PBX, the table above. **The emulated sound card fails the audio threshold**, so the run as a whole fails ([log](go-m4/vm-windows11.log), [the PBX's side](go-m4/vm-lab.log), [pictures](../prints/go/windows/)) |
-| `make go-frontend-test`, `make go-appimage-call` | not run again on this commit, which changes nothing they exercise: on commit `33137dc` the 36 page tests passed and the AppImage passed the 27 subtests ([log](go-m4/appimage-call.log)) |
-| `KEEP=1 make go-vm GO_VMS="ubuntu2604 debian13" SECONDS=20` | not run again since the artifacts of `1ca14bf`: Ubuntu 26.04 passed; on Debian 13 the desktop's services and the Rust candidate beside it passed and **the sound failed** again in this reused VM, by one stretch of 98 ms without samples in 20 s ([Ubuntu](go-m4/vm-ubuntu2604-beside.log), [Debian](go-m4/vm-debian13-beside.log)) |
-| `make go-window-call`, `make go-headless`, `make go-self-test`, `make go-offline-skins`, the page's audits | not run again on this commit: the lab walkthrough ran through the AppImage; the page's drawing is as in commit `eec4a52` |
-| `make go-notify`, `make go-keyring`, `make go-lab` | not run again: nothing they exercise changed since their runs recorded for commits `aec4441` and `3b6b8bf` |
+| `make go-check`, `make go-test`, `make go-frontend-test` | pass (36 page tests); run on commit `9bd3d97`, from which `cf3e8ef` differs in one Windows-only file, which `make go-check` vets |
+| `sh docker/asterisk/lab.sh unit-test`, `config-check` | pass |
+| `make go-window-call` | pass: the built window through the 28 subtests, the Agent access form among them (on `9bd3d97`) |
+| `make go-appimage-call` | pass: the AppImage through the 28 subtests ([log](go-m4/appimage-call.log)) |
+| `KEEP=1 make go-vm GO_VMS=windows11 SECONDS=60 GO_VM_LAB=1` | every step but the sound test passes on the exact `.exe`: the lock, the control transport, the Credential Manager and the application folder, the window, no listening port, the seven skins, links, the command line against the window, the second start, the call that waits and is denied, the tray, the toast; then the call walkthrough against the lab PBX. **The emulated sound card fails the audio threshold**, so the run as a whole fails ([log](go-m4/vm-windows11.log), [the PBX's side](go-m4/vm-lab.log), [pictures](../prints/go/windows/)) |
+| the page's audits (`prints.sh`, `keyboard-check.sh`, `scale-check.sh`) | pass ([summary](go-m4/page-audits.txt)) |
+| `KEEP=1 make go-freepbx` | pass: 8 scenarios against FreePBX 17, with the fences as round 3 left them (on `9bd3d97`; [receipt](go-m5-freepbx-2026-11-12.md)) |
+| `KEEP=1 make go-vm GO_VMS="ubuntu2604 debian13" SECONDS=20` | Ubuntu 26.04: pass, the desktop's services and the Rust candidate beside it included. Debian 13: the same steps pass and **the sound fails** again in this reused VM, by one stretch of 100 ms without samples in 20 s ([Ubuntu](go-m4/vm-ubuntu2604-beside.log), [Debian](go-m4/vm-debian13-beside.log)) |
+| `make go-headless`, `make go-self-test`, `make go-offline-skins` | not run again on this commit: nothing they exercise changed since their last recorded runs |
+| `make go-lab` | pass: 68 scenarios against the Asterisk lab, run for task 7.1 on the lab image as this milestone leaves it ([report](go-m5/asterisk-report.json)) |
+| `make go-notify`, `make go-keyring` | not run again: nothing they exercise changed since their runs recorded for commits `aec4441` and `3b6b8bf` |
 | the five-minute sound threshold | last run on commit `69c0dc9`: Ubuntu 26.04 passed ([log](go-m4/vm-ubuntu2604.log)); Debian 13 failed by one stretch of 99 ms ([log](go-m4/vm-debian13.log)). The Debian VM, reused and sharing the host with two others now, has failed the sound in most runs since and passed in some; the adapter is the one that passed five minutes on a clean Debian VM at commit `4a5bd14` ([log](go-m3/vm-debian13.log)). Not explained further: to be run again on a clean VM before task 7.2 relies on it |
 
 The two Linux VMs, and the Windows one and the lab's `pbx` VM since task 6.3, are kept up between runs from here on, by the owner's decision of 2026-11-12, and are destroyed when the change's tasks are done (`cd build/vm && vagrant destroy -f`). They stay on VirtualBox's NAT, with the two read-only shared folders. A run in a VM that was used before is not a run on a clean installation: the first run of each VM in this session was one, the later ones were not.
