@@ -48,7 +48,7 @@ Spec references use the capability name and requirement title. Every milestone g
 - [x] 4.5 Add a lint rule forbidding raw HTML rendering of dynamic text and a test with a hostile display name; verify the name is shown literally and nothing executes
 - [x] 4.6 Implement Light, Dark and System with the token contract and `internal/archtest` skin test; verify live switching during a lab call and that System follows a desktop change within two seconds (ui-themes: Live switching and persistence)
 - [x] 4.7 Drive the built AppImage with `agent-desktop` (open, dial a lab extension, hang up) and store screenshots under `docs/prints/go/`; verify each recorded step succeeded with fictional data (milestone-distribution: Automated interface checks)
-- [ ] 4.8 Close M2: update the parity matrix, run format/vet/tests and `make go-dist`, repeat the 4.7 run on the exact Windows `.exe` in the Windows VM, run the Codex review, then commit and push; verify artifacts, checksums and the status report
+- [x] 4.8 Close M2: update the parity matrix, run format/vet/tests and `make go-dist`, run the Codex review, then commit and push; verify artifacts, checksums and the status report (the 4.7 run on the exact Windows `.exe` in the Windows VM moved to 6.3 by the owner's decision of 2026-11-12)
 
 ## 5. M3 — skins and refinement
 
@@ -65,7 +65,7 @@ Spec references use the capability name and requirement title. Every milestone g
 
 - [ ] 6.1 Implement Linux single instance, `sip:`/`tel:` hand-off with confirmation, and bounded shutdown on quit/SIGTERM; verify a second launch with a link, exit during a call, and an unresponsive PBX (desktop-app: Desktop integration)
 - [ ] 6.2 Implement Linux notifications, optional tray with close-to-tray, and Secret Service storage; verify desktops with and without each service, and that no password reaches a file or the database
-- [ ] 6.3 Implement the Windows adapters (named-pipe single instance, Credential Manager, notifications, tray, link registration, audio); verify in a Windows VM with fictional data, including the five-minute audio threshold, the frozen-window and capture-unplug cases, and that credentials survive removing the application folder
+- [ ] 6.3 Implement the Windows adapters (named-pipe single instance, Credential Manager, notifications, tray, link registration, audio); verify in a Windows VM with fictional data, including the five-minute audio threshold, the frozen-window and capture-unplug cases, that credentials survive removing the application folder, and the call walkthrough of the window on the exact Windows `.exe` under desktop automation (open, dial a lab extension, hang up, each step recorded with screenshots; moved here from 4.8)
 - [ ] 6.4 Implement `internal/control` (owner election, same-user transport, grants, approvals, idempotency, audit) with its own endpoint names; verify the tests ported from `crates/control` and that the Rust candidate and go-microsip run side by side without interfering (implementation-migration: Coexistence until cutover)
 - [ ] 6.5 Implement the CLI call-control commands and the stdio MCP server with the Rust tool set and permission rules; verify an unapproved MCP call waits for approval in the window and is audited, and that tools hidden without a grant are rejected (desktop-app: Agent control contract)
 - [ ] 6.6 Document the CLI/MCP in `docs/agent-cli-mcp.md` and platform notes in the README; verify each documented command runs as written
