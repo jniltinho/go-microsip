@@ -690,6 +690,26 @@ func TestATypedPasswordIsKeptInTheKeyringForTheNextStart(t *testing.T) {
 		}
 	}
 
+	// The doctor says where the password is, and nothing of it.
+	if report := Doctor(o); !report.PasswordPresent || report.PasswordSource == nil || *report.PasswordSource != "keyring" ||
+		strings.Contains(report.String(), other) || strings.Contains(report.JSON(), other) {
+		t.Errorf("the doctor with a password in the keyring: %s", report)
+	}
+	// An imported configuration replaces the account: its password leaves the keyring with it.
+	imported := filepath.Join(dir, "imported.toml")
+	if err := os.WriteFile(imported, []byte("schema = 1\n[account]\nusername = \"1009\"\ndomain = \"pbx.invalid\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Import(o, imported, true); err != nil {
+		t.Fatal(err)
+	}
+	if entries := keyring.Entries(); len(entries) != 0 {
+		t.Errorf("after the account was replaced the keyring still holds %d entries", len(entries))
+	}
+	if report := Doctor(o); report.PasswordPresent {
+		t.Errorf("the doctor after the account was replaced: %s", report)
+	}
+
 	// Without a keyring: the session registers, the warning says the password is not kept, and
 	// the next start has none.
 	o, warnings, _ = fresh(&memory.Keyring{Unavailable: true})

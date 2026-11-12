@@ -115,8 +115,31 @@ func IsConfiguration(err error) bool {
 	return errors.As(err, &e)
 }
 
-// Doctor resolves the configuration and reports it. It never registers or dials.
-func Doctor(o Options) DoctorReport { return config.Doctor(o.context()) }
+// Doctor resolves the configuration and reports it. It never registers or dials. A password the
+// configuration does not provide and the keyring holds is reported as present, from "keyring";
+// the password itself is read only to know it is there.
+func Doctor(o Options) DoctorReport {
+	r := config.Doctor(o.context())
+	if r.PasswordPresent || o.Secrets == nil {
+		return r
+	}
+	path := StorePath(o.base().Env)
+	if info, err := os.Stat(path); path == "" || err != nil || !info.Mode().IsRegular() {
+		return r
+	}
+	s, err := store.Open(path)
+	if err != nil {
+		return r
+	}
+	defer s.Close()
+	if ref, err := s.SecretRef(); err == nil && ref != "" {
+		if _, ok, err := o.Secrets.Get(ref); err == nil && ok {
+			source := "keyring"
+			r.PasswordPresent, r.PasswordSource = true, &source
+		}
+	}
+	return r
+}
 
 // Validate checks that the effective configuration resolves to a valid account.
 func Validate(o Options) error {
@@ -172,9 +195,15 @@ func Import(o Options, file string, apply bool) (string, error) {
 	defer release()
 	s, err := store.Open(path)
 	if err == nil {
-		// shortcut: the keyring entry of the replaced account is not deleted yet; do it here once
-		// the secrets adapter exists (the Rust application removes it at this point).
+		// The replaced account's password leaves the keyring with it, as in the Rust application:
+		// the settings first, so a failed import keeps its password.
+		replaced, _ := s.SecretRef()
 		err = errors.Join(s.ReplaceConfig(preview.SQLiteValues()), s.Close())
+		if err == nil && replaced != "" && o.Secrets != nil {
+			if derr := o.Secrets.Delete(replaced); derr != nil {
+				o.warn("the replaced account's password was not removed from the keyring: " + derr.Error())
+			}
+		}
 	}
 	if err != nil {
 		return "", &ImportError{Preview: text, Err: err}
