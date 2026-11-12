@@ -1,6 +1,8 @@
 package app
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"sync"
@@ -100,7 +102,7 @@ type Phone struct {
 	inCall atomic.Bool
 
 	mu       sync.Mutex
-	password domain.Secret // typed in this session; never stored
+	password domain.Secret // typed in this session or read from the keyring; never written to a file
 }
 
 // OpenPhone starts the engine and, when an account and its password are configured, registers it.
@@ -117,6 +119,11 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 	}
 	p.journal = openJournal(o, StorePath(o.base().Env))
 	cfg, _ := config.Resolve(p.context())
+	// The password the user typed in an earlier session is in the keyring, when there is one; a
+	// password the configuration provides (the environment, a private file) comes first.
+	if cfg != nil && cfg.PasswordSource == "" {
+		p.password = p.kept()
+	}
 	draft, _, loaded, _ := config.Draft(p.context())
 	options := engine.Options{Audio: p.audio, UserAgent: r.UserAgent, Log: r.Log}
 	// The CA bundle is read whether or not an account is complete yet: the window may complete a
@@ -140,7 +147,7 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 	}
 	options.Input, options.Output = p.input, p.output
 	p.engine = engine.Start(options)
-	for _, c := range startup(draft, loaded, cfg) {
+	for _, c := range startup(draft, loaded, cfg, p.password) {
 		p.engine.Send(c)
 	}
 	// Every event is journaled before a reader sees it, and a reader that is behind keeps neither
@@ -165,16 +172,77 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 // startup is what the engine is told when a phone opens. Do-not-disturb is a preference of its
 // own: it is applied whenever the settings could be read, whether or not an account is configured
 // yet, so a window that shows it on never lets a call ring. The account registers only from a
-// configuration that resolves and has a password.
-func startup(draft config.Stored, loaded bool, cfg *config.Effective) []domain.Command {
+// configuration that resolves and has a password: the configured one, or else the one kept in the
+// keyring.
+func startup(draft config.Stored, loaded bool, cfg *config.Effective, kept domain.Secret) []domain.Command {
 	var commands []domain.Command
 	if loaded && draft.UI.DND {
 		commands = append(commands, domain.SetDND{On: true})
 	}
-	if cfg != nil && cfg.PasswordSource != "" {
+	switch {
+	case cfg == nil:
+	case cfg.PasswordSource != "":
 		commands = append(commands, domain.Register{Settings: cfg.Config.Account, Password: cfg.Password})
+	case !kept.Empty():
+		commands = append(commands, domain.Register{Settings: cfg.Config.Account, Password: kept})
 	}
 	return commands
+}
+
+// kept reads the account's password from the keyring, under the reference the database holds. A
+// keyring that is locked, missing or slow is not an error: the password is then asked for.
+func (p *Phone) kept() domain.Secret {
+	s := p.journal.store
+	if s == nil || p.o.Secrets == nil {
+		return domain.Secret{}
+	}
+	ref, err := s.SecretRef()
+	if err != nil || ref == "" {
+		return domain.Secret{}
+	}
+	password, ok, err := p.o.Secrets.Get(ref)
+	if err != nil {
+		p.o.warn("the password was not read from the keyring: " + err.Error())
+	}
+	if err != nil || !ok {
+		return domain.Secret{}
+	}
+	return domain.NewSecret(password)
+}
+
+// keep stores a typed password in the keyring and its reference in the database, so the account
+// registers by itself at the next start. The password goes nowhere else. Without a keyring, or
+// with one that does not take it, the password lives for this session, and the warning says so.
+func (p *Phone) keep(secret domain.Secret) {
+	s := p.journal.store
+	if s == nil || p.o.Secrets == nil {
+		return
+	}
+	ref, err := s.SecretRef()
+	if err != nil {
+		p.o.warn("the password is kept for this session only: " + err.Error())
+		return
+	}
+	fresh := ref == ""
+	if fresh {
+		id := make([]byte, 16)
+		if _, err := rand.Read(id); err != nil {
+			p.o.warn("the password is kept for this session only: " + err.Error())
+			return
+		}
+		ref = "go-microsip/" + hex.EncodeToString(id) // not a secret, and says nothing of the account
+	}
+	if err := p.o.Secrets.Set(ref, secret.Reveal()); err != nil {
+		p.o.warn("the password is kept for this session only: " + err.Error())
+		return
+	}
+	if !fresh {
+		return
+	}
+	if err := s.SetSecretRef(ref); err != nil {
+		p.o.warn("the password is kept for this session only: " + err.Error())
+		_ = p.o.Secrets.Delete(ref) // nothing names it
+	}
 }
 
 // context is the resolution context with the settings saved in this session's database.
@@ -215,8 +283,9 @@ func (p *Phone) Send(c domain.Command) error {
 	}
 }
 
-// Register registers the account. A nil password means the one at hand: typed earlier in this
-// session, or configured. A typed password is kept for the session only.
+// Register registers the account. A nil password means the one at hand: typed earlier, kept in
+// the keyring, or configured. A typed password is kept in the keyring when there is one, and
+// otherwise for the session only.
 func (p *Phone) Register(account domain.AccountSettings, password *string) error {
 	if err := account.Validate(); err != nil {
 		return err
@@ -256,6 +325,9 @@ func (p *Phone) Register(account domain.AccountSettings, password *string) error
 	p.mu.Lock()
 	p.password = secret
 	p.mu.Unlock()
+	if password != nil {
+		p.keep(secret) // a typed password: remembered for the next start, in the keyring only
+	}
 	return nil
 }
 

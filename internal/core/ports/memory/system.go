@@ -71,6 +71,17 @@ func (k *Keyring) Set(ref, password string) error {
 	return nil
 }
 
+// Entries is a copy of what the keyring holds, by reference.
+func (k *Keyring) Entries() map[string]string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	out := make(map[string]string, len(k.entries))
+	for ref, password := range k.entries {
+		out[ref] = password
+	}
+	return out
+}
+
 // Delete removes the entry under ref.
 func (k *Keyring) Delete(ref string) error {
 	k.mu.Lock()

@@ -46,6 +46,9 @@ func (o Options) warn(message string) {
 	}
 }
 
+// LegacySecrets reads the password the Rust application kept in the keyring, for the import.
+type LegacySecrets = rustimport.LegacySecrets
+
 // DoctorReport is the sanitized configuration report: effective values with their sources, and
 // secrets only as booleans.
 type DoctorReport = config.DoctorReport

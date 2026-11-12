@@ -1,15 +1,18 @@
 package app
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jniltinho/go-microsip/internal/core/config"
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 	"github.com/jniltinho/go-microsip/internal/core/store"
 )
@@ -324,7 +327,7 @@ func TestSavedDoNotDisturbIsAppliedWithoutAnAccount(t *testing.T) {
 		"saved, an account and a password": {dnd, true, &config.Effective{PasswordSource: config.PasswordFromEnv}, []domain.Command{domain.SetDND{On: true}, domain.Register{}}},
 		"an account without a password":    {config.Stored{}, true, &config.Effective{}, nil},
 	} {
-		got := startup(c.draft, c.loaded, c.cfg)
+		got := startup(c.draft, c.loaded, c.cfg, domain.Secret{})
 		if len(got) != len(c.want) {
 			t.Errorf("%s: %v, want %v", name, got, c.want)
 			continue
@@ -557,5 +560,131 @@ func TestPhoneKeepsItsAccountDuringACall(t *testing.T) {
 	})
 	if err := p.SaveSettings(SettingsPatch{Account: &account}); err != nil {
 		t.Errorf("saving the account after the call: %v", err)
+	}
+}
+
+// A password typed in the window is remembered in the keyring, and only there: the database keeps
+// a reference that says nothing, no file holds the password, and the next start registers by
+// itself. Without a keyring the password lives for the session and the next start asks again.
+func TestATypedPasswordIsKeptInTheKeyringForTheNextStart(t *testing.T) {
+	const typed = "fictional-typed-password-4471"
+	port := registrar(t)
+	fresh := func(secrets ports.Secrets) (Options, *[]string, string) {
+		dir := t.TempDir()
+		file := filepath.Join(dir, "config.toml")
+		text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1001\"\ndomain = \"127.0.0.1\"\nport = %d\ntransport = \"tcp\"\nexpires = 60\n", port)
+		if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var warnings []string
+		o := Options{
+			ConfigPath: file, Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")},
+			Secrets: secrets, Locks: &memory.Locks{}, Warn: func(m string) { warnings = append(warnings, m) },
+		}
+		return o, &warnings, dir
+	}
+	quiet := func(p *Phone) { // nothing registers by itself
+		t.Helper()
+		select {
+		case ev := <-p.Events():
+			if r, ok := ev.(domain.RegistrationChanged); ok && r.State.Status != domain.Disabled {
+				t.Fatalf("a registration (%v) without a password", r.State)
+			}
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+
+	keyring := &memory.Keyring{}
+	o, warnings, dir := fresh(keyring)
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	quiet(p)
+	if p.Settings().HasPassword {
+		t.Fatal("a password before one was typed")
+	}
+	account := *p.Settings().Account
+	password := typed
+	if err := p.Register(account, &password); err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "registration with the typed password", registered)
+	p.Close()
+	if len(*warnings) != 0 {
+		t.Errorf("warnings with a keyring that works: %v", *warnings)
+	}
+	entries := keyring.Entries()
+	if len(entries) != 1 {
+		t.Fatalf("the keyring holds %d entries, want the one password", len(entries))
+	}
+	for ref, value := range entries {
+		if value != typed || !strings.HasPrefix(ref, "go-microsip/") || strings.Contains(ref, "1001") {
+			t.Errorf("the keyring entry is not the password under a reference that says nothing: %q", ref)
+		}
+	}
+	// Nothing the session wrote holds the password.
+	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err == nil && bytes.Contains(content, []byte(typed)) {
+			t.Errorf("%s holds the password", filepath.Base(path))
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The next start registers by itself, with the kept password.
+	p, err = OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "registration at the next start", registered)
+	if !p.Settings().HasPassword {
+		t.Error("the kept password is not reported as at hand")
+	}
+	// Typing another one replaces the entry: there is still one.
+	other := typed + "-changed"
+	if err := p.Register(account, &other); err != nil {
+		t.Fatal(err)
+	}
+	p.Close()
+	if entries := keyring.Entries(); len(entries) != 1 {
+		t.Errorf("after another password the keyring holds %d entries", len(entries))
+	} else {
+		for _, value := range entries {
+			if value != other {
+				t.Error("the keyring does not hold the password typed last")
+			}
+		}
+	}
+
+	// Without a keyring: the session registers, the warning says the password is not kept, and
+	// the next start has none.
+	o, warnings, _ = fresh(&memory.Keyring{Unavailable: true})
+	p, err = OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Register(account, &password); err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "registration for the session", registered)
+	p.Close()
+	if len(*warnings) != 1 || !strings.Contains((*warnings)[0], "for this session only") || strings.Contains((*warnings)[0], typed) {
+		t.Errorf("warnings without a keyring: %v", *warnings)
+	}
+	p, err = OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	quiet(p)
+	if p.Settings().HasPassword {
+		t.Error("a password at the next start without a keyring")
 	}
 }

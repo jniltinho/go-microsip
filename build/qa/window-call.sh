@@ -1,6 +1,6 @@
 #!/bin/sh
 # Lab call placed from the softphone's window (run inside the lab network, from the build image):
-# a display with a window manager, PipeWire with its PulseAudio server on a private session bus,
+# a display with a window manager, PipeWire with its PulseAudio server and a keyring on a private session bus,
 # and the precompiled test that drives the window with the keyboard and the mouse.
 #   build/qa/window-call.sh <test binary>     environment: GO_MICROSIP_CALL_BIN, GO_MICROSIP_LAB,
 #                                             GO_MICROSIP_PBX, GO_MICROSIP_AUDIO_SECONDS
@@ -26,6 +26,9 @@ dbus-run-session -- sh -c '
 	p3=$!
 	trap "kill $p0 $p1 $p2 $p3 2>/dev/null" EXIT
 	i=0
+	# A keyring for the session, unlocked with a throwaway password: the window keeps a typed
+	# password there and nowhere else.
+	printf "throwaway-keyring-password" | gnome-keyring-daemon --unlock --components=secrets >/dev/null 2>&1 || :
 	until [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; do
 		i=$((i + 1))
 		[ "$i" -lt 50 ] || { echo "window-call: the audio service did not start" >&2; exit 1; }

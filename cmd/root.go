@@ -25,6 +25,10 @@ type Platform struct {
 	Audio ports.AudioDevices
 	// Locks takes instance locks; nil when this build cannot.
 	Locks ports.Locker
+	// Secrets is the user's keyring; nil when this build has none.
+	Secrets ports.Secrets
+	// LegacySecrets reads the password the Rust application kept; nil when it cannot be read.
+	LegacySecrets app.LegacySecrets
 }
 
 // Window flags, read by the build that links the window.
@@ -78,6 +82,7 @@ func (s *session) getenv(name string) string {
 func (s *session) options() app.Options {
 	return app.Options{
 		ConfigPath: s.configPath, EnvFile: s.envFile, Files: s.platform.Files, Env: s.env, Locks: s.platform.Locks,
+		Secrets: s.platform.Secrets, LegacySecrets: s.platform.LegacySecrets,
 		Warn: func(message string) { fmt.Fprintln(s.stderr, "go-microsip:", message) },
 	}
 }

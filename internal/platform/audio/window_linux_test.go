@@ -2,6 +2,7 @@ package audio
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -374,6 +375,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("every skin", func(t *testing.T) { skinsInTheWindow(t, bin, server, passwords["1002"]) })
 	t.Run("links", func(t *testing.T) { linksInTheWindow(t, bin, server, passwords["1002"]) })
 	t.Run("quit during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"]) })
+	t.Run("the password is remembered", func(t *testing.T) { passwordIsRemembered(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
 	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
@@ -389,6 +391,73 @@ func TestCallThroughTheWindow(t *testing.T) {
 			})
 		}
 	}
+}
+
+// A password typed in the settings is kept in the session's keyring and nowhere else: no file of
+// the profile holds it, and the next start registers by itself.
+func passwordIsRemembered(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stop := func(cmd *exec.Cmd, exited chan error, w *window) {
+		t.Helper()
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		select {
+		case <-exited:
+		case <-time.After(15 * time.Second):
+			t.Error("the window did not exit after the termination signal")
+		}
+		if !w.unregistered(15 * time.Second) {
+			t.Error("the window did not unregister after the termination signal")
+		}
+	}
+	// No password is configured anywhere: the account is there and not registered.
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphone(t, bin, dir, "", "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "the account without a password, not registered", func() bool {
+		return w.shows("1002@"+server, "Disabled") && w.registered != "registered"
+	})
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	w.click("Menu")
+	w.click("Settings")
+	w.until(10*time.Second, "the settings", func() bool { return w.shows("Account", "Password") })
+	w.fill("Password", password)
+	w.click("Save and register")
+	w.until(30*time.Second, "registration with the typed password", func() bool { return w.registered == "registered" })
+	stop(cmd, exited, w)
+
+	// The password is in no file the session left: not the database, not its journal, not the
+	// configuration, not the window's trace or output.
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if content, err := os.ReadFile(path); err == nil && bytes.Contains(content, []byte(password)) {
+			t.Errorf("%s holds the password", strings.TrimPrefix(path, dir))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The next start registers by itself.
+	again := filepath.Join(dir, "ui-trace-2.jsonl")
+	next, gone := softphone(t, bin, dir, "", "--config", file, "--ui-trace", again)
+	after := &window{t: t, lines: follow(t, again)}
+	after.until(30*time.Second, "registration by itself at the next start", func() bool { return after.registered == "registered" })
+	stop(next, gone, after)
 }
 
 // Quitting during a call (desktop-app: "Quit during a call"): the close button asks, the yes ends

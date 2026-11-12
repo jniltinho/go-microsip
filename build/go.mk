@@ -28,7 +28,7 @@ GO_GUI_FLAGS := --init --security-opt seccomp=unconfined --security-opt apparmor
 GO_GUI     := GO_DOCKER_FLAGS="$(GO_GUI_FLAGS)" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
-	go-frontend-test go-offline-skins go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
+	go-frontend-test go-offline-skins go-secrets go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
 	go-vm go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
@@ -66,6 +66,9 @@ go-self-test: go-build ## Go: the window opens under Xvfb and the page calls the
 
 go-offline-skins: go-build ## Go: the window starts in every skin in a container with no network
 	GO_DOCKER_FLAGS="--network none $(GO_GUI_FLAGS)" $(GO) build/qa/offline-skins.sh $(GO_BIN) $(OUT)
+
+go-secrets: go-embed-stub ## Go: the keyring adapter against GNOME Keyring on a private session bus, and against no keyring
+	$(GO_GUI) sh -c 'CGO_ENABLED=0 go test -c -o /tmp/secrets.test ./internal/platform/secrets && build/qa/secrets.sh /tmp/secrets.test'
 
 go-prints: go-build ## Go: screenshots of the window into docs/prints/go/
 	$(GO_GUI) build/qa/prints.sh $(GO_BIN) docs/prints/go

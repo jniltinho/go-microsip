@@ -31,3 +31,7 @@ RUN curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-li
 # No FUSE in containers: appimagetool runs extracted. Module mode is forced because the frozen Rust
 # workspace keeps a vendor/ folder at the repository root, which would switch Go to vendor mode.
 ENV PATH=/usr/local/go/bin:$PATH APPIMAGE_EXTRACT_AND_RUN=1 GOFLAGS=-mod=readonly
+# The keyring adapter's tests need a Secret Service to talk to: GNOME Keyring, started unlocked on
+# a private session bus (build/qa/secrets.sh). A layer of its own, so the ones above are reused.
+RUN apt-get update && apt-get install -y --no-install-recommends gnome-keyring \
+    && rm -rf /var/lib/apt/lists/*
