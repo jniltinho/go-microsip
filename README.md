@@ -32,7 +32,7 @@ affiliated with or endorsed by MicroSIP.
 
 | Area | What you get |
 |---|---|
-| **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, DND; RFC 4733 DTMF; a ringback tone while the other side rings |
+| **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, DND; RFC 4733 DTMF; a ringback tone while the other side rings, or the audio the PBX plays before it answers |
 | **Security** | TLS with system or custom CA; SDES-SRTP/SRTCP, optional or mandatory, with downgrade refusal; the password never goes in arguments, logs or the database |
 | **Interface** | MicroSIP-like window: keypad, Logs-style call history (double-click to call back), contacts with favorites and CSV import, status bar with an Online icon; dark and light themes |
 | **Desktop** | Tray icon whose menu redials your last calls; closing the window keeps it in the tray; incoming-call notifications with Answer/Reject; `sip:`/`tel:` link handler; single instance |
@@ -143,7 +143,7 @@ cutover the Rust application above is the product; go-microsip has no release ye
 from this repository:
 
 ```sh
-make go-dist               # dist/go: Linux binary, AppImage, Windows .exe and .zip, SHA256SUMS
+make go-dist               # dist/go: Linux binary, AppImage, Windows .exe and .zip, notices, SBOM, SHA256SUMS
 ```
 
 Both applications can be installed and run by the same user: each has its own name, settings,
@@ -203,9 +203,15 @@ Limits of this version, known and accepted for it:
   chosen microphone, for ten seconds or until it is stopped, and never during a call. The ring and the ringback are tones the softphone makes itself, on the speaker
   chosen for calls: there is no ringtone file to choose and no speaker of its own for ringing.
 - **Audio before the answer.** What a PBX plays before a call is answered (early media: an
-  operator's own ringing tone, or a message such as "this number is unavailable") is not
-  played yet: the softphone's ringback tone sounds until the answer. The Rust application
-  plays it.
+  operator's own ringing tone, or a message such as "this number is unavailable") is played
+  in place of the softphone's ringback tone. Nothing of the microphone is sent before the
+  answer or on hold; one frame of silence a second is, so that a firewall or a VPN gateway
+  does not close a path that carries the other side's audio alone. With an account that
+  requires SRTP, audio before the answer that is not encrypted is not played.
+- **A network that goes away.** When the address the account registered from leaves the
+  machine (a VPN that dropped, a cable pulled), the window says so within a few seconds and
+  the account registers again by itself once the network is back: tried after 5 s, then at
+  doubling delays, eight times; after that, "Register" in the window.
 - **A transfer that the PBX accepts and then fails.** FreePBX takes the other party away
   before it reports the failure: go-microsip says the transfer failed and stays in a call
   with nobody in it until you hang up.
