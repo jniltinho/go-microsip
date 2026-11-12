@@ -45,7 +45,7 @@ and stops on SIGTERM or an interrupt, ending calls and unregistering first.`,
 			if err != nil {
 				return usage(err.Error())
 			}
-			dir, err := control.RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": s.getenv("XDG_RUNTIME_DIR")})
+			dir, err := control.RuntimeDir(s.getenv)
 			if err != nil {
 				return unavailable("runtime_unavailable: " + err.Error())
 			}
@@ -121,7 +121,7 @@ and stops on SIGTERM or an interrupt, ending calls and unregistering first.`,
 
 // servedByService reports whether the headless service owns the profile of this session.
 func (s *session) servedByService() bool {
-	dir, err := control.RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": s.getenv("XDG_RUNTIME_DIR")})
+	dir, err := control.RuntimeDir(s.getenv)
 	if err != nil {
 		return false
 	}

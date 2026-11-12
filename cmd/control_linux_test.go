@@ -53,7 +53,7 @@ func (r *recorder) count() int {
 func owned(t *testing.T, mode control.Mode) (env map[string]string, owner *recorder) {
 	t.Helper()
 	env = map[string]string{"XDG_RUNTIME_DIR": t.TempDir()}
-	dir, err := control.RuntimeDir(env)
+	dir, err := control.RuntimeDir(func(name string) string { return env[name] })
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -58,7 +58,7 @@ func random(prefix string) string {
 
 // reach sends one request to the owner of this session and returns its answer.
 func (s *session) reach(r control.Request) control.Response {
-	dir, err := control.RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": s.getenv("XDG_RUNTIME_DIR")})
+	dir, err := control.RuntimeDir(s.getenv)
 	if err != nil {
 		return control.Failure(r.RequestID, &control.Error{Code: control.EngineUnavailable, Message: "no runtime directory of this session; nothing was started"})
 	}

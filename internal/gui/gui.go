@@ -95,7 +95,7 @@ func Run(o Options) error {
 	svc := &App{unavailable: "self-test: the phone engine is not started"}
 	if !o.SelfTest { // a self-test leaves nothing behind in the user's profile
 		if _, err := installDesktopEntry(icon); err != nil {
-			slog.Warn("desktop entry not installed", "error", err) // only the Linux title-bar icon depends on it
+			slog.Warn("desktop entry not installed", "error", err) // the Linux title-bar icon and the list of link handlers depend on it
 		}
 	}
 	setWindowIconName(windowIconName)
@@ -275,11 +275,11 @@ func Run(o Options) error {
 			defer func() { phone.Close(); <-forwarded }()
 			if owner != nil { // it stops being served before the phone closes
 				defer owner.Close()
-				env := o.Core.Env
-				if env == nil {
-					env = map[string]string{"XDG_RUNTIME_DIR": os.Getenv("XDG_RUNTIME_DIR")}
+				getenv := os.Getenv
+				if env := o.Core.Env; env != nil {
+					getenv = func(name string) string { return env[name] }
 				}
-				if dir, err := control.RuntimeDir(env); err != nil {
+				if dir, err := control.RuntimeDir(getenv); err != nil {
 					warnings.Warn("agent control is not served: " + err.Error())
 				} else if endpoint, err := control.Listen(dir, owner.Welcome(), owner); err != nil {
 					warnings.Warn("agent control is not served: " + err.Error())

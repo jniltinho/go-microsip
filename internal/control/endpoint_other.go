@@ -1,15 +1,15 @@
-//go:build !linux
+//go:build !linux && !windows
 
 package control
 
-// The control transport of the other systems is not built yet: Windows gets its per-user named
-// pipe with the Windows adapters (task 6.3 of migrate-to-go-wails).
+// There is no control transport for the other systems: go-microsip is built for Linux and
+// Windows.
 
 // Endpoint is the owner's end of the transport.
 type Endpoint struct{}
 
 // RuntimeDir is where the control endpoint of this session lives.
-func RuntimeDir(map[string]string) (string, error) { return "", ErrUnsupported }
+func RuntimeDir(func(string) string) (string, error) { return "", ErrUnsupported }
 
 // Listen makes this process the owner of agent control in the session.
 func Listen(string, Welcome, Handler) (*Endpoint, error) { return nil, ErrUnsupported }

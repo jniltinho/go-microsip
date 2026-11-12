@@ -103,3 +103,24 @@ func TestASilentBusDoesNotHoldTheCaller(t *testing.T) {
 		t.Errorf("the caller waited %v for a bus that says nothing", took.Round(time.Millisecond))
 	}
 }
+
+// A stored password is the user's, not the application folder's: one run leaves it in the
+// keyring ("leave"), the application's folder is removed, and a run from another copy finds it
+// ("find") and removes it. The VM check does the removing in between (task 6.3).
+func TestAStoredPasswordOutlivesTheRunThatLeftIt(t *testing.T) {
+	const ref, password = "go-microsip/test-left-behind-0123456789", "fictional-left-behind-password"
+	var k Store
+	switch os.Getenv("GO_MICROSIP_KEYRING_TEST") {
+	case "leave":
+		if err := k.Set(ref, password); err != nil {
+			t.Fatal(err)
+		}
+	case "find":
+		t.Cleanup(func() { _ = k.Delete(ref) })
+		if got, ok, err := k.Get(ref); err != nil || !ok || got != password {
+			t.Fatalf("the password left by the run before: found %v, error %v, the same %v", ok, err, got == password)
+		}
+	default:
+		t.Skip("set GO_MICROSIP_KEYRING_TEST=leave, then find (the VM check)")
+	}
+}

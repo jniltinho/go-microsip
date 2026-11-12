@@ -1,3 +1,5 @@
+//go:build linux || windows
+
 package control
 
 import (
@@ -8,15 +10,15 @@ import (
 	"testing"
 )
 
-// On a desktop's own session (the VM check, build/vm/check.sh): the go-microsip window running
+// On a desktop's own session (the VM checks, build/vm/check.sh and check.ps1): the go-microsip window running
 // there answers a client of the same session; and the Rust candidate, when it runs beside it,
 // has an endpoint of its own that does not take go-microsip's hello (task 6.4, coexistence).
 func TestTheWindowOfThisSessionAnswers(t *testing.T) {
 	if os.Getenv("GO_MICROSIP_CONTROL_TEST") != "session" {
 		t.Skip("set GO_MICROSIP_CONTROL_TEST=session in a session with a go-microsip window (make go-vm)")
 	}
-	session := os.Getenv("XDG_RUNTIME_DIR")
-	dir, err := RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": session})
+	session := os.Getenv("XDG_RUNTIME_DIR") // empty on Windows, where the Rust candidate is not beside it
+	dir, err := RuntimeDir(os.Getenv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,6 +39,9 @@ func TestTheWindowOfThisSessionAnswers(t *testing.T) {
 	t.Logf("go-microsip's window answers on its own socket: protocol %s, epoch %d, registration %s", client.Welcome().Protocol, data.Epoch, data.Registration)
 	if r := client.Do(Request{SchemaVersion: SchemaVersion, RequestID: "vm-2", Operation: Operation{Op: HistoryList}}); r.Error == nil || r.Error.Code != GrantRequired {
 		t.Errorf("history without a grant: %+v", r)
+	}
+	if session == "" {
+		return
 	}
 	rust := filepath.Join(session, "rust-microsip")
 	if _, err := os.Stat(filepath.Join(rust, SocketFile)); err != nil {

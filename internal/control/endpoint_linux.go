@@ -20,9 +20,9 @@ const (
 	lockFile = "control.lock"
 )
 
-// RuntimeDir is where the control endpoint of this session lives.
-func RuntimeDir(env map[string]string) (string, error) {
-	if dir := env["XDG_RUNTIME_DIR"]; filepath.IsAbs(dir) {
+// RuntimeDir is where the control endpoint of this session lives; getenv reads the environment.
+func RuntimeDir(getenv func(string) string) (string, error) {
+	if dir := getenv("XDG_RUNTIME_DIR"); filepath.IsAbs(dir) {
 		return filepath.Join(dir, dirName), nil
 	}
 	return "", ErrNoRuntimeDir

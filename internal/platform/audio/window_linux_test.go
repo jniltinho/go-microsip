@@ -1653,7 +1653,7 @@ func agentControl(t *testing.T, bin, server, password string) {
 			t.Fatal("the window was not found on the display")
 		}
 	}
-	runtime, err := control.RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": os.Getenv("XDG_RUNTIME_DIR")})
+	runtime, err := control.RuntimeDir(os.Getenv)
 	if err != nil {
 		t.Fatal(err)
 	}

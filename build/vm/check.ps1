@@ -9,6 +9,7 @@ Copy-Item "C:\dist\go-microsip-$Version-windows-amd64.exe" "$work\go-microsip.ex
 Copy-Item 'C:\dist\g0\audio.test.exe' "$work\audio.test.exe" -Force
 Copy-Item 'C:\dist\g0\lock.test.exe' "$work\lock.test.exe" -Force
 Copy-Item 'C:\dist\g0\keyring.test.exe' "$work\keyring.test.exe" -Force
+Copy-Item 'C:\dist\g0\control.test.exe' "$work\control.test.exe" -Force
 
 $os = Get-CimInstance Win32_OperatingSystem
 "vm-check: $($os.Caption) $($os.Version)"
@@ -29,6 +30,14 @@ $lock = $LASTEXITCODE
 Get-Content "$work\lock.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^(--- |PASS|FAIL|ok|panic)' } | ForEach-Object { "vm-check: lock: $_" }
 if ($lock -ne 0) { "vm-check: FAIL the instance lock (exit $lock)"; exit 1 }
 'vm-check: the instance lock is exclusive and released on Windows'
+
+# The control transport: the socket of the user's own directory, one owner, the system's word on
+# which process is at the other end and whose it is.
+cmd /c "`"$work\control.test.exe`" -test.v -test.run `"TestAClientReachesTheOwnerOnWindows|TestGrantFilesOnWindows`" > `"$work\control.txt`" 2>&1"
+$control = $LASTEXITCODE
+Get-Content "$work\control.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '_test.go|^(--- |PASS|FAIL|ok|panic)' } | ForEach-Object { "vm-check: control: $_" }
+if ($control -ne 0) { "vm-check: FAIL the control transport (exit $control)"; exit 1 }
+'vm-check: the control transport serves one owner and names its peers on Windows'
 
 # Run a command line in the desktop session, elevated, and return its exit code.
 function Invoke-Desktop([string]$Name, [string[]]$Lines, [int]$Timeout) {
@@ -77,6 +86,20 @@ Get-Content "$work\keyring.log" -ErrorAction SilentlyContinue | Where-Object { $
 if ($code -ne 0) { "vm-check: keyring: FAILED (exit $code)"; $failed = "$failed keyring" }
 else { 'vm-check: the Credential Manager stores, replaces and deletes a password' }
 
+# 2c. A stored password is the user's, not the application folder's: one copy of the program
+# leaves it, that copy's folder is removed, and another copy finds it.
+New-Item -ItemType Directory -Force "$work\app1", "$work\app2" | Out-Null
+Copy-Item "$work\keyring.test.exe" "$work\app1\keyring.test.exe" -Force
+$code = Invoke-Desktop 'leave' @('set GO_MICROSIP_KEYRING_TEST=leave',
+    "`"$work\app1\keyring.test.exe`" -test.v -test.run TestAStoredPasswordOutlivesTheRunThatLeftIt") 120
+Remove-Item -Recurse -Force "$work\app1"
+Copy-Item "$work\keyring.test.exe" "$work\app2\keyring.test.exe" -Force
+$found = Invoke-Desktop 'find' @('set GO_MICROSIP_KEYRING_TEST=find',
+    "`"$work\app2\keyring.test.exe`" -test.v -test.run TestAStoredPasswordOutlivesTheRunThatLeftIt") 120
+Get-Content "$work\find.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match 'keyring_test|^(--- |FAIL|panic)' } | ForEach-Object { "vm-check: keyring: $_" }
+if ($code -ne 0 -or $found -ne 0 -or (Test-Path "$work\app1")) { "vm-check: keyring: FAILED: a password did not outlive its application folder (leave $code, find $found)"; $failed = "$failed keyring-folder" }
+else { 'vm-check: a stored password outlives the removal of the application folder that stored it' }
+
 # 3. The window on WebView2, and the page's confinement as the self-test finds it.
 $script:Samples = 0
 $script:Listening = @{}
@@ -99,5 +122,11 @@ $code = Invoke-Desktop 'skins' @("powershell -NoProfile -ExecutionPolicy Bypass 
 Get-Content "$work\skins.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^skin:' } | ForEach-Object { "vm-check: $_" }
 if ($code -ne 0) { "vm-check: skins: FAILED (exit $code)"; Get-Content "$work\skins.log" -Tail 8 -ErrorAction SilentlyContinue; $failed = "$failed skins" }
 else { 'vm-check: the seven skins drawn on WebView2, each with its bundled font' }
+
+# 5. The desktop's side of the window: links, the control socket, a second start, the tray.
+$code = Invoke-Desktop 'desktop' @("powershell -NoProfile -ExecutionPolicy Bypass -File C:\vagrant\desktop.ps1 -Exe `"$work\go-microsip.exe`" -Work `"$work`" -ControlTest `"$work\control.test.exe`" -Shots C:\dist\vm") 420
+Get-Content "$work\desktop.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^desktop:' } | ForEach-Object { "vm-check: $_" }
+if ($code -ne 0) { "vm-check: desktop: FAILED (exit $code)"; Get-Content "$work\desktop.log" -Tail 6 -ErrorAction SilentlyContinue; $failed = "$failed desktop" }
+else { 'vm-check: links, agent control, the second start and the tray pass on Windows' }
 if ($failed) { "vm-check: FAIL $($os.Caption): $failed"; exit 1 }
 "vm-check: PASS $($os.Caption)"

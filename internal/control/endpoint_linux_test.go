@@ -151,13 +151,13 @@ func TestNoOwnerIsUnavailableAndNothingIsStarted(t *testing.T) {
 	} else {
 		client.Close()
 	}
-	if _, err := RuntimeDir(map[string]string{}); !errors.Is(err, ErrNoRuntimeDir) {
+	if _, err := RuntimeDir(func(string) string { return "" }); !errors.Is(err, ErrNoRuntimeDir) {
 		t.Errorf("no XDG_RUNTIME_DIR: %v", err)
 	}
-	if _, err := RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": "relative"}); !errors.Is(err, ErrNoRuntimeDir) {
+	if _, err := RuntimeDir(func(string) string { return "relative" }); !errors.Is(err, ErrNoRuntimeDir) {
 		t.Errorf("a relative XDG_RUNTIME_DIR: %v", err)
 	}
-	if got, err := RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": "/run/user/1000"}); err != nil || got != "/run/user/1000/go-microsip" {
+	if got, err := RuntimeDir(func(string) string { return "/run/user/1000" }); err != nil || got != "/run/user/1000/go-microsip" {
 		t.Errorf("the runtime directory: %q, %v", got, err)
 	}
 }
