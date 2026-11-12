@@ -4,21 +4,21 @@ vm-check: libwebkitgtk-6.0-4 2.54.0-1~deb13u3 (ii )
 vm-check: headless version and doctor OK
 vm-check: audio: --- PASS: TestNoService (0.00s)
 vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
-vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 24 ms, 0 samples dropped); speaker 1996 of 1996 10 ms pieces (longest silence 0 pieces, arrival gap 60 ms, 0 samples dropped or silent)
-vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 15 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 322 ms between frames); capture: 2560 samples dropped; playback: 31 of 196 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 322 ms without samples); playback: 2347 samples dropped or silent, over 0.5 %
-vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 155.441µs, microphone back after 171.974934ms
+vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 23 ms, 0 samples dropped); speaker 1990 of 1995 10 ms pieces (longest silence 0 pieces, arrival gap 79 ms, 0 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 15 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 322 ms between frames); capture: 2560 samples dropped; playback: 31 of 194 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 322 ms without samples); playback: 2347 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 132.708µs, microphone back after 168.306389ms
 vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 96 pieces, longest silence 0 pieces
-vm-check: audio: --- PASS: TestPulseLoopback (28.15s)
+vm-check: audio: --- PASS: TestPulseLoopback (28.14s)
 vm-check: audio: PASS
 vm-check: audio adapter OK on the distribution's audio service
 vm-check: desktop session: GNOME on wayland, GNOME Shell 48.7
 vm-check: window: AppImage: opened and the page called the backend
 vm-check: the AppImage window passed with the default start
-vm-check: system skin: followed the desktop to dark in 320 ms and back to light in 215 ms
+vm-check: system skin: followed the desktop to dark in 319 ms and back to light in 215 ms
 vm-check: tray: this desktop has no tray host: the window has no tray icon
 vm-check: notifications:     desktop_linux_test.go:31: the desktop's notification service: gnome-shell 48.7 (GNOME); buttons offered: true
-vm-check: notifications:     desktop_linux_test.go:47: the service took notification 8 away (reason 3) when the call was over
-vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.04s)
+vm-check: notifications:     desktop_linux_test.go:47: the service took notification 9 away (reason 3) when the call was over
+vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.03s)
 vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 4ms, no prompt left open
 vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.00s)
 vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.02s)

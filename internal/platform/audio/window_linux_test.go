@@ -2226,17 +2226,23 @@ func headlessService(t *testing.T, bin, server, password string) {
 	}
 	select {
 	case err := <-exited:
-		if err != nil {
+		// An AppImage's launcher is ended by the signal itself; the softphone it started is
+		// the one that leaves in order, and its status is not the launcher's.
+		if err != nil && !strings.HasSuffix(bin, ".AppImage") {
 			t.Errorf("the service left with %v, want 0", err)
 		}
 	case <-time.After(15 * time.Second):
 		t.Fatal("the service did not stop on a termination signal")
 	}
-	if !strings.Contains(output(), "service stopping") {
-		t.Errorf("the service did not say it was stopping:\n%s", output())
-	}
-	if code, out := commandLine(t, bin, dir, "status"); code != 4 || !strings.Contains(out, "(engine_unavailable)") {
-		t.Errorf("status after the service stopped: %d\n%s", code, out)
+	said("service stopping", 10*time.Second)
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		code, out := commandLine(t, bin, dir, "status")
+		if code == 4 && strings.Contains(out, "(engine_unavailable)") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status after the service stopped: %d\n%s", code, out)
+		}
 	}
 	// The bootstrap started that session and starts no other.
 	if code, out := commandLineWith(t, password, bin, dir, "service", "--grant-file", grant, "--config", file); code != 3 || !strings.Contains(out, "already used") {

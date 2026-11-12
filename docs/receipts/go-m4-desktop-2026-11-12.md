@@ -185,18 +185,19 @@ Independent review: Codex round 6 found the M4 work in its extract sound with tw
 
 ## Runs
 
-Artifacts `0.3.0-m3` of commit `c5debaa` (`make go-dist`, `dirty false`, checksums verified). The checks ran on that commit's tree; the two fixes made after it are in the lab test and in the VM check, not in what is built.
+Artifacts `0.3.0-m3` of commit `eec4a52` (`make go-dist`, `dirty false`, checksums verified). The checks ran on that commit's tree; one fix made after it is in the lab test (it waits for the softphone an AppImage's launcher leaves behind, and does not take the launcher's exit status for the service's), not in what is built.
 
 | Command | Result |
 | --- | --- |
-| `make go-check`, `make go-test` | pass |
-| `make go-frontend-test` | not run again: the page is as in commit `aec4441` (33 of 33 there) |
-| `make go-window-call` | pass, 11 walkthroughs and the seven skins at 100 and 200 % ([log](go-m4/window-call.log)) |
-| `make go-appimage-call` | pass: the AppImage through the same 25 subtests, agent control among them ([log](go-m4/appimage-call.log)). Its first run failed one check of the test, not of the application: the test asked for "unavailable" the moment the AppImage's launcher ended, while the softphone it had started was still leaving; the test now waits for it |
-| `make go-self-test` | pass |
-| `make go-offline-skins`, `make go-notify`, `make go-keyring`, `make go-lab` | not run again: nothing they exercise changed since their runs recorded for commits `aec4441` and `3b6b8bf` |
-| `KEEP=1 make go-vm GO_VMS="debian13 ubuntu2604" SECONDS=20` | pass on both, with the desktop's services and the Rust candidate beside ([Ubuntu](go-m4/vm-ubuntu2604-beside.log), [Debian](go-m4/vm-debian13-beside.log)); 20 s of sound, which passed on both |
+| `make go-check`, `make go-test`, `make go-frontend-test` | pass (34 page tests) |
+| `make go-headless` | pass: version, doctor, the MCP handshake and the tool list with no display |
+| `frontend/scripts/prints.sh`, `scale-check.sh`, `keyboard-check.sh` | pass: 210 of 210 screens, 84 of 84 states, a ring on every control of 84 screens, 12 of 12 controls caught; scale and keyboard as before ([scale](go-m4/scale-check.log), [keyboard](go-m4/keyboard-check.log)). The scale check does not measure the Agent access screen |
+| `make go-window-call` | pass, 13 walkthroughs and the seven skins at 100 and 200 % ([log](go-m4/window-call.log)) |
+| `make go-appimage-call` | pass: the AppImage through the same 27 subtests ([log](go-m4/appimage-call.log)). Its first run failed one check of the test, not of the application: an AppImage's launcher is ended by the termination signal itself, and the test took its status for the service's |
+| `make go-self-test`, `make go-offline-skins` | pass |
+| `make go-notify`, `make go-keyring`, `make go-lab` | not run again: nothing they exercise changed since their runs recorded for commits `aec4441` and `3b6b8bf` |
+| `KEEP=1 make go-vm GO_VMS="ubuntu2604 debian13" SECONDS=20` | pass on both, with the desktop's services and the Rust candidate beside this commit's AppImage ([Ubuntu](go-m4/vm-ubuntu2604-beside.log), [Debian](go-m4/vm-debian13-beside.log)); 20 s of sound, which passed on both. The VMs do not run the command line, the MCP server or the service |
 | the five-minute sound threshold | last run on commit `69c0dc9`: Ubuntu 26.04 passed ([log](go-m4/vm-ubuntu2604.log)); **Debian 13 failed** by one stretch of 99 ms without samples on the speaker (29929 of 29995 pieces arrived), in a VM that is reused and shares the host with the Ubuntu one ([log](go-m4/vm-debian13.log); a repeat of one minute passed: [log](go-m4/vm-debian13-repeat.log)). The sound adapter is the one that passed five minutes on a clean Debian VM at commit `4a5bd14` ([log](go-m3/vm-debian13.log)). Not explained further: to be run again on a clean VM before task 7.2 relies on it |
-| Windows 11 VM | not run again: the run of commit `4a5bd14` stands (the instance lock, the Credential Manager, the window, no listening port and the seven skins pass; the emulated sound card fails the audio threshold: [log](go-m3/vm-windows11.log)) |
+| Windows 11 VM | not run again: the run of commit `4a5bd14` stands (the instance lock, the Credential Manager, the window, no listening port and the seven skins pass; the emulated sound card fails the audio threshold: [log](go-m3/vm-windows11.log)). The `.exe` of this commit has no agent control: its transport is task 6.3 |
 
 The two Linux VMs are kept up between runs from here on, by the owner's decision of 2026-11-12, and are destroyed when the change's tasks are done (`cd build/vm && vagrant destroy -f`). They stay on VirtualBox's NAT, with the two read-only shared folders. A run in a VM that was used before is not a run on a clean installation: the first run of each VM in this session was one, the later ones were not.
