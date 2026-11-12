@@ -146,6 +146,21 @@ func TestCallNotificationsOnASessionBus(t *testing.T) {
 	if again := fake.shown[2]; again.replaces != first.id || again.id != first.id {
 		t.Errorf("call 7 shown again as %+v, want a replacement of %d", again, first.id)
 	}
+	// Call 8 stops ringing with no decision: its notification gives way to a missed call's, with
+	// the caller as plain text and no button, which is not taken away and decides nothing.
+	d.Missed(8, "<i>Bia</i>")
+	fake.wait(t, "the missed call 8", func() bool { return len(fake.shown) == 4 })
+	if missed := fake.shown[3]; missed.replaces != second.id || missed.summary != "Missed call" ||
+		missed.body != "&lt;i&gt;Bia&lt;/i&gt;" || len(missed.actions) != 0 || missed.urgency != 1 {
+		t.Errorf("the missed call 8: %+v, want a replacement of %d with no button", missed, second.id)
+	}
+	d.Close(8)
+	fake.press(second.id, "answer")
+	select {
+	case a := <-d.Actions():
+		t.Errorf("a missed call's notification decided %+v", a)
+	case <-time.After(300 * time.Millisecond):
+	}
 	d.Close(7)
 	fake.wait(t, "the notification of call 7 taken away", func() bool { return slices.Contains(fake.closed, first.id) })
 	d.Close(7) // already gone: nothing more is asked

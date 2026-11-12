@@ -115,6 +115,10 @@ type CallNotice interface {
 	// Close takes the call's notification away: the call was answered, refused or is over. It
 	// never blocks.
 	Close(call uint64)
+	// Missed says that the call stopped ringing with nobody having answered or refused it: the
+	// call's notification gives way to one that names the caller, as plain text, and stays. It
+	// never blocks.
+	Missed(call uint64, caller string)
 	// Actions delivers the buttons pressed on notifications.
 	Actions() <-chan CallNoticeAction
 }

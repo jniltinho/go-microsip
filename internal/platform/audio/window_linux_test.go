@@ -1630,11 +1630,11 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	w.until(5*time.Second, "the window back in sight for the incoming call", inSight)
 	// The desktop was asked to notify the call, with the caller as the network named it and two
 	// buttons; Reject, pressed there, refuses the call.
-	notice := desk.wait(t, "the notification of the second incoming call", func(n notice) bool { return n.id > before })
-	if notice.summary != "Incoming call" || notice.body != peer || !slices.Equal(notice.actions, []string{"answer", "Answer", "reject", "Reject"}) {
-		t.Errorf("the notification of the incoming call: %+v, want the caller %s and the two buttons", notice, peer)
+	second := desk.wait(t, "the notification of the second incoming call", func(n notice) bool { return n.id > before })
+	if second.summary != "Incoming call" || second.body != peer || !slices.Equal(second.actions, []string{"answer", "Answer", "reject", "Reject"}) {
+		t.Errorf("the notification of the incoming call: %+v, want the caller %s and the two buttons", second, peer)
 	}
-	desk.press(notice.id, "reject")
+	desk.press(second.id, "reject")
 	w.until(15*time.Second, "the refused call ended", func() bool { return w.call.Phase == "ended" && shownPhase(w.page.Text) == "" })
 	if w.call.EndReason != "rejected" {
 		t.Errorf("the refused call ended as %q", w.call.EndReason)
@@ -1647,10 +1647,33 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	case <-time.After(15 * time.Second):
 		t.Error("the caller was not told that its call was refused")
 	}
+	// It calls a third time and gives up while the call rings: the call's notification gives way
+	// to a missed call's, with the caller and no button, and the history says Missed.
+	before = desk.last()
+	gaveUp, left := other()
+	w.until(30*time.Second, "the third incoming call shown", func() bool {
+		return w.call.Phase == "ringing" && w.call.Direction == "incoming" && w.shows("Incoming call")
+	})
+	unanswered := desk.wait(t, "the notification of the third incoming call", func(n notice) bool { return n.id > before })
+	_ = syscall.Kill(-gaveUp.Process.Pid, syscall.SIGINT)
+	select {
+	case <-left:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the caller's softphone did not stop")
+	}
+	w.until(15*time.Second, "the call the caller gave up ended", func() bool { return w.call.Phase == "ended" && shownPhase(w.page.Text) == "" })
+	if w.call.EndReason != "canceled" {
+		t.Errorf("the call the caller gave up ended as %q", w.call.EndReason)
+	}
+	missed := desk.wait(t, "the notification of the missed call", func(n notice) bool { return n.summary == "Missed call" && n.id > before })
+	if missed.id != unanswered.id || missed.body != peer || len(missed.actions) != 0 {
+		t.Errorf("the notification of the missed call: %+v, want that of the ringing call (%d) replaced, the caller %s and no button", missed, unanswered.id, peer)
+	}
 	w.click("Calls")
-	w.until(10*time.Second, "the three calls in the history", func() bool {
+	w.until(10*time.Second, "the four calls in the history", func() bool {
 		rows := func(what string) int { return strings.Count(w.page.Text, what) }
-		return rows("Outgoing · Answered") == 1 && rows("Incoming · Answered") == 1 && rows("Incoming · Rejected") == 1 && w.shows(hostile)
+		return rows("Outgoing · Answered") == 1 && rows("Incoming · Answered") == 1 && rows("Incoming · Rejected") == 1 &&
+			rows("Missed · ") == 1 && w.shows(hostile)
 	})
 	w.shot(user + "-8-history")
 	if w.page.Images != 0 {

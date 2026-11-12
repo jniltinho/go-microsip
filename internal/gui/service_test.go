@@ -515,6 +515,12 @@ func (n *noticeBoard) Close(call uint64) {
 	n.mu.Unlock()
 }
 
+func (n *noticeBoard) Missed(call uint64, caller string) {
+	n.mu.Lock()
+	n.asked = append(n.asked, fmt.Sprintf("missed %d %s", call, caller))
+	n.mu.Unlock()
+}
+
 func (n *noticeBoard) Actions() <-chan ports.CallNoticeAction { return n.actions }
 
 func (n *noticeBoard) all() []string {
@@ -523,8 +529,10 @@ func (n *noticeBoard) all() []string {
 	return append([]string(nil), n.asked...)
 }
 
-// A call that rings here gets a notification, which goes when the call is answered, refused or
-// over; its buttons answer and refuse that call. A call placed from here gets none.
+// A call that rings here gets a notification, which goes when the call is answered or refused;
+// its buttons answer and refuse that call. A call that stops ringing with no decision, because
+// the caller gave up or nobody answered in time, is notified as missed. A call placed from here
+// gets none.
 func TestARingingCallIsNotifiedAndItsButtonsDecide(t *testing.T) {
 	board := &noticeBoard{actions: make(chan ports.CallNoticeAction)}
 	stream := make(chan domain.Event)
@@ -545,8 +553,12 @@ func TestARingingCallIsNotifiedAndItsButtonsDecide(t *testing.T) {
 	go func() { defer close(done); svc.forward() }()
 	decided := make(chan struct{})
 	go func() { defer close(decided); svc.decide(board.actions) }()
-	call := func(id domain.CallID, direction domain.Direction, phase domain.PhaseKind, version uint64) {
-		stream <- domain.CallChanged{Call: domain.CallSnapshot{ID: id, Direction: direction, Remote: "1002", Phase: domain.CallPhase{Kind: phase}, Version: version}}
+	call := func(id domain.CallID, direction domain.Direction, phase domain.PhaseKind, version uint64, end ...domain.EndReason) {
+		snap := domain.CallSnapshot{ID: id, Direction: direction, Remote: "1002", Phase: domain.CallPhase{Kind: phase}, Version: version}
+		if len(end) > 0 {
+			snap.Phase.End = end[0]
+		}
+		stream <- domain.CallChanged{Call: snap}
 	}
 	call(1, domain.Outgoing, domain.Ringing, 1) // placed from here: nothing to notify
 	call(1, domain.Outgoing, domain.Ended, 2)
@@ -557,12 +569,17 @@ func TestARingingCallIsNotifiedAndItsButtonsDecide(t *testing.T) {
 	call(2, domain.Incoming, domain.Ended, 4)
 	call(3, domain.Incoming, domain.Ringing, 1)
 	board.actions <- ports.CallNoticeAction{Call: 3}
-	call(3, domain.Incoming, domain.Ended, 2)
+	call(3, domain.Incoming, domain.Ended, 2, domain.EndRejected)
+	call(4, domain.Incoming, domain.Ringing, 1)
+	call(4, domain.Incoming, domain.Ended, 2, domain.EndCanceled) // the caller gave up
+	call(5, domain.Incoming, domain.Ringing, 1)
+	call(5, domain.Incoming, domain.Ended, 2, domain.EndNoAnswer) // nobody decided in time
 	close(stream)
 	<-done
 	close(board.actions)
 	<-decided // every button was acted on
-	if got, want := board.all(), []string{"incoming 2 1002", "close 2", "incoming 3 1002", "close 3"}; !slices.Equal(got, want) {
+	if got, want := board.all(), []string{"incoming 2 1002", "close 2", "incoming 3 1002", "close 3",
+		"incoming 4 1002", "missed 4 1002", "incoming 5 1002", "missed 5 1002"}; !slices.Equal(got, want) {
 		t.Errorf("the notifications asked for: %v, want %v", got, want)
 	}
 	mu.Lock()

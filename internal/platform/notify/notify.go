@@ -1,5 +1,5 @@
 // Package notify shows the desktop's notification of a call that rings, with Answer and Reject
-// where the desktop offers buttons: org.freedesktop.Notifications on Linux, as the Rust candidate
+// where the desktop offers buttons, and of a call that was missed: org.freedesktop.Notifications on Linux, as the Rust candidate
 // (LIN-01), and a toast on Windows. The caller's name is the other party's text and is shown as plain text.
 package notify
 
@@ -108,11 +108,20 @@ func (t *toasts) pressed(arguments string) (ports.CallNoticeAction, bool) {
 	return ports.CallNoticeAction{Call: call, Answer: part[0] == "answer"}, true
 }
 
-// request is one thing asked of the desktop.
+// missedXML is the notification of a call nobody answered: the caller, already made plain text,
+// and no button.
+func missedXML(caller string) string {
+	return `<toast><visual><binding template="ToastGeneric"><text>Missed call</text><text>` + caller +
+		`</text></binding></visual></toast>`
+}
+
+// request is one thing asked of the desktop: show the ringing call, say that it was missed, or,
+// with neither, take its notification away.
 type request struct {
 	call   uint64
-	caller string // empty: close the call's notification
+	caller string
 	show   bool
+	missed bool
 }
 
 // Desktop implements ports.CallNotice on the session's notification service.
@@ -141,6 +150,14 @@ func (d *Desktop) Incoming(call uint64, caller string) {
 func (d *Desktop) Close(call uint64) {
 	select {
 	case d.requests <- request{call: call}:
+	default:
+	}
+}
+
+// Missed replaces the call's notification with one that says who called.
+func (d *Desktop) Missed(call uint64, caller string) {
+	select {
+	case d.requests <- request{call: call, caller: callerText(caller), missed: true}:
 	default:
 	}
 }

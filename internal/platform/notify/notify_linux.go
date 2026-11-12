@@ -90,20 +90,31 @@ func (d *Desktop) serve() {
 			ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 			service := conn.Object(dest, path)
 			switch id, known := shown[r.call]; {
-			case r.show:
+			case r.show, r.missed:
+				// A missed call takes the place of its ringing notification, with no button, and
+				// stays for as long as the desktop keeps such notifications.
+				summary, urgency, category, expire := "Incoming call", byte(2), "call.incoming", int32(expireMS)
 				var actions []string
-				if buttons {
+				if r.missed {
+					summary, urgency, category, expire = "Missed call", 1, "call.unanswered", -1
+				} else if buttons {
 					actions = []string{"answer", "Answer", "reject", "Reject"}
 				}
 				hints := map[string]dbus.Variant{
-					"urgency":       dbus.MakeVariant(byte(2)),
-					"category":      dbus.MakeVariant("call.incoming"),
+					"urgency":       dbus.MakeVariant(urgency),
+					"category":      dbus.MakeVariant(category),
 					"desktop-entry": dbus.MakeVariant("go-microsip"),
 				}
 				var fresh uint32
 				err := service.CallWithContext(ctx, dest+".Notify", 0, "go-microsip", id, "go-microsip",
-					"Incoming call", r.caller, actions, hints, int32(expireMS)).Store(&fresh)
-				if err == nil {
+					summary, r.caller, actions, hints, expire).Store(&fresh)
+				switch {
+				case r.missed:
+					delete(shown, r.call) // nothing of this call is left to decide or to take away
+					if err != nil && known {
+						_ = service.CallWithContext(ctx, dest+".CloseNotification", 0, id).Err
+					}
+				case err == nil:
 					shown[r.call] = fresh
 				}
 			case known:

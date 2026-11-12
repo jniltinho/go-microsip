@@ -76,3 +76,11 @@ func TestAToastNamesTheRunAndTheCallInItsButtons(t *testing.T) {
 		t.Errorf("the Reject button read as %+v, %v", got, ok)
 	}
 }
+
+// A missed call's toast names the caller as plain text and offers nothing to press.
+func TestAMissedCallsToastHasNoButton(t *testing.T) {
+	xml := missedXML(callerText(`Ana <b>&`))
+	if !strings.Contains(xml, `<text>Missed call</text><text>Ana &lt;b&gt;&amp;</text>`) || strings.Contains(xml, "action") {
+		t.Errorf("the toast of a missed call:\n%s", xml)
+	}
+}

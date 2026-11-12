@@ -21,12 +21,17 @@ const (
 // shown is this run's notifications; a button of one from an earlier run decides nothing.
 var shown = newToasts()
 
-// show registers go-microsip with the notifications of this user, once, and shows the call.
-func show(call uint64, caller string) error {
+// push registers go-microsip with the notifications of this user, once, and shows a toast.
+func push(xml string) error {
 	if err := wintoast.SetAppData(wintoast.AppData{AppID: toastApp, GUID: toastActivator}); err != nil {
 		return err
 	}
-	err := wintoast.Push(toastApp, shown.xml(call, caller))
+	return wintoast.Push(toastApp, xml)
+}
+
+// show shows the ringing call.
+func show(call uint64, caller string) error {
+	err := push(shown.xml(call, caller))
 	if err != nil {
 		shown.closed(call)
 	}
@@ -83,7 +88,7 @@ func forget() error {
 }
 
 // serve shows each ringing call as a toast, takes the toast away when the call stops ringing,
-// and passes its buttons on.
+// shows a missed call as a toast of its own, and passes the buttons on.
 func (d *Desktop) serve() {
 	// The Windows Runtime is initialized for this thread by the toast library, once, when it
 	// shows its first toast, and it takes a thread that is initialized already for a failure:
@@ -105,6 +110,12 @@ func (d *Desktop) serve() {
 		}
 		if r.show {
 			_ = show(r.call, r.caller) // without notifications the window is the way to answer
+		}
+		if r.missed {
+			// shortcut: forgetting takes every toast of go-microsip away, a missed call's too, so
+			// it leaves the notification center when the next call's toast does; upgrade to a
+			// toast per tag when the toast library can set one.
+			_ = push(missedXML(r.caller))
 		}
 	}
 }
