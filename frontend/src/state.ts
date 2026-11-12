@@ -202,6 +202,9 @@ export class UiState {
   }
   /** Status bar account text. */
   get accountText(): string {
+    // The engine's own account while it uses one: what is saved may not have been taken yet.
+    if (this.registration.state !== "disabled" && this.registration.account)
+      return this.registration.account;
     return this.account
       ? `${this.account.username}@${this.account.domain}`
       : "No account configured";

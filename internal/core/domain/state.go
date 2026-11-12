@@ -316,8 +316,13 @@ type Event interface{ event() }
 
 // Events.
 type (
-	// RegistrationChanged carries the new registration state.
-	RegistrationChanged struct{ State RegistrationState }
+	// RegistrationChanged carries the new registration state and the account it is about, as
+	// "user@domain": the account the engine uses, whatever a front end has saved or shows. It is
+	// empty when the registration is disabled.
+	RegistrationChanged struct {
+		State   RegistrationState
+		Account string
+	}
 	// CallChanged carries a call's new snapshot; the last one of a call has a final phase.
 	CallChanged struct{ Call CallSnapshot }
 	// Noticed carries a refusal or a fault.

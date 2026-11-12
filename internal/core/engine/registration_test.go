@@ -153,3 +153,50 @@ func TestATLSAccountDoesNotRegisterWithoutItsBundle(t *testing.T) {
 		t.Errorf("a TCP account on the same engine: %v, want it to try", got)
 	}
 }
+
+// A registration event names the account the engine uses: a front end shows that, not what it has
+// saved, so a registration the engine refused never changes the identity on screen.
+func TestRegistrationEventsNameTheEnginesAccount(t *testing.T) {
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := uint16(probe.Addr().(*net.TCPAddr).Port)
+	probe.Close() // nothing listens: the account never registers, which is all this needs
+	e := Start(Options{Audio: &memory.Audio{}})
+	defer e.Send(domain.Shutdown{})
+	next := func() domain.RegistrationChanged {
+		t.Helper()
+		for deadline := time.After(registerTimeout + 3*time.Second); ; {
+			select {
+			case ev := <-e.Events():
+				if r, ok := ev.(domain.RegistrationChanged); ok {
+					return r
+				}
+			case <-deadline:
+				t.Fatal("no registration event")
+			}
+		}
+	}
+	account := domain.AccountSettings{Username: "1001", Domain: "pbx.invalid", Server: "127.0.0.1", Port: port, Transport: domain.TCP, Expires: 60}
+	e.Send(domain.Register{Password: domain.NewSecret("x"), Settings: account})
+	if r := next(); r.State.Status != domain.Registering || r.Account != "1001@pbx.invalid" {
+		t.Fatalf("first event %+v", r)
+	}
+	account.Username = "1002"
+	e.Send(domain.Register{Password: domain.NewSecret("x"), Settings: account})
+	for r := next(); r.Account != "1002@pbx.invalid"; r = next() {
+		if r.State.Status == domain.Registered {
+			t.Fatalf("an event for the first account after the second was asked: %+v", r)
+		}
+	}
+	e.Send(domain.Unregister{})
+	for r := next(); ; r = next() {
+		if r.State.Status == domain.Disabled {
+			if r.Account != "" {
+				t.Errorf("a disabled registration names %q", r.Account)
+			}
+			break
+		}
+	}
+}

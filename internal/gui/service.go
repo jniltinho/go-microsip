@@ -32,7 +32,7 @@ type App struct {
 	subscribed   bool
 	quitting     bool
 	stopped      bool
-	registration domain.RegistrationState
+	registration domain.RegistrationChanged
 	call         *domain.CallSnapshot
 }
 
@@ -89,7 +89,7 @@ func (a *App) forward() {
 		a.mu.Lock()
 		switch ev := ev.(type) {
 		case domain.RegistrationChanged:
-			a.registration = ev.State
+			a.registration = ev
 		case domain.CallChanged:
 			a.call = nil
 			if !ev.Call.Phase.IsFinal() {
@@ -117,7 +117,7 @@ func (a *App) Subscribe() error {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.emit(uiEvent(domain.RegistrationChanged{State: a.registration}))
+	a.emit(uiEvent(a.registration))
 	if a.call != nil {
 		a.emit(uiEvent(domain.CallChanged{Call: *a.call}))
 	}
@@ -495,6 +495,8 @@ type Registration struct {
 	State  string `json:"state"`
 	Reason string `json:"reason,omitempty"`
 	Code   uint16 `json:"code,omitempty"`
+	// Account is the account the engine uses, as "user@domain"; absent when it uses none.
+	Account string `json:"account,omitempty"`
 }
 
 // Transfer is the progress of a blind transfer.
@@ -539,7 +541,7 @@ type UIEvent struct {
 func uiEvent(ev domain.Event) UIEvent {
 	switch ev := ev.(type) {
 	case domain.RegistrationChanged:
-		r := Registration{State: ev.State.Status.String()}
+		r := Registration{State: ev.State.Status.String(), Account: ev.Account}
 		if ev.State.Status == domain.RegistrationFailed {
 			r.Reason = ev.State.Failure.String()
 			if ev.State.Failure == domain.Rejected {

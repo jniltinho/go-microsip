@@ -248,6 +248,30 @@ test("an account is not saved or shown during a call", async () => {
   expect(st.notice(0)).toBe("Another call is already active");
 });
 
+test("the header names the engine's account, not one it has not taken", async () => {
+  const [st, b] = fresh();
+  st.hasPassword = true;
+  st.applyEvent({
+    type: "registration",
+    registration: { state: "registered", account: "1001@pbx.invalid" },
+  });
+  // A call comes in while the save is on its way; the registration that follows is refused.
+  const save = b.saveSettings;
+  b.saveSettings = (patch: object) => {
+    call(st, snap(9, "incoming", "ringing", 1));
+    b.fail = "busy";
+    return save(patch);
+  };
+  const other = { ...account(), username: "1005" };
+  await run(st, [{ type: "saveAccount", account: other, password: "x" }]);
+  expect(b.saved.length, "the account was saved before the call came").toBe(1);
+  expect(st.notice(0)).toBe("Another call is already active");
+  expect(st.accountText, "the engine still uses the first account").toBe("1001@pbx.invalid");
+  // Without an engine account (not registered at all) the saved one is what there is to show.
+  st.applyEvent({ type: "registration", registration: { state: "disabled" } });
+  expect(st.accountText).toBe("1005@" + other.domain);
+});
+
 test("a refused shutdown can be tried again", async () => {
   const [st, b] = fresh();
   b.fail = "overloaded";

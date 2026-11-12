@@ -39,6 +39,11 @@ export interface Registration {
   state: "disabled" | "registering" | "registered" | "failed";
   reason?: RegistrationFailure;
   code?: number;
+  /**
+   * The account the engine uses, as "user@domain"; absent when it uses none. The window shows this
+   * one: a saved account the engine has not taken (a call was in the way) is not the live one.
+   */
+  account?: string;
 }
 
 export type Direction = "outgoing" | "incoming";

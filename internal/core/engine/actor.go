@@ -49,8 +49,10 @@ type actor struct {
 	ctx        context.Context // ends with the account
 	cancel     context.CancelFunc
 	reg        domain.RegistrationState
-	attempts   int
-	retry      *time.Timer
+	// identity is the account the last reported registration state was about.
+	identity string
+	attempts int
+	retry    *time.Timer
 
 	dnd      bool
 	call     *call
@@ -121,9 +123,14 @@ func (a *actor) emit(ev domain.Event)   { a.e.events.emit(ev) }
 func (a *actor) notice(n domain.Notice) { a.emit(domain.Noticed{Notice: n}) }
 
 func (a *actor) setRegistration(s domain.RegistrationState) {
-	if a.reg != s {
-		a.reg = s
-		a.emit(domain.RegistrationChanged{State: s})
+	// The account the state is about: the one this engine holds, not what a front end saved.
+	identity := ""
+	if s.Status != domain.Disabled {
+		identity = a.account.Settings.Username + "@" + a.account.Settings.Domain
+	}
+	if a.reg != s || a.identity != identity {
+		a.reg, a.identity = s, identity
+		a.emit(domain.RegistrationChanged{State: s, Account: identity})
 	}
 }
 
@@ -168,6 +175,7 @@ func (a *actor) register(c domain.Register) {
 		return
 	}
 	a.dropAccount()
+	a.account = sip.Account{Settings: c.Settings, Password: c.Password, CA: a.e.opts.CA, UserAgent: a.e.opts.UserAgent, Codecs: a.e.opts.Codecs}
 	if err := a.e.opts.Untrusted; err != nil && c.Settings.Transport == domain.TLS {
 		// The bundle this account must be checked against is not there: nothing is sent, and no
 		// retry would change that.
@@ -176,7 +184,6 @@ func (a *actor) register(c domain.Register) {
 		a.setRegistration(domain.RegistrationState{Status: domain.RegistrationFailed, Failure: domain.Certificate})
 		return
 	}
-	a.account = sip.Account{Settings: c.Settings, Password: c.Password, CA: a.e.opts.CA, UserAgent: a.e.opts.UserAgent, Codecs: a.e.opts.Codecs}
 	a.configured, a.attempts = true, 0
 	a.connect()
 }

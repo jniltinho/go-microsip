@@ -31,6 +31,10 @@ func TestEventsHaveTheContractsShape(t *testing.T) {
 	}{
 		{domain.RegistrationChanged{State: domain.RegistrationState{Status: domain.Registered}}, `{"type":"registration","registration":{"state":"registered"}}`},
 		{
+			domain.RegistrationChanged{State: domain.RegistrationState{Status: domain.Registered}, Account: "1001@pbx.invalid"},
+			`{"type":"registration","registration":{"state":"registered","account":"1001@pbx.invalid"}}`,
+		},
+		{
 			domain.RegistrationChanged{State: domain.RegistrationState{Status: domain.RegistrationFailed, Failure: domain.Rejected, Code: 503}},
 			`{"type":"registration","registration":{"state":"failed","reason":"rejected","code":503}}`,
 		},
