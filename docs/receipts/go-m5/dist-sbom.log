@@ -1,0 +1,3 @@
+licenses: 81 components in dist/go/THIRD_PARTY_NOTICES.txt
+sbom: 81 components in dist/go/sbom.cdx.json: 53 Go modules, 24 npm packages, 4 fonts
+dist: 6 files in SHA256SUMS, commit f7ba1c95d409, dirty false
