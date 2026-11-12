@@ -1,0 +1,126 @@
+GO_IMAGE=go-microsip-build:13 scripts/go-docker.sh sh -c 'cd frontend && npm ci --no-audit --no-fund && npm run build'
+
+added 118 packages in 875ms
+
+> build
+> vp build
+
+transforming...
+✓ 74 modules transformed.
+rendering chunks...
+computing gzip size...
+../internal/gui/dist/index.html                                    0.39 kB │ gzip:  0.26 kB
+../internal/gui/dist/assets/JetBrainsMono-Regular-CLxBbm7c.ttf   264.88 kB
+../internal/gui/dist/assets/JetBrainsMono-SemiBold-Ct3wvqB5.ttf  268.02 kB
+../internal/gui/dist/assets/LiberationSans-Regular-BrSUJeAa.ttf  410.82 kB
+../internal/gui/dist/assets/LiberationSans-Bold-DyfNtbQO.ttf     414.56 kB
+../internal/gui/dist/assets/DejaVuSans-Bold-BvvcW4uy.ttf         708.92 kB
+../internal/gui/dist/assets/DejaVuSans-CmhfEOKb.ttf              759.72 kB
+../internal/gui/dist/assets/InterVariable-DEKF4JyX.ttf           879.70 kB
+../internal/gui/dist/assets/index-PM85nf4X.css                    42.21 kB │ gzip:  9.53 kB
+../internal/gui/dist/assets/dist-BY5SQJ2_.js                      54.52 kB │ gzip: 16.92 kB
+../internal/gui/dist/assets/index-nEQcDXJP.js                    134.31 kB │ gzip: 46.18 kB
+
+✓ built in 166ms
+sh docker/asterisk/go-call.sh 10 window
+ Network rust-microsip-lab_isolated Creating 
+ Network rust-microsip-lab_isolated Creating 
+ Network rust-microsip-lab_isolated Created 
+ Network rust-microsip-lab_isolated Created 
+ Container rust-microsip-lab-pbx-1 Creating 
+ Container rust-microsip-lab-pbx-1 Created 
+ Container rust-microsip-lab-pbx-1 Starting 
+ Container rust-microsip-lab-pbx-1 Started 
+ Container rust-microsip-lab-pbx-1 Waiting 
+ Container rust-microsip-lab-pbx-1 Healthy 
+ Container rust-microsip-lab-test-runner-run-31ff604c07b2 Creating 
+ Container rust-microsip-lab-test-runner-run-31ff604c07b2 Created 
+=== RUN   TestCallThroughTheWindow
+=== RUN   TestCallThroughTheWindow/1001
+    window_linux_test.go:1433: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1465: 1001, 3 s after the skin changed during the call: speaker 292 of 292 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
+    window_linux_test.go:1690: 1001: 208 ms: sent registration registered; 1037 ms: sent call dialing ; 1040 ms: sent call established ; 1252 ms: shown established; 13700 ms: sent call established ; 13751 ms: shown established; 16800 ms: sent call established ; 17002 ms: shown established; 20037 ms: sent call held ; 20252 ms: shown held; 20699 ms: sent call established ; 20751 ms: shown established; 27586 ms: sent call terminating ; 27587 ms: sent call ended normal; 30347 ms: sent call ringing ; 30501 ms: shown ringing; 31013 ms: sent call established ; 31251 ms: shown established; 31949 ms: sent call established ; 31949 ms: sent transfer pending; 31970 ms: sent call terminating ; 31970 ms: sent transfer succeeded; 31970 ms: sent call ended transferred; 31970 ms: sent transfer succeeded; 32120 ms: sent call ringing ; 32251 ms: shown ringing; 32256 ms: sent call ended rejected; 33198 ms: sent registration disabled; 33199 ms: sent stopped
+=== RUN   TestCallThroughTheWindow/1201
+    window_linux_test.go:1433: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
+    window_linux_test.go:1465: 1201, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1690: 1201: 192 ms: sent registration registered; 994 ms: sent call dialing ; 997 ms: sent call established ; 1003 ms: shown established; 13457 ms: sent call established ; 13501 ms: shown established; 16557 ms: sent call established ; 16751 ms: shown established; 19799 ms: sent call held ; 20001 ms: shown held; 20464 ms: sent call established ; 20501 ms: shown established; 27353 ms: sent call terminating ; 27353 ms: sent call ended normal; 30069 ms: sent call ringing ; 30251 ms: shown ringing; 30732 ms: sent call established ; 30752 ms: shown established; 31416 ms: sent call established ; 31416 ms: sent transfer pending; 31437 ms: sent call terminating ; 31437 ms: sent transfer succeeded; 31438 ms: sent call ended transferred; 31438 ms: sent transfer succeeded; 31602 ms: sent call ringing ; 31751 ms: shown ringing; 31775 ms: sent call ended rejected; 32718 ms: sent registration disabled; 32718 ms: sent stopped
+=== RUN   TestCallThroughTheWindow/wrong_password
+=== RUN   TestCallThroughTheWindow/the_System_skin_without_a_color-preference_service
+=== RUN   TestCallThroughTheWindow/every_skin
+=== RUN   TestCallThroughTheWindow/links
+=== RUN   TestCallThroughTheWindow/quit_during_a_call
+    window_linux_test.go:1001: gone 100ms after it was told to end
+=== RUN   TestCallThroughTheWindow/a_termination_signal_during_a_call
+    window_linux_test.go:1001: gone 10ms after it was told to end
+=== RUN   TestCallThroughTheWindow/the_password_is_remembered
+=== RUN   TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering
+    window_linux_test.go:668: gone 4.01s after the yes, with a PBX that answers nothing
+=== RUN   TestCallThroughTheWindow/the_tray
+=== RUN   TestCallThroughTheWindow/agent_control
+    window_linux_test.go:1893: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup denied -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
+=== RUN   TestCallThroughTheWindow/the_command_line_and_MCP
+    window_linux_test.go:2106: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
+=== RUN   TestCallThroughTheWindow/the_Agent_access_form
+    window_linux_test.go:2177: the audit trail: grant issued 1 scopes, 15 min; grant revoked -
+=== RUN   TestCallThroughTheWindow/the_headless_service
+    window_linux_test.go:2392: the audit trail: grant bootstrap issued 4 scopes, 10 min; dnd_set granted enabled=true by grant grant-1-b278e73242ca083adb43c119; dnd_set succeeded -; call_dial granted destination ***00 by grant grant-1-b278e73242ca083adb43c119; call_dial succeeded -; call_hangup granted - by grant grant-1-b278e73242ca083adb43c119; call_hangup succeeded -
+=== RUN   TestCallThroughTheWindow/light_at_100
+    window_linux_test.go:1251: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+=== RUN   TestCallThroughTheWindow/light_at_200
+    window_linux_test.go:1251: light at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+=== RUN   TestCallThroughTheWindow/dark_at_100
+    window_linux_test.go:1251: dark at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+=== RUN   TestCallThroughTheWindow/dark_at_200
+    window_linux_test.go:1251: dark at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+=== RUN   TestCallThroughTheWindow/xp_at_100
+    window_linux_test.go:1251: xp at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+=== RUN   TestCallThroughTheWindow/xp_at_200
+    window_linux_test.go:1251: xp at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+=== RUN   TestCallThroughTheWindow/macos_at_100
+    window_linux_test.go:1251: macos at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+=== RUN   TestCallThroughTheWindow/macos_at_200
+    window_linux_test.go:1251: macos at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+=== RUN   TestCallThroughTheWindow/ubuntu_at_100
+    window_linux_test.go:1251: ubuntu at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+=== RUN   TestCallThroughTheWindow/ubuntu_at_200
+    window_linux_test.go:1251: ubuntu at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+=== RUN   TestCallThroughTheWindow/win98_at_100
+    window_linux_test.go:1251: win98 at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+=== RUN   TestCallThroughTheWindow/win98_at_200
+    window_linux_test.go:1251: win98 at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+=== RUN   TestCallThroughTheWindow/matrix_at_100
+    window_linux_test.go:1251: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+=== RUN   TestCallThroughTheWindow/matrix_at_200
+    window_linux_test.go:1251: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+--- PASS: TestCallThroughTheWindow (204.79s)
+    --- PASS: TestCallThroughTheWindow/1001 (34.22s)
+    --- PASS: TestCallThroughTheWindow/1201 (33.72s)
+    --- PASS: TestCallThroughTheWindow/wrong_password (0.35s)
+    --- PASS: TestCallThroughTheWindow/the_System_skin_without_a_color-preference_service (3.30s)
+    --- PASS: TestCallThroughTheWindow/every_skin (22.24s)
+    --- PASS: TestCallThroughTheWindow/links (7.88s)
+    --- PASS: TestCallThroughTheWindow/quit_during_a_call (1.51s)
+    --- PASS: TestCallThroughTheWindow/a_termination_signal_during_a_call (1.16s)
+    --- PASS: TestCallThroughTheWindow/the_password_is_remembered (2.11s)
+    --- PASS: TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering (5.08s)
+    --- PASS: TestCallThroughTheWindow/the_tray (3.06s)
+    --- PASS: TestCallThroughTheWindow/agent_control (8.14s)
+    --- PASS: TestCallThroughTheWindow/the_command_line_and_MCP (6.49s)
+    --- PASS: TestCallThroughTheWindow/the_Agent_access_form (8.79s)
+    --- PASS: TestCallThroughTheWindow/the_headless_service (0.96s)
+    --- PASS: TestCallThroughTheWindow/light_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/light_at_200 (5.67s)
+    --- PASS: TestCallThroughTheWindow/dark_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/dark_at_200 (5.67s)
+    --- PASS: TestCallThroughTheWindow/xp_at_100 (3.76s)
+    --- PASS: TestCallThroughTheWindow/xp_at_200 (5.67s)
+    --- PASS: TestCallThroughTheWindow/macos_at_100 (3.76s)
+    --- PASS: TestCallThroughTheWindow/macos_at_200 (5.67s)
+    --- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/ubuntu_at_200 (5.67s)
+    --- PASS: TestCallThroughTheWindow/win98_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/win98_at_200 (5.67s)
+    --- PASS: TestCallThroughTheWindow/matrix_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/matrix_at_200 (5.68s)
+PASS
+run directory: artifacts/go-call/20261112T193244Z

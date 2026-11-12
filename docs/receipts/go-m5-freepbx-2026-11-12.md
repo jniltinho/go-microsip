@@ -26,12 +26,16 @@ By the owner's decision of 2026-11-12 the target is a disposable VM, not the com
 | hold and mute (`engine/hold-mute/1001-1002`) | pass: neither side hears the other's tone while held, both do before and after; the muted side is not heard. FreePBX sends its music to the held side (76 frames arrive), which the scenario does not take for the tone | pass |
 | blind transfer (`engine/transfer/1001-1002`) | pass: the transfer is reported succeeded and the transferred side hears the tone of route 602 | pass |
 | DTMF (`engine/dtmf/1001`, and its control with wrong digits) | pass: the three digits sent as RFC 4733 events are read by the PBX, which answers with the accepting tone; wrong digits get the rejecting one | pass |
-| all | 8 scenarios, 0 failed ([report](go-m5/freepbx-report.json), [log](go-m5/freepbx.log)) | 68 scenarios, 0 failed ([report](go-m5/asterisk-report.json)) |
+| do-not-disturb during a call (`engine/dnd/during-a-call`) | pass: the established call keeps its audio and the new call is refused as busy | pass |
+| renewal (`engine/renewal/1001`) | pass: a registration of 30 s reports no change for 45 s and FreePBX still rings the phone | pass (UDP, TCP, TLS) |
+| all | 10 scenarios, 0 failed ([report](go-m5/freepbx-report.json), [log](go-m5/freepbx.log)) | 75 scenarios, 0 failed ([report](go-m5/asterisk-report.json)) |
+| the calls again on an impaired network | pass, 8 scenarios: 1 % loss, 0 to 30 ms of delay and a tenth of the packets out of order in both directions (`build/vm/impair.sh` on both VMs; each side dropped packets, the log has the counts); echo in both codecs, the call between two extensions, hold and mute, the transfer, DTMF and do-not-disturb ([report](go-m5/freepbx-degraded-report.json)) | not run impaired |
 
 Seen against FreePBX and not changed ([runner's warnings](go-m5/freepbx-runner.log)):
 
 - FreePBX sends a `NOTIFY` outside any dialog to an extension that registers (its message-waiting state). The softphone has no use for it and logs it as a request it could not handle.
 - Twice, at the end of a scenario, the unregistration was written to a connection the scenario had already closed, and is logged as failed. The registration then lapses by itself.
+- A transfer to a number that does not exist is accepted by FreePBX, which takes the other party away and then reports 503: the softphone says the transfer failed and is left in a call without audio until it is hung up. The lab's Asterisk refuses such a transfer and the call goes on (`engine/transfer/failed/1001-1002`, which is therefore not run against FreePBX).
 - FreePBX names itself in `From` by its first network card's address, not the one the softphone reached it on; nothing depends on it.
 
 ## Not covered
@@ -43,4 +47,4 @@ Seen against FreePBX and not changed ([runner's warnings](go-m5/freepbx-runner.l
 
 ## Runs
 
-Commit of the scenarios and scripts: the one this receipt is committed with. `make go-check` passes. `make go-freepbx` (with `KEEP=1`): exit 0, the table above. `make go-lab`: exit 0, 68 scenarios.
+Commit of the scenarios and scripts: the one this receipt is committed with. `make go-check` passes. `make go-freepbx` (with `KEEP=1`): exit 0, the table above. `make go-lab`: exit 0, 75 scenarios. The first runs of this task, on its own commit, had 8 scenarios on FreePBX and 68 in the lab; the scenarios added for the parity gate were run on the commit of the [parity receipt](go-m5-parity-2026-11-12.md).

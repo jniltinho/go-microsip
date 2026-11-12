@@ -26,6 +26,8 @@ type Account struct {
 	// CAFile is the PEM bundle that replaces the system roots for a TLS account.
 	CAFile string
 	Codec  dmedia.Codec
+	// Expires is the registration's lifetime in seconds; zero is two minutes.
+	Expires uint32
 }
 
 func (a Account) String() string { return a.User + "/" + a.Transport }
@@ -42,6 +44,9 @@ func (a Account) settings() domain.AccountSettings {
 	s := domain.AccountSettings{
 		Username: a.User, Domain: a.Server, Server: a.Server, Port: uint16(a.Port),
 		Transport: transport, Expires: 120,
+	}
+	if a.Expires != 0 {
+		s.Expires = a.Expires
 	}
 	if a.SecureMedia {
 		s.Media = domain.SRTP

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -379,5 +380,51 @@ func TestConnectionsAreBoundedAndAStrangerIsNotRead(t *testing.T) {
 	var welcome Welcome
 	if err := ReadMessage(bufio.NewReader(conn), &welcome); err == nil || handler.handled() != 0 {
 		t.Errorf("a stranger was welcomed: %+v", welcome)
+	}
+}
+
+// stuck is an owner that takes a request and does not answer until it is released.
+type stuck struct {
+	asked   atomic.Int32
+	release chan struct{}
+}
+
+func (s *stuck) Handle(r Request, _ int) Response {
+	s.asked.Add(1)
+	<-s.release
+	return OK(r.RequestID, nil)
+}
+
+// An owner that does not answer in time is a timeout for the client, which the command line
+// turns into status 5, and the client does not send the request again on its own: the owner was
+// asked once, and whether it took effect is for operation_get to tell.
+func TestAnOwnerThatDoesNotAnswerIsATimeoutAskedOnce(t *testing.T) {
+	if testing.Short() {
+		t.Skip("waits for the reply deadline")
+	}
+	dir := filepath.Join(t.TempDir(), dirName)
+	owner := &stuck{release: make(chan struct{})}
+	endpoint, err := Listen(dir, Welcome{Protocol: Protocol, Version: SchemaVersion, Mode: ModeWindow, Epoch: 7}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { close(owner.release); _ = endpoint.Close() })
+	client, err := Dial(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	key := "k-timeout"
+	began := time.Now()
+	r := client.Do(Request{SchemaVersion: 1, RequestID: "r-timeout", IdempotencyKey: &key, Operation: Operation{Op: DNDSet, Enabled: true}})
+	if r.Error == nil || r.Error.Code != Timeout || r.Error.Code.ExitCode() != 5 {
+		t.Fatalf("an owner that does not answer: %+v (%+v)", r, r.Error)
+	}
+	if waited := time.Since(began); waited < ReplyDeadline || waited > ReplyDeadline+3*time.Second {
+		t.Errorf("the client gave up after %v, want about the reply deadline (%v)", waited, ReplyDeadline)
+	}
+	time.Sleep(time.Second)
+	if asked := owner.asked.Load(); asked != 1 {
+		t.Errorf("the owner was asked %d times, want once", asked)
 	}
 }

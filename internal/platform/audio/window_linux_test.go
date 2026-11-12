@@ -517,6 +517,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 		})
 	}
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
+	t.Run("the System skin without a color-preference service", func(t *testing.T) { systemSkinWithoutAService(t, bin) })
 	t.Run("every skin", func(t *testing.T) { skinsInTheWindow(t, bin, server, passwords["1002"]) })
 	t.Run("links", func(t *testing.T) { linksInTheWindow(t, bin, server, passwords["1002"]) })
 	t.Run("quit during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"], false) })
@@ -1305,6 +1306,34 @@ func softphoneWith(t *testing.T, env []string, bin, dir, password string, args .
 		}
 	})
 	return cmd, exited
+}
+
+// The System skin on a desktop that has no service to ask for its light or dark preference, as
+// this display's session: the built window draws the light skin and stays on it.
+func systemSkinWithoutAService(t *testing.T, bin string) {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var portal bool
+	if err := conn.BusObject().Call("org.freedesktop.DBus.NameHasOwner", 0, "org.freedesktop.portal.Desktop").Store(&portal); err != nil {
+		t.Fatal(err)
+	}
+	if portal {
+		t.Skip("this session has a color-preference service")
+	}
+	dir := t.TempDir()
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	softphoneWith(t, []string{"GO_MICROSIP_UI_THEME=system"}, bin, dir, "", "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "the System skin drawn", func() bool { return w.page.Skin == "system" && w.page.Theme != "" })
+	if w.page.Theme != "light" {
+		t.Fatalf("without a color-preference service System is drawn as %q, want light", w.page.Theme)
+	}
+	if w.watch(3*time.Second, func() bool { return w.page.Theme != "light" }) {
+		t.Errorf("System changed to %q with nobody to ask", w.page.Theme)
+	}
 }
 
 // A password the PBX refuses: the window says why the account is not registered, in the engine's

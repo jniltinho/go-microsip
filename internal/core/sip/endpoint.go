@@ -45,6 +45,9 @@ type Account struct {
 // before this endpoint sent or played any audio.
 var ErrInsecureAnswer = errors.New("the peer answered without SRTP; the call was ended")
 
+// ErrNoCommonCodec means the peer answered with no codec this endpoint has: there is no call.
+var ErrNoCommonCodec = errors.New("the peer answered with no codec in common")
+
 // TLSConfig builds the client TLS configuration of a TLS account. The configured bundle is the only
 // trust anchor: system roots are never added, so a certificate the operating system trusts but the
 // bundle does not is refused.
@@ -248,6 +251,32 @@ func (e *Endpoint) identity() *gosip.FromHeader {
 
 // Register sends REGISTER with digest authentication and returns once the registrar accepted it.
 func (e *Endpoint) Register(ctx context.Context) error {
+	return whenBound(ctx, func() error { return e.register(ctx) })
+}
+
+// whenBound runs a request and asks again, a few times and briefly, when it failed because its
+// local address was already taken.
+//
+// shortcut: the SIP library says a UDP listener is ready a moment before its requests can use
+// it, and a request sent in that moment tries to bind the listener's port a second time, which
+// showed as a registration that failed on the network at the start (seen in the lab, once in
+// hundreds of starts). Drop this when the library reports readiness after the listener is usable.
+func whenBound(ctx context.Context, request func() error) error {
+	var err error
+	for range 5 {
+		if err = request(); err == nil || !strings.Contains(err.Error(), "address already in use") {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	return err
+}
+
+func (e *Endpoint) register(ctx context.Context) error {
 	s := e.Account.Settings
 	expires := time.Duration(s.Expires) * time.Second
 	if expires <= 0 {
@@ -323,6 +352,10 @@ func (e *Endpoint) Dial(ctx context.Context, target string, onProgress func(stat
 		},
 	})
 	if err != nil {
+		// The library reports this one as a text only.
+		if text := err.Error(); strings.Contains(text, "no supported codecs found") || strings.Contains(text, "no codecs found in SDP") {
+			err = fmt.Errorf("%w: %v", ErrNoCommonCodec, err)
+		}
 		return nil, nil, err
 	}
 	// The library accepts a plain answer to a secure offer; a secure-media account does not.

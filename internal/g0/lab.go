@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/emiago/diago"
@@ -82,11 +83,23 @@ type Scenario struct {
 	Run  func(ctx context.Context, l *Lab) (map[string]any, error)
 }
 
+// slow is the deadline of the scenarios that need more than a minute, by the start of their names.
+var slow = map[string]time.Duration{
+	"engine/renewal/":               2 * time.Minute,
+	"engine/cancel/crossing-answer": 3 * time.Minute,
+}
+
 // Run executes the scenarios in order, each with its own deadline, and never stops at a failure.
 func (l *Lab) Run(ctx context.Context, list []Scenario) []Result {
 	var out []Result
 	for _, s := range list {
-		sctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		timeout := 60 * time.Second
+		for prefix, longer := range slow {
+			if strings.HasPrefix(s.Name, prefix) {
+				timeout = longer
+			}
+		}
+		sctx, cancel := context.WithTimeout(ctx, timeout)
 		data, err := s.Run(sctx, l)
 		cancel()
 		r := Result{Name: s.Name, OK: err == nil, Data: data}

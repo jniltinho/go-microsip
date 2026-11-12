@@ -1,0 +1,98 @@
+{
+  "failed": 0,
+  "results": [
+    {
+      "name": "engine/echo/1001/PCMA",
+      "ok": true,
+      "data": {
+        "codec": "PCMA",
+        "frames": 96,
+        "heard": 1,
+        "secure": false
+      }
+    },
+    {
+      "name": "engine/echo/1001/PCMU",
+      "ok": true,
+      "data": {
+        "codec": "PCMU",
+        "frames": 100,
+        "heard": 1,
+        "secure": false
+      }
+    },
+    {
+      "name": "engine/pair/1001-1002",
+      "ok": true,
+      "data": {
+        "answered_ms": 2608,
+        "callee_heard": 1,
+        "callee_secure": false,
+        "caller_heard": 1,
+        "caller_secure": false
+      }
+    },
+    {
+      "name": "engine/hold-mute/1001-1002",
+      "ok": true,
+      "data": {
+        "held_frames_during": 74,
+        "held_heard": [
+          1,
+          0,
+          1
+        ],
+        "holder_heard": [
+          1,
+          0,
+          1
+        ],
+        "muted_side_heard": [
+          1,
+          1
+        ],
+        "other_side_frames": 74,
+        "other_side_heard": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "name": "engine/transfer/1001-1002",
+      "ok": true,
+      "data": {
+        "callee_heard": 1,
+        "transfer": "succeeded"
+      }
+    },
+    {
+      "name": "engine/dtmf/1001",
+      "ok": true,
+      "data": {
+        "accepted_tone": 1,
+        "digits": 3,
+        "frames": 104,
+        "rejected_tone": 0
+      }
+    },
+    {
+      "name": "engine/dtmf/wrong-digits-control",
+      "ok": true,
+      "data": {
+        "accepted_tone": 0,
+        "digits": 3,
+        "frames": 104,
+        "rejected_tone": 1
+      }
+    },
+    {
+      "name": "engine/dnd/during-a-call",
+      "ok": true,
+      "data": {
+        "first_call_heard": 1
+      }
+    }
+  ],
+  "scenarios": 8
+}

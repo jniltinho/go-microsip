@@ -6,7 +6,8 @@
 # The fictional accounts are those of the VM lab (artifacts/vm-lab/, made by run.sh's rule when
 # missing). FreePBX gets the two UDP ones as its extensions; the scenarios register them and
 # place the calls: echo in both codecs, a call between the two, hold and mute, a blind
-# transfer, DTMF with its control. Without KEEP=1 both VMs are destroyed when the run ends,
+# transfer, DTMF with its control, do-not-disturb during a call, a renewal; then the calls again
+# with the network of both VMs impaired (impair.sh). Without KEEP=1 both VMs are destroyed when the run ends,
 # however it ends.
 set -eu
 cd "$(dirname "$0")"
@@ -14,7 +15,10 @@ out=$1
 lab_pbx=192.168.77.10
 lab_freepbx=192.168.77.11
 lab_image=rust-microsip-asterisk:22.11.0-lab.1
-scenarios=register/1001,engine/echo/1001/,engine/pair/1001-1002,engine/hold-mute/1001-1002,engine/transfer/1001-1002,engine/dtmf/1001,engine/dtmf/wrong-digits-control
+scenarios=register/1001,engine/echo/1001/,engine/pair/1001-1002,engine/hold-mute/1001-1002,engine/transfer/1001-1002,engine/dtmf/1001,engine/dtmf/wrong-digits-control,engine/dnd/during-a-call,engine/renewal/1001
+# The calls made again on a network that loses, delays and reorders (impair.sh): they must stay
+# controllable, with their audio.
+degraded=engine/echo/1001/,engine/pair/1001-1002,engine/hold-mute/1001-1002,engine/transfer/1001-1002,engine/dtmf/1001,engine/dtmf/wrong-digits-control,engine/dnd/during-a-call
 lab=../../artifacts/vm-lab
 if [ ! -d "$lab" ]; then
 	mkdir -p -m 700 "$lab"
@@ -26,6 +30,9 @@ mkdir -p "$out"
 # What this run brought up goes with it, however it ends; KEEP=1 leaves the VMs up.
 cleanup() {
 	code=$?
+	for vm in pbx freepbx; do # a network left impaired would spoil the next run of a kept VM
+		vagrant ssh "$vm" -c "/vagrant/impair.sh off" >/dev/null 2>&1 || :
+	done
 	if [ -z "${KEEP:-}" ]; then
 		for vm in freepbx pbx; do
 			vagrant destroy -f "$vm" >/dev/null 2>&1 || echo "freepbx: $vm was not destroyed: vagrant destroy -f $vm" >&2
@@ -70,4 +77,18 @@ r = json.load(open(sys.argv[1]))
 for s in r["results"]:
     print("freepbx:", "PASS" if s["ok"] else "FAIL", s["name"], "" if s["ok"] else s.get("detail", ""))
 print("freepbx:", r["scenarios"], "scenarios,", r["failed"], "failed")' "$out/freepbx-report.json" | tee -a "$log" || status=1
+
+for vm in pbx freepbx; do
+	vagrant ssh "$vm" -c "/vagrant/impair.sh on" >>"$log" 2>&1 || { echo "freepbx: FAILED: the network of $vm was not impaired" | tee -a "$log"; status=1; }
+done
+vagrant ssh pbx -c "/dist/g0/g0lab -lab /srv/lab-clients -server $lab_freepbx -run $degraded" \
+	>"$out/freepbx-degraded-report.json" 2>"$out/freepbx-degraded-runner.log" || status=$?
+for vm in pbx freepbx; do
+	vagrant ssh "$vm" -c "/vagrant/impair.sh show; /vagrant/impair.sh off" 2>/dev/null | grep '^impair:' | tee -a "$log" || status=1
+done
+python3 -c 'import json, sys
+r = json.load(open(sys.argv[1]))
+for s in r["results"]:
+    print("freepbx: degraded:", "PASS" if s["ok"] else "FAIL", s["name"], "" if s["ok"] else s.get("detail", ""))
+print("freepbx: degraded:", r["scenarios"], "scenarios,", r["failed"], "failed")' "$out/freepbx-degraded-report.json" | tee -a "$log" || status=1
 exit $status

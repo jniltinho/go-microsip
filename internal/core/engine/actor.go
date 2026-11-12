@@ -455,7 +455,7 @@ func dialFailure(ctx context.Context, c *call, err error) domain.EndReason {
 		return domain.EndCanceled
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
 		return domain.EndNoAnswer
-	case errors.Is(err, sip.ErrInsecureAnswer):
+	case errors.Is(err, sip.ErrInsecureAnswer), errors.Is(err, sip.ErrNoCommonCodec):
 		return domain.EndNotAcceptable
 	case errors.As(err, &refused) && refused.Res != nil:
 		switch refused.Res.StatusCode {

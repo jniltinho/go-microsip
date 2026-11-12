@@ -83,6 +83,30 @@ func TestRegistrationFailure(t *testing.T) {
 	}
 }
 
+// A request that fails because the listener's port is not usable yet is asked again and
+// succeeds; any other failure is returned at once, and a port that stays taken is a failure.
+func TestARequestWaitsForItsListener(t *testing.T) {
+	taken := errors.New("client transaction failed to request connection: listen udp 127.0.0.1:5070: bind: address already in use")
+	calls := 0
+	if err := whenBound(context.Background(), func() error {
+		if calls++; calls < 3 {
+			return taken
+		}
+		return nil
+	}); err != nil || calls != 3 {
+		t.Errorf("a listener that became usable: %v after %d attempts", err, calls)
+	}
+	calls = 0
+	refused := errors.New("403 Forbidden")
+	if err := whenBound(context.Background(), func() error { calls++; return refused }); err != refused || calls != 1 {
+		t.Errorf("another failure: %v after %d attempts", err, calls)
+	}
+	calls = 0
+	if err := whenBound(context.Background(), func() error { calls++; return taken }); err != taken || calls != 5 {
+		t.Errorf("a port that stays taken: %v after %d attempts", err, calls)
+	}
+}
+
 // The local address is the one the routing table gives for the registrar, not the first
 // interface, and only when every address of the registrar agrees on it.
 func TestTheEndpointBindsWhereTheRegistrarIsReachedFrom(t *testing.T) {

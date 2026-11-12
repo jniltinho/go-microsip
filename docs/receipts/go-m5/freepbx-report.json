@@ -23,7 +23,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -32,7 +32,7 @@
       "name": "engine/pair/1001-1002",
       "ok": true,
       "data": {
-        "answered_ms": 2540,
+        "answered_ms": 2556,
         "callee_heard": 1,
         "callee_secure": false,
         "caller_heard": 1,
@@ -43,7 +43,7 @@
       "name": "engine/hold-mute/1001-1002",
       "ok": true,
       "data": {
-        "held_frames_during": 76,
+        "held_frames_during": 75,
         "held_heard": [
           1,
           0,
@@ -92,7 +92,23 @@
         "frames": 105,
         "rejected_tone": 1
       }
+    },
+    {
+      "name": "engine/dnd/during-a-call",
+      "ok": true,
+      "data": {
+        "first_call_heard": 1
+      }
+    },
+    {
+      "name": "engine/renewal/1001",
+      "ok": true,
+      "data": {
+        "expires_s": 30,
+        "transport": "udp",
+        "waited_s": 45
+      }
     }
   ],
-  "scenarios": 8
+  "scenarios": 10
 }

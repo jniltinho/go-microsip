@@ -50,6 +50,13 @@ func EngineScenarios() []Scenario {
 		Scenario{"engine/register/wrong-password", engineRefusedRegistration("1001", domain.Unauthorized)},
 		Scenario{"engine/register/unknown-ca", engineRefusedRegistration("1201", domain.Certificate)},
 		Scenario{"engine/unregister", engineUnregister},
+		Scenario{"engine/dnd/during-a-call", engineDNDDuringACall},
+		Scenario{"engine/transfer/failed/1001-1002", engineTransferFailed("1001", "1002")},
+		Scenario{"engine/cancel/crossing-answer", engineCancelCrossingAnswer},
+		Scenario{"engine/renewal/1001", engineRenewal("1001", "1002")},
+		Scenario{"engine/renewal/1101", engineRenewal("1101", "1102")},
+		Scenario{"engine/renewal/1201", engineRenewal("1201", "1202")},
+		Scenario{"engine/secure/keys-not-logged", engineSecureLog},
 	)
 }
 

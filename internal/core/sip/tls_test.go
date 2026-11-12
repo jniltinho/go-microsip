@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
@@ -15,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jniltinho/go-microsip/internal/core/domain"
 )
 
 // authority is a throwaway certificate authority.
@@ -46,13 +49,19 @@ func newAuthority(t *testing.T, name string) authority {
 // server starts a TLS listener whose certificate for host is issued by ca.
 func (ca authority) server(t *testing.T, host string) string {
 	t.Helper()
+	return ca.serverUntil(t, host, time.Now().Add(time.Hour))
+}
+
+// serverUntil is server with a certificate that is valid until the moment given.
+func (ca authority) serverUntil(t *testing.T, host string, until time.Time) string {
+	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: host}, DNSNames: []string{host},
-		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
+		NotBefore: time.Now().Add(-48 * time.Hour), NotAfter: until,
 		KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca.cert, &key.PublicKey, ca.key)
@@ -131,6 +140,31 @@ func TestBundleReplacesSystemRoots(t *testing.T) {
 	wrong := lab.server(t, "other-host")
 	if err := handshake(wrong, conf); err == nil || !strings.Contains(err.Error(), "not pbx") {
 		t.Fatalf("a certificate for another host was not refused as such: %v", err)
+	}
+}
+
+// A registrar whose certificate has expired is refused although the bundle's own authority
+// issued it for the right name, and the refusal is a certificate failure, which the engine
+// shows and does not retry on another transport.
+func TestAnExpiredCertificateIsRefused(t *testing.T) {
+	lab := newAuthority(t, "Lab CA")
+	conf, err := TLSConfig("pbx", lab.pem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Control: the same authority and name, still valid, is accepted.
+	if err := handshake(lab.server(t, "pbx"), conf); err != nil {
+		t.Fatalf("control failed, a valid certificate was refused: %v", err)
+	}
+	err = handshake(lab.serverUntil(t, "pbx", time.Now().Add(-time.Hour)), conf)
+	if err == nil {
+		t.Fatal("an expired certificate was accepted")
+	}
+	if !strings.Contains(err.Error(), "expired") {
+		t.Fatalf("refused for an unexpected reason: %v", err)
+	}
+	if got := RegistrationFailure(fmt.Errorf("register: %w", err)); got.Status != domain.RegistrationFailed || got.Failure != domain.Certificate {
+		t.Errorf("an expired certificate is reported as %v, want a certificate failure", got)
 	}
 }
 
