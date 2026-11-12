@@ -70,7 +70,7 @@ Open in 6.3: notifications, the tray and link registration on Windows; the sound
 
 ## Runs
 
-Artifacts `0.3.0-m3` of commit `1ff7b57` (`make go-dist`, `dirty false`, checksums verified) with the checks of that commit, except the virtual machines, which ran the artifacts and checks of commit `4a5bd14`.
+Artifacts `0.3.0-m3` of commit `3b6b8bf` (`make go-dist`, `dirty false`, checksums verified) with the checks of that commit, except the virtual machines, which ran the artifacts and checks of commit `4a5bd14`.
 
 | Command | Result |
 | --- | --- |
