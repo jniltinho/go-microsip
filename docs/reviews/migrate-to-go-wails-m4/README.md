@@ -6,6 +6,7 @@ Each round reviews a sanitized extract made with `git archive` (the control pack
 | --- | --- | --- | --- | --- |
 | 1 | `d7d31f6` | tasks 6.4, 6.5 and 6.6 | UNSOUND: 1 major, 9 minor | [codex-round1.md](codex-round1.md) |
 | 2 | `1ca14bf` | the answers to round 1, and task 6.3's Windows work | UNSOUND: 3 major, 5 minor (8 of the 10 round-1 findings resolved, 2 in part) | [codex-round2.md](codex-round2.md) |
+| 3 | `46e7ec2` | the answers to round 2, the VM lab and the Windows call walkthrough of task 6.3, and task 7.1 (FreePBX) | SOUND WITH CHANGES for M4 and for task 7.1: 9 minor (7 of the 8 round-2 findings resolved, 1 in part) | [codex-round3.md](codex-round3.md) |
 
 ## What was done about round 1
 
@@ -38,5 +39,23 @@ Round 2 read commit `1ca14bf`, whose Windows desktop script (`build/vm/desktop.p
 | 6 | minor | On Windows a file of the socket's name that was not a socket was deleted | Fixed, as on Linux: only a socket is replaced; anything else is left alone and nothing is served (`ErrInsecure`). The Windows test leaves a genuine socket behind for the takeover and a regular file for the refusal. |
 | 7 | minor | The document said that revoking a grant ends digits already being sent | Fixed in the document: revoking ends the grant's reads and refuses its next changes; digits already being sent end with their call. |
 | 8 | minor | The held-phone test read one event and did not look at the PBX | Fixed. The test watches the whole wait and counts the REGISTER requests its PBX hears: none before `Begin`, one after `Begin` called twice. Not added: the same count through a service start with a refused bootstrap; the order in `cmd/service.go` (bootstrap, socket, then `Begin`) is what the review read. |
+
+Round 3 found findings 1 to 4 and 6 to 8 resolved and finding 5 resolved in part, as answered.
+
+## What was done about round 3
+
+All nine findings are minor. The scripts they name are test harness; findings 8 and 9 are in the softphone.
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | FreePBX's fence was gone after a restart of its VM and did not cover IPv6 | Fixed. `freepbx.sh setup` refuses IPv6 on the lab's network card outright and saves the rules with the service the installer brings, which restores them before the network is up. Not shown: a restart of the VM with the fence checked after it. |
+| 2 | Either fence was flushed before its replacement was whole | Fixed. Both scripts check the client addresses, build the new chain with its last rule, send the packets through it, and only then take the old one away. |
+| 3 | A probe that did not run read as "no connection"; a failed originate or report read as done | Fixed. The Windows VM answers `reached=True` or `reached=False`, and anything else is reported as not asked (a failure in `run.sh`, not verified in `interop.sh`, which also says so when no unlisted VM is up); `pbx.sh ring` checks the originate's status and words; `report` fails when the fence cannot be read. |
+| 4 | A run that stopped half way skipped the teardown | Fixed. `run.sh` and `interop.sh` tear down from an exit trap, keep the run's status, end the background job and say when a VM was not destroyed. Not exercised: the VMs are kept, by the owner's decision. |
+| 5 | Keys were sent although the softphone was not in front, and the firewall's question was assumed | Fixed as far as Windows lets it be. `Key` sends nothing and fails the step when the softphone's window is not in front. The firewall's question cannot be read by desktop automation; Escape is sent only when Windows has just made its firewall rules for the program and a window that is not the softphone's keeps the keyboard, the step says exactly that, and the picture taken before the key shows the question. With the rules new and no such window, nothing is pressed and the step is reported as not verified. |
+| 6 | The toast check could report a decision that never came back | Fixed. A pressed button counts only when the notifier's own test logged the decision; otherwise the step fails. |
+| 7 | The call walkthrough could report the removal of a toast that was never shown | Fixed. No notification while the call rings fails the step; the removal is claimed only after one was seen, and an unreadable history is reported as not verified. The receipt says what the check shows: none in the notification center after the call, not the moment it left the screen. |
+| 8 | A toast that Windows did not take away was never tried again | Fixed. The notifier remembers it and tries again before the next toast is shown, never after. |
+| 9 | Every removal initialized the Windows Runtime again on the notifier's thread | Fixed. It is initialized once, when the notifier's thread starts. |
 
 No round has reviewed these answers yet.

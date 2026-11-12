@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -390,22 +391,51 @@ func (w *window) fill(label, text string) {
 	w.write(text)
 }
 
-// choose clicks the field with this label (a radio button, say), scrolling the view to it first.
+// choose clicks the field with this label (a radio button, a check box), scrolling the view to
+// it first.
 func (w *window) choose(label string) {
 	w.t.Helper()
-	for range 20 {
-		var x, y int
-		w.until(5*time.Second, "field "+label, func() bool {
-			for _, f := range w.page.Fields {
-				if f.Label == label {
-					x, y = f.X, f.Y
-					return true
-				}
+	w.inSight("field "+label, func() (int, int, bool) {
+		for _, f := range w.page.Fields {
+			if f.Label == label {
+				return f.X, f.Y, true
 			}
-			return false
+		}
+		return 0, 0, false
+	})
+}
+
+// press clicks the enabled button with this label, scrolling the view to it first.
+func (w *window) press(label string) {
+	w.t.Helper()
+	w.inSight("button "+label, func() (int, int, bool) {
+		for _, b := range w.page.Buttons {
+			if !b.Disabled && b.Label == label {
+				return b.X, b.Y, true
+			}
+		}
+		return 0, 0, false
+	})
+}
+
+// inSight scrolls the view until what find names is in it, and clicks it there.
+func (w *window) inSight(what string, find func() (x, y int, ok bool)) {
+	w.t.Helper()
+	for range 30 {
+		var x, y int
+		w.until(5*time.Second, what, func() bool {
+			var ok bool
+			x, y, ok = find()
+			return ok
 		})
 		// The view scrolls between the tabs and the status bar: well inside the page is in sight.
 		if y > 90 && y < w.page.Height-90 {
+			// Where the page still says it is a moment later: the view may be moving, and the
+			// page reports only what changed.
+			w.watch(600*time.Millisecond, func() bool { return false })
+			if x2, y2, ok := find(); !ok || x2 != x || y2 != y {
+				continue
+			}
 			w.pointer(x, y, "1")
 			return
 		}
@@ -416,7 +446,7 @@ func (w *window) choose(label string) {
 		w.pointer(w.page.Height/2, w.page.Height/2, wheel)
 		w.until(5*time.Second, "the view scrolled", func() bool { return w.pageAt != seen })
 	}
-	w.t.Fatalf("the field %q could not be scrolled into view", label)
+	w.t.Fatalf("the %s could not be scrolled into view", what)
 }
 
 // click presses the button with this label where the page says it is. A button that holds more
@@ -496,6 +526,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("the tray", func(t *testing.T) { theTray(t, bin, server, passwords["1002"]) })
 	t.Run("agent control", func(t *testing.T) { agentControl(t, bin, server, passwords["1002"]) })
 	t.Run("the command line and MCP", func(t *testing.T) { commandLineAndMCP(t, bin, server, passwords["1002"]) })
+	t.Run("the Agent access form", func(t *testing.T) { agentAccessForm(t, bin, server, passwords["1002"]) })
 	t.Run("the headless service", func(t *testing.T) { headlessService(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
@@ -2042,6 +2073,77 @@ func commandLineAndMCP(t *testing.T, bin, server, password string) {
 		"call_hangup requested -", "call_hangup approved -", "call_hangup succeeded -"}
 	if !slices.Equal(trail, want) {
 		t.Errorf("the audit trail:\n  %s\nwant:\n  %s", strings.Join(trail, "\n  "), strings.Join(want, "\n  "))
+	}
+	t.Logf("the audit trail: %s", strings.Join(trail, "; "))
+}
+
+// grantFile is the path of a grant's file as the Agent access screen names it.
+var grantFile = regexp.MustCompile(`/\S+/grant-\S+\.grant`)
+
+// The Agent access screen of the built window, used as a person uses it: a permission is
+// ticked, a grant file is made, the command line reads with it what it was refused before, the
+// grant is revoked and refused again, and the audit log on the screen tells both.
+func agentAccessForm(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered") })
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	if code, out := commandLine(t, bin, dir, "history", "list"); code != 3 || !strings.Contains(out, "(grant_required)") {
+		t.Fatalf("history list without a grant: %d\n%s", code, out)
+	}
+	w.click("Menu")
+	w.click("Settings")
+	w.choose("Read call history")
+	w.press("Create grant file")
+	var grant string
+	w.until(10*time.Second, "the grant made and listed", func() bool {
+		grant = grantFile.FindString(w.page.Text)
+		return grant != "" && w.shows("Grant created", "This session", "1 permission")
+	})
+	w.shot("agent-access-1-granted")
+	if info, err := os.Stat(grant); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("the grant's file %s: %v, %v", filepath.Base(grant), info, err)
+	}
+	if code, out := commandLine(t, bin, dir, "history", "list", "--grant-file", grant); code != 0 {
+		t.Errorf("history list with the grant made on the screen: %d\n%s", code, out)
+	}
+	// What the grant does not cover is not given by it.
+	if code, out := commandLine(t, bin, dir, "contacts", "search", "--grant-file", grant); code != 3 || !strings.Contains(out, "(grant_required)") {
+		t.Errorf("contacts search with a grant for the history: %d\n%s", code, out)
+	}
+	w.press("Revoke")
+	w.until(10*time.Second, "no grant listed", func() bool { return !w.shows("This session") && w.shows("Grants in use", "None.") })
+	if code, out := commandLine(t, bin, dir, "history", "list", "--grant-file", grant); code != 3 || !strings.Contains(out, "(grant_required)") {
+		t.Errorf("history list with the revoked grant: %d\n%s", code, out)
+	}
+	w.press("Show audit log")
+	w.until(10*time.Second, "the audit log on the screen", func() bool { return w.shows("Hide audit log", "issued", "revoked") })
+	w.shot("agent-access-2-revoked-and-audited")
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-exited:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the softphone did not end on a termination signal")
+	}
+	trail := auditTrail(t, dir)
+	if !slices.Contains(trail, "grant issued 1 scopes, 15 min") || !slices.Contains(trail, "grant revoked -") {
+		t.Errorf("the audit trail: %s", strings.Join(trail, "; "))
 	}
 	t.Logf("the audit trail: %s", strings.Join(trail, "; "))
 }

@@ -1,5 +1,6 @@
 #!/bin/sh
-# Bring up each desktop VM, run check.sh in it, save the output and destroy the VM.
+# Bring up each desktop VM, run check.sh in it, save the output and destroy the VMs, also when
+# the run stops half way (KEEP=1 leaves them up; destroy them with `vagrant destroy -f`).
 #   [KEEP=1] [LAB=1] build/vm/run.sh <version> <receipt dir> [audio seconds] [vm names...]
 #
 # LAB=1 also places calls from the Windows VM (the Vagrantfile says how): the lab's fictional
@@ -14,12 +15,38 @@ seconds=${3:-300}
 shift 3 2>/dev/null || shift $#
 [ $# -gt 0 ] || set -- ubuntu2604 debian13
 status=0
+trap 'cleanup "$@"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 lab_pbx=192.168.77.10
 lab_windows=192.168.77.20
 lab_image=rust-microsip-asterisk:22.11.0-lab.1
 pbx() { vagrant ssh pbx -c "/vagrant/pbx.sh $*"; }
-# Whether the Windows VM gets a TCP connection to the PBX's SIP port.
-reaches() { vagrant winrm windows11 -s powershell -c "(Test-NetConnection $lab_pbx -Port 5060 -WarningAction SilentlyContinue).TcpTestSucceeded" 2>/dev/null | grep -q True; }
+# Whether the Windows VM gets a TCP connection to the PBX's SIP port: "True" or "False" as
+# Windows says it, or "unknown" when the question itself did not run.
+reaches() {
+	said=$(vagrant winrm windows11 -s powershell -c "'reached=' + (Test-NetConnection $lab_pbx -Port 5060 -WarningAction SilentlyContinue).TcpTestSucceeded" 2>/dev/null) || said=""
+	case $said in
+	*reached=True*) echo True ;;
+	*reached=False*) echo False ;;
+	*) echo unknown ;;
+	esac
+}
+# What this run brought up goes with it, however it ends; KEEP=1 leaves the VMs up.
+ring=""
+cleanup() {
+	code=$?
+	[ -z "$ring" ] || kill "$ring" 2>/dev/null || :
+	if [ -n "${LAB:-}" ]; then
+		pbx down >>"$out/vm-lab.log" 2>&1 || :
+	fi
+	if [ -z "${KEEP:-}" ]; then
+		for vm in "$@" ${LAB:+pbx}; do
+			vagrant destroy -f "$vm" >/dev/null 2>&1 || echo "vm-check: $vm was not destroyed: vagrant destroy -f $vm" >&2
+		done
+	fi
+	exit "$code"
+}
 if [ -n "${LAB:-}" ]; then
 	lab=../../artifacts/vm-lab
 	if [ ! -d "$lab" ]; then
@@ -46,9 +73,17 @@ for vm in "$@"; do
 		if [ -n "${LAB:-}" ] && vagrant up "$vm" >"$out/vm-$vm-provision.log" 2>&1; then
 			with_pbx=" -Pbx $lab_pbx"
 			{
-				if reaches; then echo "vm-lab: FAILED: the PBX answers an address that is not on its list"; else echo "vm-lab: the PBX does not answer $lab_windows while its list names another address"; fi
+				case $(reaches) in
+				False) echo "vm-lab: the PBX does not answer $lab_windows while its list names another address" ;;
+				True) echo "vm-lab: FAILED: the PBX answers an address that is not on its list" ;;
+				*) echo "vm-lab: FAILED: the Windows VM was not asked whether it reaches the PBX" ;;
+				esac
 				pbx up "$lab_pbx" "$lab_windows"
-				if reaches; then echo "vm-lab: the PBX answers $lab_windows once it is on the list"; else echo "vm-lab: FAILED: the PBX does not answer $lab_windows"; fi
+				case $(reaches) in
+				True) echo "vm-lab: the PBX answers $lab_windows once it is on the list" ;;
+				False) echo "vm-lab: FAILED: the PBX does not answer $lab_windows" ;;
+				*) echo "vm-lab: FAILED: the Windows VM was not asked whether it reaches the PBX" ;;
+				esac
 			} >>"$out/vm-lab.log" 2>&1
 			pbx ring 1002 >>"$out/vm-lab.log" 2>&1 & # the call the window is to answer, when 1002 registers
 			ring=$!
@@ -71,15 +106,10 @@ for vm in "$@"; do
 	if [ -n "$with_pbx" ]; then
 		kill "$ring" 2>/dev/null || : # still waiting: the check ended before the window registered
 		wait "$ring" 2>/dev/null || :
-		pbx report >>"$out/vm-lab.log" 2>&1 || :
+		ring=""
+		pbx report >>"$out/vm-lab.log" 2>&1 || echo "vm-lab: FAILED: the PBX's report" >>"$out/vm-lab.log"
 		grep '^vm-lab:' "$out/vm-lab.log" | tee -a "$log"
 		grep -q '^vm-lab: FAILED' "$out/vm-lab.log" && status=1
 	fi
-	# KEEP=1 leaves the VM up for a closer look; destroy it with `vagrant destroy -f`.
-	[ -n "${KEEP:-}" ] || vagrant destroy -f "$vm" >/dev/null 2>&1 || :
 done
-if [ -n "${LAB:-}" ]; then
-	pbx down >>"$out/vm-lab.log" 2>&1 || :
-	[ -n "${KEEP:-}" ] || vagrant destroy -f pbx >/dev/null 2>&1 || :
-fi
 exit $status

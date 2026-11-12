@@ -52,11 +52,16 @@ function Asked() {
     $script:answered = $true
     Start-Sleep -Seconds 1
     if ($Shots) { Screen "$Shots\windows-call-firewall-question.png" }
-    Fronted | Out-Null
+    # The question keeps the keyboard from the softphone. When the softphone has it all the
+    # same, nothing here is known to be in the way, and nothing is pressed.
+    if (Fronted) {
+        "desktop: call: NOT VERIFIED: Windows made its firewall rules for go-microsip ($(Blocks)) but no window of its own keeps the keyboard; nothing was pressed"
+        return
+    }
     [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
     Start-Sleep -Seconds 2
-    if (Fronted) { "desktop: call: Windows asked whether its firewall should let go-microsip accept connections; Cancel was pressed, and Windows goes on refusing them ($(Blocks) rules)" }
-    else { Fail "call: the firewall's question did not go away" }
+    if (Fronted) { "desktop: call: Windows made its firewall rules for go-microsip ($(Blocks)) and a window that was not the softphone's kept the keyboard (the firewall's question, in the picture); Escape, its Cancel, was pressed and the softphone has the keyboard again" }
+    else { Fail "call: the window that kept the keyboard did not go away on Escape" }
 }
 function Shot([string]$Name) { if ($Shots) { Picture "$Shots\windows-call-$Name.png" } }
 function Status() { return ((Run 'status --json').Out -replace '\s', '') }
@@ -99,11 +104,13 @@ else {
     "desktop: call: ${what}: it rings in the window"
     Shot 'incoming-1-ringing'
     # What Windows was handed for the ringing call.
+    $held = -1
     try {
         [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
         $held = @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory('go-microsip')).Count
-        "desktop: call: ${what}: Windows holds $held notification(s) of go-microsip while it rings"
     } catch { "desktop: call: ${what}: the notification history was not read: $($_.Exception.Message)" }
+    if ($held -gt 0) { "desktop: call: ${what}: Windows holds $held notification(s) of go-microsip while it rings" }
+    elseif ($held -eq 0) { Fail "call: ${what}: Windows holds no notification of go-microsip while it rings" }
     Key '{ENTER}' # Answer has the focus
     if (-not (Until '"direction":"incoming","phase":"established"' 20)) { Fail "call: ${what}: Enter did not answer: $(Status)" }
     else {
@@ -116,9 +123,10 @@ else {
         Start-Sleep -Seconds 2
         try {
             $left = @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory('go-microsip')).Count
-            if ($left -eq 0) { "desktop: call: ${what}: its notification is gone from the screen and from the notification center" }
+            if ($held -lt 1) { "desktop: call: ${what}: NOT VERIFIED: whether its notification was taken away (none was seen while it rang)" }
+            elseif ($left -eq 0) { "desktop: call: ${what}: after the call Windows holds no notification of go-microsip: the one it held while the call rang was taken away" }
             else { Fail "call: ${what}: Windows still holds $left notification(s) of go-microsip after the call" }
-        } catch { "desktop: call: ${what}: the notification history was not read: $($_.Exception.Message)" }
+        } catch { "desktop: call: ${what}: NOT VERIFIED: the notification history was not read after the call: $($_.Exception.Message)" }
     }
 }
 Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force

@@ -139,6 +139,22 @@ check "Escape closes the menu and returns the focus" \
 keys Enter Enter
 check "the menu opens Settings" "!!document.querySelector('section[aria-label=Settings]')"
 
+# Agent access: a permission ticked, a grant made and one revoked, by the keyboard alone.
+access='document.querySelector("[data-testid=agent-access]")'
+ab focus '[data-testid=agent-access] input[value="read:history"]'
+ab eval "window.__grants = $access.querySelectorAll('ul li').length"
+keys Space
+check "Space ticks a permission of a grant" "$focused.checked && $focused.value === 'read:history'"
+reach "Tab reaches Create grant file" "$focused.innerText.trim() === 'Create grant file'"
+keys Enter
+ab wait 400
+check "Enter makes the grant: its file is named and it is listed" \
+	"$access.innerText.includes('Grant created') && $access.querySelectorAll('ul li').length === window.__grants + 1"
+reach "Tab reaches Revoke" "$focused.innerText.trim() === 'Revoke'"
+keys Enter
+ab wait 400
+check "Enter revokes a grant" "$access.querySelectorAll('ul li').length === window.__grants"
+
 # Skins: live, remembered, System follows the desktop.
 ab focus 'input[name="skin"][value="win98"]'
 keys Space

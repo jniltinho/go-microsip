@@ -165,7 +165,8 @@ if ($NotifyTest) {
         $held = @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory('go-microsip')).Count
     } catch { "desktop: notifications: the notification history was not read: $($_.Exception.Message)" }
     if ($t.ExitCode -ne 0) { Fail 'notifications: the toast test' }
-    elseif ($pressed) { 'desktop: notifications: the toast was shown and its Answer button, pressed on the screen, decided the call' }
+    elseif ($pressed -and (Select-String -Path $toast -Pattern 'came back as the decision' -Quiet)) { 'desktop: notifications: the toast was shown and its Answer button, pressed on the screen, decided the call' }
+    elseif ($pressed) { Fail 'notifications: a button named Answer was pressed on the screen and no decision came back from the toast' }
     elseif ($held -gt 0) { "desktop: notifications: Windows took the toast and holds $held notification(s) of go-microsip in its notification center; NOT VERIFIED: its buttons (the check did not find one to press, on the screen or in the notification center)" }
     else { Fail 'notifications: Windows holds no notification of go-microsip' }
     [System.Windows.Forms.SendKeys]::SendWait('{ESC}')

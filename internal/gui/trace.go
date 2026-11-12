@@ -80,7 +80,7 @@ const snapshotScript = `document.documentElement.dataset.probe = JSON.stringify(
       disabled: b.disabled,
     };
   }),
-  fields: [...document.querySelectorAll("input:not([type=checkbox]), select, textarea")].map((f) => {
+  fields: [...document.querySelectorAll("input, select, textarea")].map((f) => {
     const r = f.getBoundingClientRect();
     return {
       label: (f.getAttribute("aria-label") || f.closest("label")?.innerText || f.placeholder || "").trim(),

@@ -84,8 +84,13 @@ function Screen([string]$File) {
     } catch { "desktop: picture not taken: $($_.Exception.Message)" }
 }
 # A key for the window, as a person at the keyboard.
+# Nothing is typed into a window that is not the softphone's: that is a failed step.
 function Key([string]$Keys) {
-    Front
+    if (-not (Fronted)) {
+        Front
+        Fail "the key $Keys was not sent: the softphone's window is not in front"
+        return
+    }
     Start-Sleep -Milliseconds 200
     [System.Windows.Forms.SendKeys]::SendWait($Keys)
 }

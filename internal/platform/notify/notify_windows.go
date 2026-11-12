@@ -56,7 +56,6 @@ func method(o *ole.IInspectable, n int) uintptr {
 // decide, and its toast would otherwise stay, with the keyboard, offering Answer. All of them
 // go: the softphone has one call at a time.
 func forget() error {
-	_ = ole.RoInitialize(1) // done already on this thread once a toast was shown
 	manager, err := ole.RoGetActivationFactory("Windows.UI.Notifications.ToastNotificationManager", iidManagerHistory)
 	if err != nil {
 		return err
@@ -86,7 +85,8 @@ func forget() error {
 // serve shows each ringing call as a toast, takes the toast away when the call stops ringing,
 // and passes its buttons on.
 func (d *Desktop) serve() {
-	runtime.LockOSThread() // the Windows Runtime is initialized for this thread
+	runtime.LockOSThread()  // the Windows Runtime is initialized for this thread,
+	_ = ole.RoInitialize(1) // once, and for as long as the softphone runs
 	wintoast.SetActivationCallback(func(_ string, arguments string, _ []wintoast.UserData) {
 		if action, pressed := shown.pressed(arguments); pressed {
 			select {
@@ -95,11 +95,14 @@ func (d *Desktop) serve() {
 			}
 		}
 	})
+	stale := false // a toast that Windows did not take away when asked
 	for r := range d.requests {
+		// Before the next toast is shown, never after: forgetting takes all of them away.
+		if stale || (!r.show && shown.closed(r.call)) {
+			stale = forget() != nil // a toast that stays is a nuisance, not a reason to stop
+		}
 		if r.show {
 			_ = show(r.call, r.caller) // without notifications the window is the way to answer
-		} else if shown.closed(r.call) {
-			_ = forget() // a toast that stays is a nuisance, not a reason to stop
 		}
 	}
 }

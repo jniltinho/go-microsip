@@ -6,7 +6,8 @@
 # The fictional accounts are those of the VM lab (artifacts/vm-lab/, made by run.sh's rule when
 # missing). FreePBX gets the two UDP ones as its extensions; the scenarios register them and
 # place the calls: echo in both codecs, a call between the two, hold and mute, a blind
-# transfer, DTMF with its control. Without KEEP=1 both VMs are destroyed afterwards.
+# transfer, DTMF with its control. Without KEEP=1 both VMs are destroyed when the run ends,
+# however it ends.
 set -eu
 cd "$(dirname "$0")"
 out=$1
@@ -22,6 +23,19 @@ if [ ! -d "$lab" ]; then
 		--mount "type=bind,source=$(cd "$lab" && pwd),target=/lab" "$lab_image" generate >/dev/null
 fi
 mkdir -p "$out"
+# What this run brought up goes with it, however it ends; KEEP=1 leaves the VMs up.
+cleanup() {
+	code=$?
+	if [ -z "${KEEP:-}" ]; then
+		for vm in freepbx pbx; do
+			vagrant destroy -f "$vm" >/dev/null 2>&1 || echo "freepbx: $vm was not destroyed: vagrant destroy -f $vm" >&2
+		done
+	fi
+	exit "$code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 vagrant up pbx >"$out/vm-pbx-provision.log" 2>&1
 vagrant up freepbx >"$out/vm-freepbx-provision.log" 2>&1
 log=$out/freepbx.log
@@ -37,11 +51,14 @@ status=0
 		echo "freepbx: FAILED: the listed client does not reach FreePBX"
 	fi
 	if vagrant status windows11 2>/dev/null | grep -q running; then
-		if vagrant winrm windows11 -s powershell -c "(Test-NetConnection $lab_freepbx -Port 80 -WarningAction SilentlyContinue).TcpTestSucceeded" 2>/dev/null | grep -q True; then
-			echo "freepbx: FAILED: FreePBX answers a VM that is not on its list"
-		else
-			echo "freepbx: a VM of the lab's network that is not listed gets no connection"
-		fi
+		said=$(vagrant winrm windows11 -s powershell -c "'reached=' + (Test-NetConnection $lab_freepbx -Port 80 -WarningAction SilentlyContinue).TcpTestSucceeded" 2>/dev/null) || said=""
+		case $said in
+		*reached=False*) echo "freepbx: a VM of the lab's network that is not listed gets no connection" ;;
+		*reached=True*) echo "freepbx: FAILED: FreePBX answers a VM that is not on its list" ;;
+		*) echo "freepbx: NOT VERIFIED: the Windows VM was not asked whether it reaches FreePBX" ;;
+		esac
+	else
+		echo "freepbx: NOT VERIFIED: no VM that is not listed is up to try the fence from"
 	fi
 } >"$log" 2>&1
 vagrant ssh pbx -c "/dist/g0/g0lab -lab /srv/lab-clients -server $lab_freepbx -run $scenarios" \
@@ -53,7 +70,4 @@ r = json.load(open(sys.argv[1]))
 for s in r["results"]:
     print("freepbx:", "PASS" if s["ok"] else "FAIL", s["name"], "" if s["ok"] else s.get("detail", ""))
 print("freepbx:", r["scenarios"], "scenarios,", r["failed"], "failed")' "$out/freepbx-report.json" | tee -a "$log" || status=1
-if [ -z "${KEEP:-}" ]; then
-	vagrant destroy -f freepbx pbx >/dev/null 2>&1 || :
-fi
 exit $status
