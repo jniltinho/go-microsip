@@ -42,9 +42,17 @@ onBeforeUnmount(() => window.removeEventListener("pointerdown", outside));
 </script>
 
 <template>
-  <div ref="root" class="relative ml-auto">
-    <button ref="trigger" class="btn" aria-haspopup="menu" :aria-expanded="open" @click="toggle">
-      Menu<Icon name="down" />
+  <div ref="root" class="relative">
+    <button
+      ref="trigger"
+      class="btn pill w-[2.8rem] p-0"
+      aria-haspopup="menu"
+      aria-label="Menu"
+      title="Menu"
+      :aria-expanded="open"
+      @click="toggle"
+    >
+      <Icon name="settings" />
     </button>
     <div
       v-if="open"

@@ -1,7 +1,8 @@
 /* Windows 98 (classic), evoked with original CSS: gray #c0c0c0 faces, 2-px bevels drawn with inset
-   shadows, a navy-to-blue title bar, sunken white fields, etched group boxes, raised tabs over a
-   white pane line, a dithered scroll track with a raised thumb, square corners. The title
-   gradient and the state colors are deeper than the originals so that text on them reaches 7:1.
+   shadows, a navy-to-blue title bar, navy selections and avatars, sunken white fields, check boxes
+   and radio buttons, etched group boxes, raised navigation tabs that hang from the pane, a
+   dithered scroll track with a raised thumb, square corners. The title gradient and the state
+   colors are deeper than the originals so that text on them reaches 7:1.
    The font stack starts with the face Windows has (absent on Linux); DejaVu Sans follows because a
    Tahoma substitute found on Linux drops glyphs at small sizes, and bitmap faces are left out
    because the webview cannot draw them. */
@@ -19,8 +20,10 @@
   --text-disabled: #808080;
   --border: #808080;
   --border-subtle: #dfdfdf;
-  --accent: #ffffff;
-  --accent-text: #000000;
+  --accent: #000080;
+  --accent-text: #ffffff;
+  --check: #ffffff;
+  --check-mark: #000000;
   --link: #000080;
   --selection: #000080;
   --selection-text: #ffffff;
@@ -69,21 +72,23 @@
   --close-text: #000000;
   --close-radius: 0;
   --tab-bar: #c0c0c0;
-  --tabbar-pad: 4px 4px 0;
-  --tab-trough: transparent;
+  --tabbar-pad: 0 4px 4px;
   --tab: #c0c0c0;
   --tab-text: #000000;
   --tab-active: #c0c0c0;
   --tab-active-text: #000000;
-  --tab-border: #ffffff;
+  --tab-border: #808080;
   --tab-bevel:
-    inset 1px 1px 0 #ffffff, inset -1px 0 0 #000000, inset -2px 0 0 #808080, inset 2px 2px 0 #dfdfdf;
+    inset 1px 0 0 #ffffff, inset -1px -1px 0 #000000, inset -2px -2px 0 #808080,
+    inset 2px 0 0 #dfdfdf;
   --tab-active-bevel:
-    inset 1px 1px 0 #ffffff, inset -1px 0 0 #000000, inset -2px 0 0 #808080, inset 2px 2px 0 #dfdfdf;
+    inset 1px 0 0 #ffffff, inset -1px -1px 0 #000000, inset -2px -2px 0 #808080,
+    inset 2px 0 0 #dfdfdf;
   --tab-radius: 0;
   --tab-lift: 2px;
   --status: #c0c0c0;
-  --status-bevel: inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff;
+  --status-bevel: inset 0 -1px 0 #ffffff, inset 0 -2px 0 #808080;
+  --status-gap: 6px;
   --status-text: #000000;
   --group: transparent;
   --group-border: #808080;
@@ -107,6 +112,15 @@
   --font-ui: "Microsoft Sans Serif", "DejaVu Sans", Tahoma, "Noto Sans", sans-serif;
   --font-size: 12px;
   --radius: 0;
+  --radius-pill: 0;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 24px;
   --key-height: 40px;

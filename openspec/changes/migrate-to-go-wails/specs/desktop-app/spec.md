@@ -22,7 +22,7 @@ The application SHALL ship as one executable that opens the desktop window by de
 - **THEN** the compact softphone window opens
 
 ### Requirement: Compact softphone screens
-The window SHALL offer Dialpad, Calls and Contacts tabs with a 3×4 keypad, local search, favorites, call controls and settings, at workflow parity with the Rust candidate's screens. Each screen SHALL be fully operable by keyboard and remain legible at 100–200 % scaling.
+The window SHALL offer four destinations, Home (a name-or-number search, favorites and recent calls), Calls, Contacts and Keypad (a 3×4 keypad), with local search, call controls and settings, at workflow parity with the Rust candidate's screens. The account, the registration state and do-not-disturb SHALL be visible from every destination. Each screen SHALL be fully operable by keyboard and remain legible at 100–200 % scaling.
 
 #### Scenario: Keyboard-only call
 - **WHEN** a user types a number, presses Enter, and later presses the hangup shortcut without using the pointer

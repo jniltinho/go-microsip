@@ -44,10 +44,14 @@ for skin in $skins; do
 	ab open "$base/"
 	ab eval "localStorage.setItem('go-microsip.mock.theme','$skin');localStorage.setItem('go-microsip.skin','$skin')"
 
-	# Dialpad, then a whole call by keyboard: Ctrl+L, type, Enter, DTMF, Escape.
+	# Home and its search, then the keypad and a whole call by keyboard: Ctrl+L, type, Enter, DTMF,
+	# Escape.
 	scene ""
-	shot dialpad
+	shot home
+	ab keyboard type "a"
+	shot home-search
 	keys Control+l
+	shot dialpad
 	ab keyboard type "1002"
 	shot dialpad-number
 	keys Enter
@@ -64,6 +68,8 @@ for skin in $skins; do
 	scene held
 	shot call-held
 	scene active
+	click '[aria-label="Call controls"] button:nth-child(3)'
+	shot call-keypad
 	click '[aria-label="Call controls"] button:nth-child(4)'
 	ab keyboard type "1003"
 	shot call-transfer
@@ -79,7 +85,8 @@ for skin in $skins; do
 	ab focus '.tab[aria-selected="true"]'
 	keys ArrowRight
 	shot calls
-	keys Tab Tab Tab Tab Tab Tab ArrowDown Enter
+	ab focus '.row'
+	keys ArrowDown Enter
 	shot calls-selected
 	click 'section[aria-label="Calls"] > div:last-child button'
 	shot confirm

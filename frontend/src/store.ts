@@ -14,6 +14,15 @@ export const unavailable = ref("");
 /** Every contact, to show names for numbers. */
 export const book = ref<api.Contact[]>([]);
 
+/** Up to two initials of a name for its avatar; "#" for a bare number. Shown as text only. */
+export const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((word) => /^\p{L}/u.exec(word)?.[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "#";
+
 /** The contact name of a number, if any. */
 export const nameOf = (number: string) =>
   book.value.find((c) => c.numbers.some((n) => n.number === number))?.name;

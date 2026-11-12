@@ -1,9 +1,10 @@
-/* macOS (light appearance), evoked with original CSS: a light gray window and toolbar with a
-   centered bold title, the close button as a red disc at the left, a segmented control for the
-   sections (a gray trough with a white raised segment), white rounded controls, boxed groups,
-   rounded sheets and menus with soft shadows, a thick blue focus ring, thin pill scroll thumbs,
-   the system font stack. Control outlines and the blue are darker than the stock appearance (close
-   to its "Increase contrast" setting) so that edges reach 3:1 and text 7:1. */
+/* macOS (light appearance), evoked with original CSS: a light gray window under a toolbar header,
+   a centered bold title with the close button as a red disc at the left, white rounded controls
+   and round keys, boxed groups, the blue accent on buttons that stay on, checks and the mark of
+   the selected destination, rounded sheets and menus with soft shadows, a thick blue focus ring,
+   thin pill scroll thumbs, the system font stack. Control outlines and the blue are darker than
+   the stock appearance (close to its "Increase contrast" setting) so that edges reach 3:1 and text
+   7:1. */
 :root[data-theme="macos"] {
   color-scheme: light;
   --surface: #ececec;
@@ -18,8 +19,10 @@
   --text-disabled: #8e8e93;
   --border: #b4b4b8;
   --border-subtle: #dcdcdf;
-  --accent: #0a60d0;
+  --accent: #0051ba;
   --accent-text: #ffffff;
+  --check: #0a60d0;
+  --check-mark: #ffffff;
   --link: #003d9e;
   --selection: #0051ba;
   --selection-text: #ffffff;
@@ -61,20 +64,20 @@
   --close: #ff5f57;
   --close-text: #4d0000;
   --close-radius: 50%;
-  --tab-bar: linear-gradient(180deg, #e9e7e9 0%, #d5d3d5 100%);
-  --tabbar-pad: 6px 8px;
-  --tab-trough: #c9c9ce;
-  --tab: #c9c9ce;
-  --tab-text: #1d1d1f;
-  --tab-active: #ffffff;
+  --tab-bar: #f6f6f6;
+  --tabbar-pad: 0;
+  --tab: #f6f6f6;
+  --tab-text: #3a3a3c;
+  --tab-active: #f6f6f6;
   --tab-active-text: #1d1d1f;
   --tab-border: #b4b4b8;
   --tab-bevel: none;
-  --tab-active-bevel: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.12);
-  --tab-radius: 6px;
+  --tab-active-bevel: none;
+  --tab-radius: 0;
   --tab-lift: 0px;
-  --status: #e3e3e6;
-  --status-bevel: none;
+  --status: linear-gradient(180deg, #e9e7e9 0%, #d5d3d5 100%);
+  --status-bevel: inset 0 -1px 0 #b4b4b8;
+  --status-gap: 8px;
   --status-text: #1d1d1f;
   --group: #e3e3e6;
   --group-border: #c8c8cc;
@@ -94,6 +97,15 @@
     sans-serif;
   --font-size: 13px;
   --radius: 6px;
+  --radius-pill: 999px;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 26px;
   --key-height: 44px;

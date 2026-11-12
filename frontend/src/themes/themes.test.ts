@@ -1,6 +1,6 @@
 // The skin contract (openspec ui-themes, design D7): every skin defines the same tokens, colors live
-// only in this folder, corners are rounded only by the radius tokens and only in the skins of
-// systems that round them, and every skin meets WCAG AAA: text at 7:1, the edges of controls, state
+// only in this folder, corners are rounded only by the radius tokens and only in the skins that
+// round them, and every skin meets WCAG AAA: text at 7:1, the edges of controls, state
 // icons and the focus ring at 3:1, a solid focus ring of at least 2 px.
 import { expect, test } from "vite-plus/test";
 import { effectiveSkin, knownSkin, SKINS } from "./index";
@@ -70,9 +70,17 @@ test("every skin defines the same token set", () => {
   }
 });
 
-// Corners are square unless the system a skin evokes rounds them (design D7, changed on 2026-11-11).
-const ROUNDED = ["xp", "macos", "ubuntu"];
-const RADII = ["--radius", "--radius-window", "--radius-menu", "--tab-radius", "--close-radius"];
+// Corners are square unless a skin rounds them (design D7, changed on 2026-11-11): the neutral
+// defaults since layout B, and the skins of systems that round. Windows 98 and Matrix stay square.
+const ROUNDED = ["light", "dark", "xp", "macos", "ubuntu"];
+const RADII = [
+  "--radius",
+  "--radius-pill",
+  "--radius-window",
+  "--radius-menu",
+  "--tab-radius",
+  "--close-radius",
+];
 
 test("corners are rounded only by the radius tokens, and only in the skins of rounded systems", () => {
   for (const { id } of SKINS) {
@@ -83,10 +91,12 @@ test("corners are rounded only by the radius tokens, and only in the skins of ro
   for (const id of ROUNDED) expect(tokens(id).get("--radius"), id).toMatch(/^[1-9]\d*px$/);
   for (const [file, text] of Object.entries(sources)) {
     expect(text, file).not.toMatch(/\brounded(-|\b)/);
-    // A radius comes from a token (a check box takes half of one); only a radio is a disc everywhere.
-    const allowed =
-      /border-radius: (var\(--[\w-]+\)|calc\(var\(--radius\) \/ 2\)|50%; \/\* a radio button is a disc in every system \*\/)/g;
-    expect(text.replace(allowed, ""), file).not.toContain("border-radius");
+    // A radius comes from a token (a check box takes a quarter of one) or is zero; only a radio is a
+    // disc everywhere.
+    for (const [, value] of text.matchAll(/border[\w-]*-radius\s*:\s*([^;]+);/g))
+      expect(value, `${file}: border-radius: ${value}`).toMatch(
+        /^(var\(--[\w-]*radius[\w-]*\)|0|calc\(var\(--radius\) \/ 4\)|50%)$/,
+      );
   }
 });
 
@@ -215,24 +225,38 @@ const TEXT_PAIRS: [string, string][] = [
   ["status-text", "status"],
   ["group-title", "surface"],
   ["group-title", "group"],
-  ...STATES.flatMap((s) => AROUND.map((bg): [string, string] => [`state-${s}`, bg])),
+  // A button that stays on, and the mark of the selected destination, are filled with the accent.
+  ["accent-text", "accent"],
+  // A state chip is the state's color on its tint.
+  ...STATES.flatMap((s) =>
+    [...AROUND, `state-${s}-bg`].map((bg): [string, string] => [`state-${s}`, bg]),
+  ),
 ];
 /**
  * What is not text, at 3:1 (WCAG 1.4.11): name, the tokens that draw it (the best one counts) and
- * what it stands on. A button's edge is its border or its bevel; a check box and a radio are small
- * fields whose mark is drawn in --accent-text on --accent; the selection fill is what shows the focused menu item; the pressed bevel is what tells a
- * pressed toggle from a released one; the focus ring is drawn on the window, a well or a group and
- * beside the plain faces (in a title bar, the tab bar or a selected row it takes that place's text
- * color, which the text pairs hold at 7:1).
+ * what it stands on. A button's edge is its border or its bevel, and the fill of the call and
+ * hang-up buttons, which have no border; a check box and a radio are small fields whose mark is
+ * drawn in --check-mark on --check; the accent is what fills a button that stays on, so it is told
+ * from a button's face and from what the button stands on; the pressed bevel is what tells a
+ * pressed button from a released one; the focus ring is drawn on the window, a well or a group and
+ * beside the plain faces (in a title bar, the header, the navigation, a selected row or a focused
+ * menu item it takes that place's text color, which the text pairs hold at 7:1).
  */
 const UI_PAIRS: [string, string[], string][] = [
-  ["check mark", ["accent-text"], "accent"],
-  ["selection fill", ["selection"], "panel"],
-  ...[...AROUND, "title", "tab-bar"].map((bg): [string, string[], string] => [
+  ["check mark", ["check-mark"], "check"],
+  ...[...AROUND, "status", "btn"].map((bg): [string, string[], string] => [
+    "button that stays on",
+    ["accent"],
+    bg,
+  ]),
+  ...[...AROUND, "title", "status"].map((bg): [string, string[], string] => [
     "button edge",
     ["btn-border", "btn-bevel"],
     bg,
   ]),
+  ...["call", "hangup"].flatMap((fill) =>
+    AROUND.map((bg): [string, string[], string] => [`${fill} button`, [fill, "btn-bevel"], bg]),
+  ),
   ...[...AROUND, "input"].map((bg): [string, string[], string] => [
     "field edge",
     ["field-border", "field-bevel"],

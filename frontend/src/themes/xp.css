@@ -1,9 +1,10 @@
-/* Windows XP (Luna blue), evoked with original CSS: beige #ece9d8 faces, glossy buttons with a
-   navy outline, rounded 3 px, and an orange frame under the pointer; a blue gradient title bar with
-   bold white shadowed text and a red close button; tabs with rounded top corners and an orange
-   stripe on the selected one; steel-blue field edges, blue group captions, a blue window frame with
-   rounded top corners, pale blue scroll thumbs. The blues, greens and reds are deeper than Luna's
-   so that white text on them reaches 7:1, and field edges are darker to reach 3:1.
+/* Windows XP (Luna blue), evoked with original CSS: beige #ece9d8 faces, glossy buttons and keys
+   with a navy outline, rounded 3 px, and an orange frame under the pointer; a blue gradient title
+   bar with bold white shadowed text and a red close button; navigation tabs that hang from the
+   pane with rounded corners and an orange stripe on the selected one; steel-blue field edges, green
+   check marks, blue group captions, a blue window frame with rounded top corners, pale blue scroll
+   thumbs. The blues, greens and reds are deeper than Luna's so that white text on them reaches
+   7:1, and field edges are darker to reach 3:1.
    DejaVu Sans leads the font stack because it is always present on the Linux targets (a Tahoma
    substitute found there drops glyphs at small sizes); Windows falls through to Tahoma. */
 :root[data-theme="xp"] {
@@ -20,8 +21,10 @@
   --text-disabled: #8d8a7b;
   --border: #8a8776;
   --border-subtle: #d6d2c2;
-  --accent: #ffffff;
-  --accent-text: #21a121;
+  --accent: #1f4fa8;
+  --accent-text: #ffffff;
+  --check: #ffffff;
+  --check-mark: #21a121;
   --link: #0033a0;
   --selection: #1f4fa8;
   --selection-text: #ffffff;
@@ -69,20 +72,20 @@
   --close-text: #ffffff;
   --close-radius: 3px;
   --tab-bar: #ece9d8;
-  --tabbar-pad: 4px 4px 0;
-  --tab-trough: transparent;
-  --tab: linear-gradient(180deg, #ffffff 0%, #ece9d8 100%);
+  --tabbar-pad: 0 4px 4px;
+  --tab: linear-gradient(180deg, #ece9d8 0%, #ffffff 100%);
   --tab-text: #000000;
   --tab-active: #fcfcfe;
   --tab-active-text: #000000;
   --tab-border: #707b7d;
-  --tab-bevel: inset 1px 0 0 #707b7d, inset -1px 0 0 #707b7d, inset 0 1px 0 #707b7d;
+  --tab-bevel: inset 1px 0 0 #707b7d, inset -1px 0 0 #707b7d, inset 0 -1px 0 #707b7d;
   --tab-active-bevel:
-    inset 0 3px 0 #e68b2c, inset 0 4px 0 #ffc73c, inset 1px 0 0 #707b7d, inset -1px 0 0 #707b7d;
-  --tab-radius: 4px 4px 0 0;
+    inset 0 -3px 0 #e68b2c, inset 0 -4px 0 #ffc73c, inset 1px 0 0 #707b7d, inset -1px 0 0 #707b7d;
+  --tab-radius: 0 0 4px 4px;
   --tab-lift: 2px;
   --status: #ece9d8;
-  --status-bevel: inset -1px 0 0 #aca899;
+  --status-bevel: inset 0 -1px 0 #aca899;
+  --status-gap: 6px;
   --status-text: #000000;
   --group: transparent;
   --group-border: #d0d0bf;
@@ -100,6 +103,15 @@
   --font-ui: "DejaVu Sans", Tahoma, Verdana, "Noto Sans", sans-serif;
   --font-size: 12px;
   --radius: 3px;
+  --radius-pill: 3px;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 24px;
   --key-height: 40px;

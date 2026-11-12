@@ -1,10 +1,9 @@
 /* Ubuntu (Yaru, light), evoked with original CSS: a near-white window under a light gray header
-   bar with a centered bold title and a round gray close button, the sections as flat rounded
-   switcher buttons with an orange line under the selected one, white rounded controls and boxed
-   groups, the orange accent on focus rings, checks and pressed buttons, an aubergine ringing state,
-   rounded dialogs and menus, thin pill scroll thumbs, the Ubuntu font stack. Selected rows use a
-   burnt orange and control outlines a mid gray, darker than Yaru's, so that text reaches 7:1 and
-   edges 3:1. */
+   bar, a centered bold title with a round gray close button, white rounded controls, round keys
+   and boxed groups, the orange accent on focus rings, checks and the line over the selected
+   destination, an aubergine ringing state, rounded dialogs and menus, thin pill scroll thumbs, the
+   Ubuntu font stack. Selected rows, avatars and buttons that stay on use a burnt orange, and
+   control outlines a mid gray, darker than Yaru's, so that text reaches 7:1 and edges 3:1. */
 :root[data-theme="ubuntu"] {
   color-scheme: light;
   --surface: #fafafa;
@@ -19,8 +18,10 @@
   --text-disabled: #8f8f8f;
   --border: #c8c8c8;
   --border-subtle: #e0e0e0;
-  --accent: #e95420;
+  --accent: #99350d;
   --accent-text: #ffffff;
+  --check: #e95420;
+  --check-mark: #ffffff;
   --link: #0b4a99;
   --selection: #99350d;
   --selection-text: #ffffff;
@@ -63,19 +64,19 @@
   --close-text: #1f1f1f;
   --close-radius: 50%;
   --tab-bar: #ebebeb;
-  --tabbar-pad: 5px 6px;
-  --tab-trough: transparent;
+  --tabbar-pad: 0;
   --tab: #ebebeb;
   --tab-text: #1f1f1f;
-  --tab-active: #d8d8d8;
+  --tab-active: #ebebeb;
   --tab-active-text: #1f1f1f;
   --tab-border: #c8c8c8;
   --tab-bevel: none;
-  --tab-active-bevel: inset 0 -3px 0 #e95420;
-  --tab-radius: 6px;
+  --tab-active-bevel: inset 0 3px 0 #e95420;
+  --tab-radius: 0;
   --tab-lift: 0px;
   --status: #ebebeb;
-  --status-bevel: none;
+  --status-bevel: inset 0 -1px 0 #c8c8c8;
+  --status-gap: 8px;
   --status-text: #1f1f1f;
   --group: #ffffff;
   --group-border: #c8c8c8;
@@ -93,6 +94,15 @@
   --font-ui: Ubuntu, "Ubuntu Sans", Cantarell, "Noto Sans", "DejaVu Sans", sans-serif;
   --font-size: 13px;
   --radius: 6px;
+  --radius-pill: 999px;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 28px;
   --key-height: 44px;

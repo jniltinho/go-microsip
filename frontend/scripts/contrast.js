@@ -1,7 +1,8 @@
 // Contrast audit of the page as drawn (WCAG AAA), evaluated in the browser by prints.sh on every
 // screen: each visible text, field value and placeholder against the nearest painted background
-// (every stop of a gradient) at 7:1; each icon, and the edge of each button, key, field, check box
-// and radio (its border, an opaque line of its bevel or its face) against what it stands on, at 3:1. Returns what
+// (every stop of a gradient) at 7:1; each icon, and the edge of each button, key, call control,
+// field, check box and radio (its border, an opaque line of its bevel or its face) against what it
+// stands on, at 3:1. Returns what
 // is below. Inactive controls are exempt (WCAG 1.4.6, 1.4.11), and so is what lies behind an open
 // modal dialog, which is inert.
 (() => {
@@ -63,7 +64,7 @@
       failures.add(`${low.toFixed(2)} icon in "${el.parentElement.innerText.trim().slice(0, 20)}"`);
   }
   for (const el of document.querySelectorAll(
-    ".btn, .key, .field, input[type=checkbox], input[type=radio]",
+    ".btn, .key, .ctl-face, .field, input[type=checkbox], input[type=radio]",
   )) {
     if (!shown(el)) continue;
     const style = getComputedStyle(el);
