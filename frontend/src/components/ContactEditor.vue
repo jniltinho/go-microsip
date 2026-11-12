@@ -42,7 +42,7 @@ async function save() {
     @submit.prevent="save"
   >
     <div class="titlebar">
-      {{ form.id ? "Edit contact" : "New contact" }}
+      <span class="titlebar-text">{{ form.id ? "Edit contact" : "New contact" }}</span>
       <button
         class="btn"
         type="button"

@@ -619,7 +619,7 @@ func TestSQLiteLayerAloneResolvesAndInvalidValuesNameTheOrigin(t *testing.T) {
 	if cfg := ok(t, c); cfg.Config.UI.Theme != ThemeUbuntu || cfg.Source(UITheme) != Flag {
 		t.Errorf("theme %q from %v", cfg.Config.UI.Theme, cfg.Source(UITheme))
 	}
-	if len(Themes()) != 7 || ParseTheme("xp") != ThemeXP || ParseTheme("macos") != ThemeMacOS || ParseTheme("") != ThemeSystem {
+	if len(Themes()) != 8 || ParseTheme("xp") != ThemeXP || ParseTheme("macos") != ThemeMacOS || ParseTheme("matrix") != ThemeMatrix || ParseTheme("") != ThemeSystem {
 		t.Errorf("themes: %v", Themes())
 	}
 }

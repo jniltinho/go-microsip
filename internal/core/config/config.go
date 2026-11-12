@@ -143,7 +143,7 @@ func FieldFromKey(key string) (Field, bool) {
 // Theme is the window's skin, or ThemeSystem to follow the desktop.
 type Theme string
 
-// Themes: system plus the six skins the window ships.
+// Themes: system plus the seven skins the window ships.
 const (
 	ThemeSystem Theme = "system"
 	ThemeLight  Theme = "light"
@@ -152,11 +152,12 @@ const (
 	ThemeWin98  Theme = "win98"
 	ThemeMacOS  Theme = "macos"
 	ThemeUbuntu Theme = "ubuntu"
+	ThemeMatrix Theme = "matrix"
 )
 
 // Themes lists the accepted values of ui.theme.
 func Themes() []Theme {
-	return []Theme{ThemeSystem, ThemeLight, ThemeDark, ThemeXP, ThemeWin98, ThemeMacOS, ThemeUbuntu}
+	return []Theme{ThemeSystem, ThemeLight, ThemeDark, ThemeXP, ThemeWin98, ThemeMacOS, ThemeUbuntu, ThemeMatrix}
 }
 
 // ParseTheme reads ui.theme. A name this version does not know resolves to ThemeSystem, so a

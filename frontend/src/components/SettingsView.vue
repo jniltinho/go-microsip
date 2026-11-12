@@ -82,7 +82,7 @@ const saveAudio = () =>
 <template>
   <section class="flex h-full flex-col" aria-label="Settings">
     <div class="titlebar">
-      Settings
+      <span class="titlebar-text">Settings</span>
       <button class="btn" aria-label="Close settings" @click="ui.dispatch({ type: 'closeView' })">
         <Icon name="close" />
       </button>

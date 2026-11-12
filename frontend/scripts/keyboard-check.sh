@@ -43,9 +43,22 @@ ab open "$base/"
 ab eval "localStorage.clear()"
 
 scene ""
+check "the window opens on Home with the focus in the search" \
+	"$focused.getAttribute('aria-label') === 'Name or number'"
+ab keyboard type "bruno"
+keys Enter
+ab wait 900
+check "Enter in the search calls the only contact the name matches" \
+	"$call.innerText.includes('Bruno Reis')"
+keys Escape
+ab wait 600
+check "Escape hangs up and leaves the number in the keypad" \
+	"!$call && document.getElementById('number').value === '1003'"
+
+scene ""
 keys Tab
-check "Tab focuses a control and its focus ring is visible" \
-	"$focused !== document.body && getComputedStyle($focused).outlineStyle !== 'none' && parseFloat(getComputedStyle($focused).outlineWidth) >= 1"
+check "Tab focuses a control and its focus ring is solid and at least 2 px" \
+	"$focused !== document.body && getComputedStyle($focused).outlineStyle === 'solid' && parseFloat(getComputedStyle($focused).outlineWidth) >= 2"
 keys Control+l
 check "Ctrl+L focuses the number entry" "$focused.id === 'number'"
 ab keyboard type "1002"
@@ -60,14 +73,14 @@ keys Escape
 ab wait 600
 check "Escape hangs up" "!$call && document.getElementById('number').value === '1002'"
 
-keys Control+l Tab
-check "Tab moves from the number to the keypad" "$focused.classList.contains('key')"
+keys Control+l Tab Tab
+check "Tab moves from the number, past its clear button, to the keypad" "$focused.classList.contains('key')"
 keys Space
 check "Space presses the focused key" "document.getElementById('number').value === '10021'"
 
 ab focus '.tab[aria-selected="true"]'
-keys ArrowRight
-check "an arrow key moves to the Calls tab" "document.querySelector('.tab[aria-selected=true]').innerText === 'Calls'"
+keys ArrowRight ArrowRight
+check "arrow keys move through the destinations, around the end, to Calls" "document.querySelector('.tab[aria-selected=true]').innerText.trim() === 'Calls'"
 ab focus '.row'
 keys ArrowDown
 check "arrow keys move in the history list" "$focused === document.querySelectorAll('.row')[1]"
@@ -82,14 +95,14 @@ check "the row's Edit puts the number in the dialpad without dialing" \
 # The history's search, and the Contacts tab: list, favorites, a contact's actions, the editor and
 # the search, each reached with Tab and arrows from where the keyboard is.
 ab focus '.tab[aria-selected="true"]'
-keys ArrowRight # the row's Edit went to the dialpad: back to Calls
+keys ArrowRight ArrowRight # the row's Edit went to the keypad: around the end, back to Calls
 reach "Tab reaches the history search" "$focused.getAttribute('aria-label') === 'Search calls'"
 ab keyboard type "1003"
 check "typing in it narrows the history" \
 	"[...document.querySelectorAll('.row')].length > 0 && [...document.querySelectorAll('.row')].every((r) => r.innerText.includes('1003') || r.innerText.includes('Bruno'))"
 ab focus '.tab[aria-selected="true"]'
 keys ArrowRight
-check "an arrow key moves to the Contacts tab" "document.querySelector('.tab[aria-selected=true]').innerText === 'Contacts'"
+check "an arrow key moves to Contacts" "document.querySelector('.tab[aria-selected=true]').innerText.trim() === 'Contacts'"
 reach "Tab reaches a contact's favorite mark" "($focused.getAttribute('aria-label') || '').startsWith('Favorite: ')"
 marked="document.querySelector('[aria-label=\"Favorite: Ana Lima\"]').getAttribute('aria-pressed')"
 was=$(agent-browser eval "$marked")
@@ -181,6 +194,19 @@ check "a held call shows an icon and a label" "$call.querySelector('[role=status
 scene no-engine
 check "without an engine the window says so and offers no call control" \
 	"document.body.innerText.includes('Phone engine unavailable') && !document.querySelector('.key, .btn-call')"
+
+# Motion: the Matrix backdrop falls once, for under five seconds, and not at all with reduced motion.
+ab eval "localStorage.setItem('go-microsip.mock.theme','matrix');localStorage.setItem('go-microsip.skin','matrix')"
+scene ""
+body='getComputedStyle(document.body)'
+check "the Matrix backdrop moves once and for under five seconds" \
+	"$body.animationName === 'backdrop' && parseFloat($body.animationDuration) < 5 && $body.animationIterationCount === '1'"
+ab set media light reduced-motion
+ab wait 300
+check "with reduced motion nothing moves" "$body.animationName === 'none'"
+ab set media light
+ab wait 300
+check "and it moves again without it" "$body.animationName === 'backdrop'"
 
 ab eval "localStorage.clear()"
 [ "$failed" = 0 ] && echo "keyboard-check: all passed" || { echo "keyboard-check: FAILED" >&2; exit 1; }

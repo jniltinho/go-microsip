@@ -13,7 +13,7 @@ import (
 )
 
 // The skins of the window (design D7 of migrate-to-go-wails): one stylesheet per skin, one token
-// contract. This fails when fewer or other skins than the six ship, when a skin defines another set
+// contract. This fails when fewer or other skins than the seven ship, when a skin defines another set
 // of tokens than the others (the skin and the token are named), when the page's registry or the
 // configuration's accepted values name other skins than the stylesheets do.
 func TestSkinsShareOneTokenContract(t *testing.T) {
@@ -49,7 +49,7 @@ func TestSkinsShareOneTokenContract(t *testing.T) {
 			tokens[id] = names
 		}
 	}
-	shipped := []string{"dark", "light", "macos", "ubuntu", "win98", "xp"}
+	shipped := []string{"dark", "light", "macos", "matrix", "ubuntu", "win98", "xp"}
 	var found []string
 	for id := range tokens {
 		found = append(found, id)

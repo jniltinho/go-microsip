@@ -7,7 +7,7 @@ Defines how go-microsip is skinned: a registry of interchangeable skins sharing 
 ## ADDED Requirements
 
 ### Requirement: Shipped skins
-The application SHALL ship at least these skins: Light, Dark, Windows XP, macOS, Ubuntu and Windows 98, plus a System choice that resolves to Light or Dark from the desktop preference. Every screen, dialog, menu and the incoming-call view SHALL be styled in every skin.
+The application SHALL ship at least these skins: Light, Dark, Windows XP, macOS, Ubuntu, Windows 98 and Matrix, plus a System choice that resolves to Light or Dark from the desktop preference. Every screen, dialog, menu and the incoming-call view SHALL be styled in every skin.
 
 #### Scenario: Every screen in every skin
 - **WHEN** the screenshot matrix runs each screen in each shipped skin
@@ -40,11 +40,15 @@ Every skin SHALL define the same set of design tokens, and screens SHALL take co
 - **THEN** it appears in settings and styles every screen without editing any screen
 
 ### Requirement: Legibility and call-state clarity in every skin
-In every skin, text and controls SHALL meet a 4.5:1 contrast ratio, focus SHALL be visible, and call states (ringing, active, on hold, muted, error) SHALL be distinguishable by more than color alone.
+In every skin, text and control labels SHALL meet a 7:1 contrast ratio on their backgrounds (disabled text is exempt), the edges of controls, state icons and the focus ring SHALL meet 3:1, the focus ring SHALL be at least 2 px wide, and call states (ringing, active, on hold, muted, error, encrypted or not) SHALL be distinguishable by an icon and a label, not by color alone. Nothing SHALL move for longer than five seconds, or at all when the desktop asks for reduced motion.
 
 #### Scenario: Contrast audit
 - **WHEN** the automated contrast audit runs over each screen in each skin
-- **THEN** no text or control falls below 4.5:1
+- **THEN** no text falls below 7:1 and no control edge, state icon or focus ring falls below 3:1
+
+#### Scenario: Reduced motion
+- **WHEN** the desktop asks for reduced motion and the Matrix skin is selected
+- **THEN** its backdrop is drawn still and nothing in the window animates
 
 #### Scenario: Muted call in a retro skin
 - **WHEN** a call is muted with the Windows 98 skin selected

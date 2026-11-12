@@ -32,6 +32,8 @@ const PATHS = {
   trash: "M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14",
   edit: "M4 20l1-5L16 4l4 4L9 19zM14 6l4 4",
   bell: "M6 17v-6a6 6 0 0 1 12 0v6l2 2H4zM10 22h4",
+  home: "M4 11l8-7 8 7v9h-5v-6H9v6H4z",
+  keypad: "M6 5h.01M12 5h.01M18 5h.01M6 12h.01M12 12h.01M18 12h.01M6 19h.01M12 19h.01M18 19h.01",
 } as const;
 export type IconName = keyof typeof PATHS;
 

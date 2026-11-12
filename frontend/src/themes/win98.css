@@ -1,27 +1,36 @@
-/* Windows 98, evoked with original CSS: gray #c0c0c0 faces, 2-px bevels drawn with inset shadows,
-   navy title bars, sunken white fields, etched group boxes, dotted focus. The font stack starts
-   with DejaVu Sans for the reason given in xp.css; bitmap faces are left out because the webview
-   cannot draw them. */
+/* Windows 98 (classic), evoked with original CSS: gray #c0c0c0 faces, 2-px bevels drawn with inset
+   shadows, a navy-to-blue title bar, navy selections and avatars, sunken white fields, check boxes
+   and radio buttons, etched group boxes, raised navigation tabs that hang from the pane, a
+   dithered scroll track with a raised thumb, square corners. The title gradient and the state
+   colors are deeper than the originals so that text on them reaches 7:1.
+   The font stack starts with the face Windows has (absent on Linux); DejaVu Sans follows because a
+   Tahoma substitute found on Linux drops glyphs at small sizes, and bitmap faces are left out
+   because the webview cannot draw them. */
 :root[data-theme="win98"] {
   color-scheme: light;
   --surface: #c0c0c0;
+  --backdrop: none;
+  --backdrop-shift: 0 0;
+  --backdrop-motion: none;
   --panel: #ffffff;
   --input: #ffffff;
   --overlay: rgba(0, 0, 0, 0.3);
   --text: #000000;
-  --text-muted: #383838;
-  --text-disabled: #7a7a7a;
+  --text-muted: #2a2a2a;
+  --text-disabled: #808080;
   --border: #808080;
   --border-subtle: #dfdfdf;
   --accent: #000080;
   --accent-text: #ffffff;
+  --check: #ffffff;
+  --check-mark: #000000;
   --link: #000080;
   --selection: #000080;
   --selection-text: #ffffff;
-  --hover: #d0d0d0;
+  --hover: #d4d0c8;
   --focus: #000000;
-  --focus-style: dotted;
-  --focus-width: 1px;
+  --focus-style: solid;
+  --focus-width: 2px;
   --btn: #c0c0c0;
   --btn-text: #000000;
   --btn-border: #c0c0c0;
@@ -39,42 +48,79 @@
     inset -2px -2px 0 #dfdfdf;
   --key: #c0c0c0;
   --key-text: #000000;
-  --key-sub: #383838;
+  --key-sub: #2a2a2a;
   --call: #006400;
   --call-text: #ffffff;
-  --hangup: #8b0000;
+  --hangup: #800000;
   --hangup-text: #ffffff;
-  --state-active: #004d00;
+  --state-active: #003800;
   --state-ringing: #000080;
-  --state-held: #5c3200;
-  --state-muted: #6e2400;
-  --state-error: #800000;
-  --state-secure: #004d00;
-  --state-insecure: #5c3200;
+  --state-held: #3d2400;
+  --state-muted: #4a1a00;
+  --state-error: #5c0000;
+  --state-secure: #003800;
+  --state-insecure: #3d2400;
   --notice: #ffffe1;
   --notice-text: #000000;
-  --title: linear-gradient(90deg, #000080 0%, #1060a8 100%);
+  --title: linear-gradient(90deg, #000080 0%, #0a4fb0 100%);
   --title-text: #ffffff;
   --title-weight: 700;
+  --title-shadow: none;
+  --title-direction: row;
+  --title-align: left;
+  --close: #c0c0c0;
+  --close-text: #000000;
+  --close-radius: 0;
   --tab-bar: #c0c0c0;
+  --tabbar-pad: 0 4px 4px;
   --tab: #c0c0c0;
   --tab-text: #000000;
   --tab-active: #c0c0c0;
   --tab-active-text: #000000;
-  --tab-border: #c0c0c0;
-  --tab-accent: #c0c0c0;
+  --tab-border: #808080;
   --tab-bevel:
-    inset 1px 1px 0 #ffffff, inset -1px 0 0 #000000, inset -2px 0 0 #808080, inset 2px 2px 0 #dfdfdf;
+    inset 1px 0 0 #ffffff, inset -1px -1px 0 #000000, inset -2px -2px 0 #808080,
+    inset 2px 0 0 #dfdfdf;
+  --tab-active-bevel:
+    inset 1px 0 0 #ffffff, inset -1px -1px 0 #000000, inset -2px -2px 0 #808080,
+    inset 2px 0 0 #dfdfdf;
+  --tab-radius: 0;
+  --tab-lift: 2px;
   --status: #c0c0c0;
-  --status-bevel: inset 1px 1px 0 #808080, inset -1px -1px 0 #ffffff;
+  --status-bevel: inset 0 -1px 0 #ffffff, inset 0 -2px 0 #808080;
+  --status-gap: 6px;
   --status-text: #000000;
+  --group: transparent;
+  --group-border: #808080;
+  --group-title: #000000;
   --group-bevel: 1px 1px 0 #ffffff, inset 1px 1px 0 #ffffff;
   --dialog-bevel:
     inset -1px -1px 0 #000000, inset 1px 1px 0 #dfdfdf, inset -2px -2px 0 #808080,
     inset 2px 2px 0 #ffffff, 2px 2px 0 rgba(0, 0, 0, 0.35);
-  --font-ui: "DejaVu Sans", Tahoma, "Microsoft Sans Serif", "Noto Sans", sans-serif;
+  --menu-bevel:
+    inset -1px -1px 0 #000000, inset 1px 1px 0 #dfdfdf, inset -2px -2px 0 #808080,
+    inset 2px 2px 0 #ffffff, 2px 2px 0 rgba(0, 0, 0, 0.35);
+  --radius-window: 0;
+  --radius-menu: 0;
+  --scroll-track: repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%) 0 0 / 2px 2px;
+  --scroll-thumb: #c0c0c0;
+  --scroll-thumb-bevel:
+    inset -1px -1px 0 #000000, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080,
+    inset 2px 2px 0 #dfdfdf;
+  --scroll-size: 16px;
+  --scroll-radius: 0;
+  --font-ui: "Microsoft Sans Serif", "DejaVu Sans", Tahoma, "Noto Sans", sans-serif;
   --font-size: 12px;
   --radius: 0;
+  --radius-pill: 0;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
   --border-width: 1px;
   --ctl-height: 24px;
   --key-height: 40px;
