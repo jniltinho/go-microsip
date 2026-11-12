@@ -44,6 +44,15 @@ type MediaIO interface {
 	Close()
 }
 
+// Player is a speaker without a microphone: what plays while a call has no audio of its own, such
+// as its ring.
+type Player interface {
+	// Play queues 20 ms for the speaker; it never blocks.
+	Play(frame *[FrameSamples]int16)
+	// Close releases the device.
+	Close()
+}
+
 // AudioDevices is the session's sound devices.
 type AudioDevices interface {
 	// Inputs lists the capture devices.
@@ -53,6 +62,9 @@ type AudioDevices interface {
 	// Open starts capture and playback on the devices with these IDs; an empty ID is the default
 	// device. It fails with ErrNoAudioService when the session has no audio service.
 	Open(input, output string) (MediaIO, error)
+	// OpenOutput starts playback alone on the device with this ID; an empty ID is the default
+	// device. No microphone is opened. It fails as Open does.
+	OpenOutput(output string) (Player, error)
 }
 
 // FileAccess tells the configuration who may touch a file, so it can refuse a settings file that

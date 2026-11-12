@@ -17,5 +17,8 @@ func (*Devices) Outputs() ([]ports.Device, error) { return nil, ports.ErrNoAudio
 // Open reports that no audio service is reachable.
 func (*Devices) Open(_, _ string) (ports.MediaIO, error) { return nil, ports.ErrNoAudioService }
 
+// OpenOutput reports that no audio service is reachable.
+func (*Devices) OpenOutput(string) (ports.Player, error) { return nil, ports.ErrNoAudioService }
+
 // Close does nothing.
 func (*Devices) Close() {}

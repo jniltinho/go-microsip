@@ -57,6 +57,8 @@ func EngineScenarios() []Scenario {
 		Scenario{"engine/renewal/1101", engineRenewal("1101", "1102")},
 		Scenario{"engine/renewal/1201", engineRenewal("1201", "1202")},
 		Scenario{"engine/secure/keys-not-logged", engineSecureLog},
+		Scenario{"engine/ring/1001-1002", engineRing},
+		Scenario{"engine/ring/stops", engineRingStops},
 	)
 }
 

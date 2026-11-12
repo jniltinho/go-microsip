@@ -86,6 +86,22 @@ func (d *Devices) Open(input, output string) (ports.MediaIO, error) {
 	return s, nil
 }
 
+// OpenOutput starts playback alone on the device with this ID, for a ring; an empty ID is the
+// default device. No microphone is opened.
+func (d *Devices) OpenOutput(output string) (ports.Player, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	c, err := d.connected()
+	if err != nil {
+		return nil, err
+	}
+	s, err := c.OpenOutput(output)
+	if err != nil {
+		return nil, unavailable(err)
+	}
+	return s, nil
+}
+
 // Close ends the connection to the audio service.
 func (d *Devices) Close() {
 	d.mu.Lock()

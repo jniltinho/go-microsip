@@ -49,6 +49,7 @@ type noAudio struct{}
 func (noAudio) Inputs() ([]ports.Device, error)         { return nil, ports.ErrNoAudioService }
 func (noAudio) Outputs() ([]ports.Device, error)        { return nil, ports.ErrNoAudioService }
 func (noAudio) Open(_, _ string) (ports.MediaIO, error) { return nil, ports.ErrNoAudioService }
+func (noAudio) OpenOutput(string) (ports.Player, error) { return nil, ports.ErrNoAudioService }
 
 // Run is the softphone without a window: it registers the configured account, journals calls in
 // the history, optionally places one call, and reports every engine event. It returns when ctx

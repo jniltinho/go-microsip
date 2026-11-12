@@ -59,6 +59,7 @@ func TestCallThroughTheBinary(t *testing.T) {
 // microphone the call must never move to, and a virtual speaker with a listener on it.
 type cards struct {
 	mic, spk  string
+	other     string // another sound card: a second softphone of the test plays there, not on spk
 	voice     *pulse.PlaybackStream
 	unplugMic func()
 	heard     chan []int16
@@ -83,6 +84,7 @@ func soundCards(t *testing.T, user string) *cards {
 	nullSink(t, fx, c.spk)
 	c.unplugMic = nullSink(t, fx, c.mic)
 	nullSink(t, fx, other) // another microphone the call must never move to
+	c.other = other
 	// The service publishes the new devices in its own time.
 	sinkByID := func(id string) *pulse.Sink {
 		t.Helper()

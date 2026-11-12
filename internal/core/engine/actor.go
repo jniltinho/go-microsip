@@ -375,6 +375,9 @@ func (a *actor) move(c *call, next domain.CallPhase) bool {
 		return false
 	}
 	c.snap.Phase = next
+	if next.Kind != domain.Ringing {
+		c.quiet() // a ring or a ringback belongs to ringing
+	}
 	if next.Kind == domain.Established && c.snap.AnsweredMS == 0 {
 		c.snap.AnsweredMS = time.Now().UnixMilli() // stays in every snapshot from here on
 	}
@@ -390,6 +393,7 @@ func (a *actor) end(c *call, reason domain.EndReason) {
 	}
 	c.snap.Phase = domain.EndedWith(reason)
 	c.snap.EndedMS = time.Now().UnixMilli()
+	c.quiet()
 	a.publish(c)
 	c.release()
 	a.cleanup.Add(1)
@@ -419,8 +423,8 @@ func (a *actor) dial(target domain.DialTarget) {
 	ctx, cancel := context.WithTimeout(context.Background(), noAnswerTimeout)
 	c.cancel = cancel
 	go func() {
-		d, med, err := ep.Dial(ctx, target.Value(), func(int) {
-			a.e.post(func() { a.move(c, domain.CallPhase{Kind: domain.Ringing}) })
+		d, med, err := ep.Dial(ctx, target.Value(), func(status int) {
+			a.e.post(func() { a.progress(c, status) })
 		})
 		a.e.post(func() {
 			if c.snap.Phase.IsFinal() { // ended meanwhile
@@ -489,6 +493,7 @@ func (a *actor) ring(d *diago.DialogServerSession, gen int) {
 	c.rung = make(chan struct{})
 	go func() { _ = d.Ringing(); close(c.rung) }()
 	a.watch(c)
+	a.sound(c, ring)
 }
 
 func (a *actor) answer(id domain.CallID) {
@@ -501,6 +506,7 @@ func (a *actor) answer(id domain.CallID) {
 		return
 	}
 	c.answering = true
+	c.quiet() // the ring stops with the decision, not with the PBX's confirmation
 	d := c.server
 	go func() {
 		<-c.rung

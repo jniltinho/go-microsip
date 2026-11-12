@@ -87,6 +87,7 @@ type Scenario struct {
 var slow = map[string]time.Duration{
 	"engine/renewal/":               2 * time.Minute,
 	"engine/cancel/crossing-answer": 3 * time.Minute,
+	"engine/ring/stops":             2 * time.Minute,
 }
 
 // Run executes the scenarios in order, each with its own deadline, and never stops at a failure.

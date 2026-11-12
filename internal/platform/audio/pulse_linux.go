@@ -80,20 +80,11 @@ func (c *Client) Open(input, output string) (*Stream, error) {
 		}
 		recOpts = append(recOpts, pulse.RecordSource(src))
 	}
-	playOpts := []pulse.PlaybackOption{
-		pulse.PlaybackSampleRate(SampleRate),
-		pulse.PlaybackLatency(0.04),
-		pulse.PlaybackMediaName("call audio"),
-	}
-	if output != "" {
-		sink, err := c.c.SinkByID(output)
-		if err != nil {
-			return nil, fmt.Errorf("output device %q: %w", output, err)
-		}
-		playOpts = append(playOpts, pulse.PlaybackSink(sink))
+	playOpts, err := c.playback(output, "call audio")
+	if err != nil {
+		return nil, err
 	}
 
-	var err error
 	if s.rec, err = c.c.NewRecord(pulse.Int16Writer(func(p []int16) (int, error) { s.captured(p); return len(p), nil }), recOpts...); err != nil {
 		return nil, fmt.Errorf("open capture: %w", err)
 	}
@@ -106,13 +97,55 @@ func (c *Client) Open(input, output string) (*Stream, error) {
 	return s, nil
 }
 
+// playback is how a playback stream is asked for on the output, by device ID.
+func (c *Client) playback(output, name string) ([]pulse.PlaybackOption, error) {
+	opts := []pulse.PlaybackOption{
+		pulse.PlaybackSampleRate(SampleRate),
+		pulse.PlaybackLatency(0.04),
+		pulse.PlaybackMediaName(name),
+	}
+	if output != "" {
+		sink, err := c.c.SinkByID(output)
+		if err != nil {
+			return nil, fmt.Errorf("output device %q: %w", output, err)
+		}
+		opts = append(opts, pulse.PlaybackSink(sink))
+	}
+	return opts, nil
+}
+
+// Output is a playback stream alone: what plays while a call has no audio of its own, such as
+// its ring. No microphone is opened for it.
+type Output struct {
+	*buffers
+	play *pulse.PlaybackStream
+}
+
+// OpenOutput starts playback alone on the output, by device ID; an empty ID is the service's
+// default device.
+func (c *Client) OpenOutput(output string) (*Output, error) {
+	opts, err := c.playback(output, "ring")
+	if err != nil {
+		return nil, err
+	}
+	o := &Output{buffers: newBuffers()}
+	if o.play, err = c.c.NewPlayback(pulse.Int16Reader(o.wanted), opts...); err != nil {
+		return nil, fmt.Errorf("open playback: %w", err)
+	}
+	o.play.Start()
+	return o, nil
+}
+
+// Close stops the stream.
+func (o *Output) Close() { o.play.Close() }
+
 // wanted is the device side of playback: it only copies out of the ring, and plays silence when the
 // engine has written nothing.
-func (s *Stream) wanted(p []int16) (int, error) {
-	n := s.out.read(p)
+func (b *buffers) wanted(p []int16) (int, error) {
+	n := b.out.read(p)
 	if n < len(p) {
 		clear(p[n:])
-		s.silence.Add(uint64(len(p) - n))
+		b.silence.Add(uint64(len(p) - n))
 	}
 	return len(p), nil
 }

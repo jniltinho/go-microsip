@@ -30,6 +30,7 @@ import (
 	"github.com/jniltinho/go-microsip/internal/control"
 	"github.com/jniltinho/go-microsip/internal/core/app"
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/engine"
 	"github.com/jniltinho/go-microsip/internal/core/ports"
 	"github.com/jniltinho/go-microsip/internal/core/store"
 )
@@ -1518,7 +1519,8 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	other := func() (*exec.Cmd, chan error) {
 		home := t.TempDir()
 		config := filepath.Join(home, "config.toml")
-		text := fmt.Sprintf("schema = 1\n[account]\nusername = %q\ndomain = %q\n%s", peer, server, settings)
+		// The caller's own ringback goes to another sound card than the one that is listened to.
+		text := fmt.Sprintf("schema = 1\n[account]\nusername = %q\ndomain = %q\n%s[audio]\noutput_device = %q\n", peer, server, settings, sound.other)
 		if err := os.WriteFile(config, []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -1532,12 +1534,26 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		t.Errorf("the page holds %d images: the contact's name became markup", w.page.Images)
 	}
 	w.shot(user + "-6-incoming-call")
+	// The softphone rings on the speaker chosen for calls while the call waits: one second of
+	// its two notes in every three.
+	_, rang := sound.listen(3 * time.Second)
+	if notes, sounding := ringBlocks(rang); notes < 0.28 || notes > 0.40 || sounding-notes > 0.03 {
+		t.Errorf("the speaker plays the ring's notes in %.0f %% of three seconds of a ringing call and anything at all in %.0f %%, want its notes alone in about a third",
+			notes*100, sounding*100)
+	} else {
+		t.Logf("the ring: its notes in %.0f %% of three seconds on the chosen speaker, anything at all in %.0f %%", notes*100, sounding*100)
+	}
 	w.keys("Return") // Answer has the focus
 	// The window goes to the call by itself when it is answered.
 	w.until(15*time.Second, "the answered incoming call shown", func() bool {
 		return w.call.Phase == "established" && w.shows("Connected", "From", hostile, protection)
 	})
 	w.shot(user + "-7-incoming-call-answered")
+	// The ring stopped with the answer: none of its notes in the call's sound.
+	_, talk := sound.listen(time.Second)
+	if notes, _ := ringBlocks(talk); notes > 0.02 {
+		t.Errorf("the ring's notes are in %.0f %% of the answered call's sound", notes*100)
+	}
 	// A blind transfer of the caller to the lab's tone, from the window.
 	w.click("Transfer")
 	w.until(10*time.Second, "the transfer field", func() bool {
@@ -2104,6 +2120,33 @@ func commandLineAndMCP(t *testing.T, bin, server, password string) {
 		t.Errorf("the audit trail:\n  %s\nwant:\n  %s", strings.Join(trail, "\n  "), strings.Join(want, "\n  "))
 	}
 	t.Logf("the audit trail: %s", strings.Join(trail, "; "))
+}
+
+// ringBlocks is the fraction of 20 ms blocks that carry the ring (one of its two notes, or both
+// where one gives way to the other), and the fraction that carry any sound at all.
+func ringBlocks(samples []int16) (notes, sounding float64) {
+	blocks := 0
+	for ; len(samples) >= FrameSamples; samples = samples[FrameSamples:] {
+		blocks++
+		block := samples[:FrameSamples]
+		loud := 0
+		for _, v := range block {
+			if v > 300 || v < -300 {
+				loud++
+			}
+		}
+		if loud > FrameSamples/10 {
+			sounding++
+			// A block in which one note gives way to the other holds half of each.
+			if share(block, engine.RingLowHz)+share(block, engine.RingHighHz) > 0.4 {
+				notes++
+			}
+		}
+	}
+	if blocks == 0 {
+		return 0, 0
+	}
+	return notes / float64(blocks), sounding / float64(blocks)
 }
 
 // grantFile is the path of a grant's file as the Agent access screen names it.

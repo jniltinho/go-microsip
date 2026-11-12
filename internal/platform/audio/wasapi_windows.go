@@ -222,6 +222,20 @@ func (c *Client) Open(input, output string) (*Stream, error) {
 	return s, nil
 }
 
+// OpenOutput starts playback alone on the output, by device ID, for a ring; an empty ID is the
+// default communications device. No microphone is opened.
+func (c *Client) OpenOutput(output string) (*Stream, error) {
+	s := &Stream{buffers: newBuffers()}
+	ready := make(chan error, 1)
+	s.wg.Add(1)
+	go s.render(output, ready)
+	if err := <-ready; err != nil {
+		s.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
 // capture is the device thread of capture: it only copies packets into the ring. It reports once
 // on ready whether the stream started, and marks the microphone lost if the device fails later.
 func (s *Stream) capture(flow uint32, id string, flags uint32, ready chan<- error) {

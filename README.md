@@ -166,8 +166,9 @@ Platform notes:
     else. Without a keyring, or with a locked one, it lasts for the session and is asked for
     again at the next start; that is also the case of a user who logs in without a password.
     `account.password_env` or a private `account.password_file` avoid the prompt.
-  - An incoming call is shown as a desktop notification with **Answer** and **Reject** where
-    the notification service offers buttons.
+  - An incoming call rings on the speaker chosen for calls and is shown as a desktop
+    notification with **Answer** and **Reject** where the notification service offers buttons.
+    With do-not-disturb on, nothing rings.
   - On a desktop with a tray (KDE, Ubuntu's GNOME) the close button hides the window to the tray
     icon, whose menu lists the latest calls; without one, the close button quits, asking first
     during a call.
@@ -196,9 +197,10 @@ Limits of this version, known and accepted for it:
   that expects the softphone to know its public address is not supported. Behind a home
   router this was not tried yet.
 - **One account**, and one call at a time.
-- **Sound.** A call that rings makes no sound of its own yet, and there is no audio test and
-  no volume in the window (the system's mixer has one for each application). A sound device
-  chosen in the settings is used from the next start.
+- **Sound.** There is no audio test yet and no volume in the window (the system's mixer has
+  one for each application). A sound device chosen in the settings is used from the next
+  start. The ring and the ringback are tones the softphone makes itself, on the speaker
+  chosen for calls: there is no ringtone file to choose and no speaker of its own for ringing.
 - **A transfer that the PBX accepts and then fails.** FreePBX takes the other party away
   before it reports the failure: go-microsip says the transfer failed and stays in a call
   with nobody in it until you hang up.

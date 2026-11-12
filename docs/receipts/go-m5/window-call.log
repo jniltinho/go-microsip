@@ -1,6 +1,6 @@
 GO_IMAGE=go-microsip-build:13 scripts/go-docker.sh sh -c 'cd frontend && npm ci --no-audit --no-fund && npm run build'
 
-added 118 packages in 875ms
+added 118 packages in 868ms
 
 > build
 > vp build
@@ -21,7 +21,7 @@ computing gzip size...
 ../internal/gui/dist/assets/dist-BY5SQJ2_.js                      54.52 kB │ gzip: 16.92 kB
 ../internal/gui/dist/assets/index-nEQcDXJP.js                    134.31 kB │ gzip: 46.18 kB
 
-✓ built in 166ms
+✓ built in 168ms
 sh docker/asterisk/go-call.sh 10 window
  Network rust-microsip-lab_isolated Creating 
  Network rust-microsip-lab_isolated Creating 
@@ -33,94 +33,96 @@ sh docker/asterisk/go-call.sh 10 window
  Container rust-microsip-lab-pbx-1 Started 
  Container rust-microsip-lab-pbx-1 Waiting 
  Container rust-microsip-lab-pbx-1 Healthy 
- Container rust-microsip-lab-test-runner-run-31ff604c07b2 Creating 
- Container rust-microsip-lab-test-runner-run-31ff604c07b2 Created 
+ Container rust-microsip-lab-test-runner-run-6263b8f60b8d Creating 
+ Container rust-microsip-lab-test-runner-run-6263b8f60b8d Created 
 === RUN   TestCallThroughTheWindow
 === RUN   TestCallThroughTheWindow/1001
-    window_linux_test.go:1433: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:1465: 1001, 3 s after the skin changed during the call: speaker 292 of 292 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
-    window_linux_test.go:1690: 1001: 208 ms: sent registration registered; 1037 ms: sent call dialing ; 1040 ms: sent call established ; 1252 ms: shown established; 13700 ms: sent call established ; 13751 ms: shown established; 16800 ms: sent call established ; 17002 ms: shown established; 20037 ms: sent call held ; 20252 ms: shown held; 20699 ms: sent call established ; 20751 ms: shown established; 27586 ms: sent call terminating ; 27587 ms: sent call ended normal; 30347 ms: sent call ringing ; 30501 ms: shown ringing; 31013 ms: sent call established ; 31251 ms: shown established; 31949 ms: sent call established ; 31949 ms: sent transfer pending; 31970 ms: sent call terminating ; 31970 ms: sent transfer succeeded; 31970 ms: sent call ended transferred; 31970 ms: sent transfer succeeded; 32120 ms: sent call ringing ; 32251 ms: shown ringing; 32256 ms: sent call ended rejected; 33198 ms: sent registration disabled; 33199 ms: sent stopped
+    window_linux_test.go:1434: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1466: 1001, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1544: the ring: its notes in 33 % of three seconds on the chosen speaker, anything at all in 33 %
+    window_linux_test.go:1706: 1001: 206 ms: sent registration registered; 1036 ms: sent call dialing ; 1037 ms: sent call established ; 1251 ms: shown established; 13698 ms: sent call established ; 13751 ms: shown established; 16799 ms: sent call established ; 17001 ms: shown established; 20020 ms: sent call held ; 20251 ms: shown held; 20730 ms: sent call established ; 20752 ms: shown established; 27613 ms: sent call terminating ; 27613 ms: sent call ended normal; 30318 ms: sent call ringing ; 30501 ms: shown ringing; 33986 ms: sent call established ; 34003 ms: shown established; 35692 ms: sent call established ; 35692 ms: sent transfer pending; 35712 ms: sent call terminating ; 35712 ms: sent transfer succeeded; 35713 ms: sent call ended transferred; 35713 ms: sent transfer succeeded; 35872 ms: sent call ringing ; 36001 ms: shown ringing; 36055 ms: sent call ended rejected; 36945 ms: sent registration disabled; 36945 ms: sent stopped
 === RUN   TestCallThroughTheWindow/1201
-    window_linux_test.go:1433: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
-    window_linux_test.go:1465: 1201, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:1690: 1201: 192 ms: sent registration registered; 994 ms: sent call dialing ; 997 ms: sent call established ; 1003 ms: shown established; 13457 ms: sent call established ; 13501 ms: shown established; 16557 ms: sent call established ; 16751 ms: shown established; 19799 ms: sent call held ; 20001 ms: shown held; 20464 ms: sent call established ; 20501 ms: shown established; 27353 ms: sent call terminating ; 27353 ms: sent call ended normal; 30069 ms: sent call ringing ; 30251 ms: shown ringing; 30732 ms: sent call established ; 30752 ms: shown established; 31416 ms: sent call established ; 31416 ms: sent transfer pending; 31437 ms: sent call terminating ; 31437 ms: sent transfer succeeded; 31438 ms: sent call ended transferred; 31438 ms: sent transfer succeeded; 31602 ms: sent call ringing ; 31751 ms: shown ringing; 31775 ms: sent call ended rejected; 32718 ms: sent registration disabled; 32718 ms: sent stopped
+    window_linux_test.go:1434: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1466: 1201, 3 s after the skin changed during the call: speaker 296 of 296 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1544: the ring: its notes in 33 % of three seconds on the chosen speaker, anything at all in 34 %
+    window_linux_test.go:1706: 1201: 192 ms: sent registration registered; 994 ms: sent call dialing ; 996 ms: sent call established ; 1002 ms: shown established; 13454 ms: sent call established ; 13502 ms: shown established; 16556 ms: sent call established ; 16752 ms: shown established; 19798 ms: sent call held ; 20001 ms: shown held; 20463 ms: sent call established ; 20501 ms: shown established; 27351 ms: sent call terminating ; 27351 ms: sent call ended normal; 30067 ms: sent call ringing ; 30252 ms: shown ringing; 33731 ms: sent call established ; 33752 ms: shown established; 35440 ms: sent call established ; 35440 ms: sent transfer pending; 35461 ms: sent call terminating ; 35461 ms: sent transfer succeeded; 35462 ms: sent call ended transferred; 35462 ms: sent transfer succeeded; 35641 ms: sent call ringing ; 35752 ms: shown ringing; 35757 ms: sent call ended rejected; 36698 ms: sent registration disabled; 36698 ms: sent stopped
 === RUN   TestCallThroughTheWindow/wrong_password
 === RUN   TestCallThroughTheWindow/the_System_skin_without_a_color-preference_service
 === RUN   TestCallThroughTheWindow/every_skin
 === RUN   TestCallThroughTheWindow/links
 === RUN   TestCallThroughTheWindow/quit_during_a_call
-    window_linux_test.go:1001: gone 100ms after it was told to end
+    window_linux_test.go:1002: gone 100ms after it was told to end
 === RUN   TestCallThroughTheWindow/a_termination_signal_during_a_call
-    window_linux_test.go:1001: gone 10ms after it was told to end
+    window_linux_test.go:1002: gone 20ms after it was told to end
 === RUN   TestCallThroughTheWindow/the_password_is_remembered
 === RUN   TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering
-    window_linux_test.go:668: gone 4.01s after the yes, with a PBX that answers nothing
+    window_linux_test.go:669: gone 4.01s after the yes, with a PBX that answers nothing
 === RUN   TestCallThroughTheWindow/the_tray
 === RUN   TestCallThroughTheWindow/agent_control
-    window_linux_test.go:1893: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup denied -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
+    window_linux_test.go:1909: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup denied -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
 === RUN   TestCallThroughTheWindow/the_command_line_and_MCP
-    window_linux_test.go:2106: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
+    window_linux_test.go:2122: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
 === RUN   TestCallThroughTheWindow/the_Agent_access_form
-    window_linux_test.go:2177: the audit trail: grant issued 1 scopes, 15 min; grant revoked -
+    window_linux_test.go:2220: the audit trail: grant issued 1 scopes, 15 min; grant revoked -
 === RUN   TestCallThroughTheWindow/the_headless_service
-    window_linux_test.go:2392: the audit trail: grant bootstrap issued 4 scopes, 10 min; dnd_set granted enabled=true by grant grant-1-b278e73242ca083adb43c119; dnd_set succeeded -; call_dial granted destination ***00 by grant grant-1-b278e73242ca083adb43c119; call_dial succeeded -; call_hangup granted - by grant grant-1-b278e73242ca083adb43c119; call_hangup succeeded -
+    window_linux_test.go:2435: the audit trail: grant bootstrap issued 4 scopes, 10 min; dnd_set granted enabled=true by grant grant-1-257e6a3fd2177353981c7de4; dnd_set succeeded -; call_dial granted destination ***00 by grant grant-1-257e6a3fd2177353981c7de4; call_dial succeeded -; call_hangup granted - by grant grant-1-257e6a3fd2177353981c7de4; call_hangup succeeded -
 === RUN   TestCallThroughTheWindow/light_at_100
-    window_linux_test.go:1251: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+    window_linux_test.go:1252: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/light_at_200
-    window_linux_test.go:1251: light at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+    window_linux_test.go:1252: light at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 === RUN   TestCallThroughTheWindow/dark_at_100
-    window_linux_test.go:1251: dark at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+    window_linux_test.go:1252: dark at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/dark_at_200
-    window_linux_test.go:1251: dark at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+    window_linux_test.go:1252: dark at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 === RUN   TestCallThroughTheWindow/xp_at_100
-    window_linux_test.go:1251: xp at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+    window_linux_test.go:1252: xp at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/xp_at_200
-    window_linux_test.go:1251: xp at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+    window_linux_test.go:1252: xp at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 === RUN   TestCallThroughTheWindow/macos_at_100
-    window_linux_test.go:1251: macos at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+    window_linux_test.go:1252: macos at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/macos_at_200
-    window_linux_test.go:1251: macos at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+    window_linux_test.go:1252: macos at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 === RUN   TestCallThroughTheWindow/ubuntu_at_100
-    window_linux_test.go:1251: ubuntu at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+    window_linux_test.go:1252: ubuntu at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/ubuntu_at_200
-    window_linux_test.go:1251: ubuntu at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+    window_linux_test.go:1252: ubuntu at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 === RUN   TestCallThroughTheWindow/win98_at_100
-    window_linux_test.go:1251: win98 at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+    window_linux_test.go:1252: win98 at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/win98_at_200
-    window_linux_test.go:1251: win98 at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+    window_linux_test.go:1252: win98 at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 === RUN   TestCallThroughTheWindow/matrix_at_100
-    window_linux_test.go:1251: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+    window_linux_test.go:1252: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/matrix_at_200
-    window_linux_test.go:1251: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
---- PASS: TestCallThroughTheWindow (204.79s)
-    --- PASS: TestCallThroughTheWindow/1001 (34.22s)
-    --- PASS: TestCallThroughTheWindow/1201 (33.72s)
-    --- PASS: TestCallThroughTheWindow/wrong_password (0.35s)
+    window_linux_test.go:1252: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+--- PASS: TestCallThroughTheWindow (212.57s)
+    --- PASS: TestCallThroughTheWindow/1001 (37.98s)
+    --- PASS: TestCallThroughTheWindow/1201 (37.70s)
+    --- PASS: TestCallThroughTheWindow/wrong_password (0.30s)
     --- PASS: TestCallThroughTheWindow/the_System_skin_without_a_color-preference_service (3.30s)
-    --- PASS: TestCallThroughTheWindow/every_skin (22.24s)
-    --- PASS: TestCallThroughTheWindow/links (7.88s)
+    --- PASS: TestCallThroughTheWindow/every_skin (22.49s)
+    --- PASS: TestCallThroughTheWindow/links (7.87s)
     --- PASS: TestCallThroughTheWindow/quit_during_a_call (1.51s)
     --- PASS: TestCallThroughTheWindow/a_termination_signal_during_a_call (1.16s)
     --- PASS: TestCallThroughTheWindow/the_password_is_remembered (2.11s)
-    --- PASS: TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering (5.08s)
+    --- PASS: TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering (5.07s)
     --- PASS: TestCallThroughTheWindow/the_tray (3.06s)
-    --- PASS: TestCallThroughTheWindow/agent_control (8.14s)
-    --- PASS: TestCallThroughTheWindow/the_command_line_and_MCP (6.49s)
+    --- PASS: TestCallThroughTheWindow/agent_control (8.13s)
+    --- PASS: TestCallThroughTheWindow/the_command_line_and_MCP (6.44s)
     --- PASS: TestCallThroughTheWindow/the_Agent_access_form (8.79s)
     --- PASS: TestCallThroughTheWindow/the_headless_service (0.96s)
     --- PASS: TestCallThroughTheWindow/light_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/light_at_200 (5.67s)
     --- PASS: TestCallThroughTheWindow/dark_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/dark_at_200 (5.67s)
-    --- PASS: TestCallThroughTheWindow/xp_at_100 (3.76s)
+    --- PASS: TestCallThroughTheWindow/xp_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/xp_at_200 (5.67s)
-    --- PASS: TestCallThroughTheWindow/macos_at_100 (3.76s)
+    --- PASS: TestCallThroughTheWindow/macos_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/macos_at_200 (5.67s)
     --- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/ubuntu_at_200 (5.67s)
     --- PASS: TestCallThroughTheWindow/win98_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/win98_at_200 (5.67s)
     --- PASS: TestCallThroughTheWindow/matrix_at_100 (3.71s)
-    --- PASS: TestCallThroughTheWindow/matrix_at_200 (5.68s)
+    --- PASS: TestCallThroughTheWindow/matrix_at_200 (5.67s)
 PASS
-run directory: artifacts/go-call/20261112T193244Z
+run directory: artifacts/go-call/20261112T204446Z

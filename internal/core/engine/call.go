@@ -39,6 +39,7 @@ type call struct {
 	// rung is closed once 180 Ringing is out. The final response waits for it: the library keeps the
 	// last response it sent as the dialog's, and a 180 written after the 200 made it refuse the BYE.
 	rung      chan struct{}
+	tone      *tone            // the ring or the ringback that plays while the call rings
 	answering bool             // Answer is on its way: the final response is its 200, nobody else's
 	busy      bool             // a hold or resume is on its way
 	ending    domain.EndReason // why this side is ending the call

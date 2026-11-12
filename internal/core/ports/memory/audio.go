@@ -47,6 +47,45 @@ func (a *Audio) Open(_, _ string) (ports.MediaIO, error) {
 	return s, nil
 }
 
+// OpenOutput returns a new stream that is only played to, or ports.ErrNoAudioService when
+// Unavailable is set.
+func (a *Audio) OpenOutput(string) (ports.Player, error) {
+	if a.Unavailable {
+		return nil, ports.ErrNoAudioService
+	}
+	s := &Stream{output: true}
+	a.mu.Lock()
+	a.opened = append(a.opened, s)
+	a.mu.Unlock()
+	return s, nil
+}
+
+// Outputs returns the streams that were opened for playback alone, in order: the rings.
+func (a *Audio) OutputStreams() []*Stream {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var out []*Stream
+	for _, s := range a.opened {
+		if s.output {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// CallStreams reports how many streams were opened with a microphone: a call's audio.
+func (a *Audio) CallStreams() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	n := 0
+	for _, s := range a.opened {
+		if !s.output {
+			n++
+		}
+	}
+	return n
+}
+
 // Last is the stream opened most recently, or nil.
 func (a *Audio) Last() *Stream {
 	a.mu.Lock()
@@ -73,7 +112,8 @@ func (a *Audio) OpenStreams() int {
 // Stream is one call's fake sound: the engine side is ports.MediaIO, the test side is Heard.
 type Stream struct {
 	tone      float64
-	n         int // engine side only
+	output    bool // opened for playback alone
+	n         int  // engine side only
 	closed    atomic.Bool
 	unplugged atomic.Bool
 

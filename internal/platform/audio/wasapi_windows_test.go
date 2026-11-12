@@ -47,6 +47,39 @@ func card(verb string) error {
 	return nil
 }
 
+// The speaker alone, as a ring uses it: playback starts on the default device with no microphone
+// opened, takes a second and a half of a tone at the media tick without dropping it, and stops.
+func TestWASAPIOutputAlone(t *testing.T) {
+	needServer(t)
+	c, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	out, err := c.OpenOutput("")
+	if err != nil {
+		t.Fatalf("the speaker alone did not open: %v", err)
+	}
+	var frame [FrameSamples]int16
+	n := 0
+	tick := time.NewTicker(20 * time.Millisecond)
+	defer tick.Stop()
+	for range 75 {
+		<-tick.C
+		sine(550, &n, frame[:])
+		out.Play(&frame)
+	}
+	st := out.Stats()
+	if out.PlaybackLost() || st.PlayDropped != 0 {
+		t.Errorf("the speaker alone: lost %v, %d samples dropped", out.PlaybackLost(), st.PlayDropped)
+	}
+	out.Close()
+	t.Logf("the speaker alone played 1.5 s (%d samples of silence filled in by the device thread)", st.PlaySilence)
+	if _, err := c.OpenOutput("no-such-device"); err == nil {
+		t.Error("an unknown output device was opened")
+	}
+}
+
 // The adapter conformance test on Windows: enumerate, open by ID, exchange frames with the devices
 // within the frame-loss threshold, hear the played tone on the speaker (loopback), and report the loss
 // of the sound card. The microphone of a test VM delivers silence, so
