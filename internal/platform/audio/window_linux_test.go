@@ -2071,11 +2071,11 @@ type ledgerOnly struct{ db *store.Store }
 func (ledgerOnly) Send(domain.Command) error { return nil }
 func (ledgerOnly) SetDND(bool) error         { return nil }
 func (ledgerOnly) Settings() app.Settings    { return app.Settings{} }
-func (l ledgerOnly) Contacts(search string) ([]app.Contact, error) {
-	return l.db.SearchContacts(search, 1)
+func (l ledgerOnly) ContactsUpTo(search string, limit int) ([]app.Contact, error) {
+	return l.db.SearchContacts(search, limit)
 }
-func (l ledgerOnly) History(filter app.HistoryFilter, search string) ([]app.HistoryEntry, error) {
-	return l.db.RecentCalls(1, filter, search)
+func (l ledgerOnly) HistoryUpTo(filter app.HistoryFilter, search string, limit int) ([]app.HistoryEntry, error) {
+	return l.db.RecentCalls(limit, filter, search)
 }
 func (ledgerOnly) AudioDevices() (inputs, outputs []ports.Device, err error) { return nil, nil, nil }
 func (l ledgerOnly) Ledger() (app.Ledger, error)                             { return l.db, nil }

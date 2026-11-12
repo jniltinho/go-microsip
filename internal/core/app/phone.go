@@ -24,6 +24,9 @@ type PhoneOptions struct {
 	UserAgent string
 	// Log receives diagnostics; nil discards them.
 	Log *slog.Logger
+	// Held opens the phone without telling the engine to register: nothing reaches the PBX
+	// until Begin. The headless service checks its grant in between.
+	Held bool
 }
 
 // Settings is the saved configuration as a window shows it. It never holds a password.
@@ -106,7 +109,8 @@ type Phone struct {
 	registering sync.Mutex
 
 	mu       sync.Mutex
-	password domain.Secret // typed in this session or read from the keyring; never written to a file
+	password domain.Secret    // typed in this session or read from the keyring; never written to a file
+	held     []domain.Command // what Begin tells the engine; nil once told
 }
 
 // OpenPhone starts the engine and, when an account and its password are configured, registers it.
@@ -151,8 +155,9 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 	}
 	options.Input, options.Output = p.input, p.output
 	p.engine = engine.Start(options)
-	for _, c := range startup(draft, loaded, cfg, p.password) {
-		p.engine.Send(c)
+	p.held = startup(draft, loaded, cfg, p.password)
+	if !r.Held {
+		p.Begin()
 	}
 	// Every event is journaled before a reader sees it, and a reader that is behind keeps neither
 	// the engine nor the history waiting: the relay merges what a later event replaced and never
@@ -171,6 +176,19 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 		}
 	}()
 	return p, nil
+}
+
+// Begin tells the engine what a phone that opens tells it: do-not-disturb as saved, and the
+// registration of the configured account. OpenPhone does it itself, unless the phone was opened
+// Held; a second call does nothing.
+func (p *Phone) Begin() {
+	p.mu.Lock()
+	commands := p.held
+	p.held = nil
+	p.mu.Unlock()
+	for _, c := range commands {
+		p.engine.Send(c)
+	}
 }
 
 // startup is what the engine is told when a phone opens. Do-not-disturb is a preference of its
@@ -508,12 +526,15 @@ func (p *Phone) AudioDevices() (inputs, outputs []ports.Device, err error) {
 }
 
 // Contacts lists the contacts whose name or number contains search, favorites first.
-func (p *Phone) Contacts(search string) ([]Contact, error) {
+func (p *Phone) Contacts(search string) ([]Contact, error) { return p.ContactsUpTo(search, listLimit) }
+
+// ContactsUpTo is Contacts with the caller's own bound: agent control pages through all of them.
+func (p *Phone) ContactsUpTo(search string, limit int) ([]Contact, error) {
 	s, err := p.storage()
 	if err != nil {
 		return nil, err
 	}
-	return s.SearchContacts(search, listLimit)
+	return s.SearchContacts(search, limit)
 }
 
 // SaveContact adds a contact when id is 0 and replaces the one with that id otherwise.
@@ -545,11 +566,16 @@ func (p *Phone) DeleteContact(id int64) error {
 
 // History lists the calls, newest first, whose remote party contains search.
 func (p *Phone) History(filter HistoryFilter, search string) ([]HistoryEntry, error) {
+	return p.HistoryUpTo(filter, search, listLimit)
+}
+
+// HistoryUpTo is History with the caller's own bound: agent control pages through all of it.
+func (p *Phone) HistoryUpTo(filter HistoryFilter, search string, limit int) ([]HistoryEntry, error) {
 	s, err := p.storage()
 	if err != nil {
 		return nil, err
 	}
-	return s.RecentCalls(listLimit, filter, search)
+	return s.RecentCalls(limit, filter, search)
 }
 
 // TrayCalls is how many of the latest calls a tray menu lists, as in the Rust candidate.

@@ -349,6 +349,31 @@ test("an agent request arms after a second and deny always works", async () => {
   expect(st.approvalShown).toBeNull();
 });
 
+test("a request behind a ringing call arms a second after it comes on screen", async () => {
+  const [st, b] = fresh();
+  st.applyEvent({ type: "call", call: snap(9, "incoming", "ringing", 1) }, 0);
+  const approvals = [{ id: "a", requester: "mcp", description: "Dial 1003", deadline: 60_000 }];
+  st.applyEvent({ type: "approvals", approvals }, 100);
+  // Five seconds later the call still rings over the request: nobody has seen it yet.
+  expect(st.approvalArmed(5000)).toBe(false);
+  await run(st, [{ type: "approve", id: "a" }], 5000);
+  expect(b.saved).toEqual([]);
+  // The call ends at 6000: the request comes on screen, and Allow arms a second after that.
+  st.applyEvent({ type: "call", call: snap(9, "incoming", "ended", 2) }, 6000);
+  expect(st.approvalArmed(6000 + APPROVAL_ARM - 1)).toBe(false);
+  await run(st, [{ type: "approve", id: "a" }], 6000 + APPROVAL_ARM);
+  expect(b.saved).toEqual(["approve(a)"]);
+});
+
+test("do-not-disturb changed by an agent is what the window shows and toggles", async () => {
+  const [st, b] = fresh();
+  st.applyEvent({ type: "dnd", dnd: true });
+  expect(st.dnd).toBe(true);
+  await run(st, ["toggleDnd"]);
+  expect(b.take()).toEqual(["setDnd(false)"]);
+  expect(st.dnd).toBe(false);
+});
+
 const account = (): AccountSettings => ({
   displayName: "Lab",
   username: "1001",

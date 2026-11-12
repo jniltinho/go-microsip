@@ -42,6 +42,43 @@ type server struct {
 	mu          sync.Mutex
 	window      int64 // the second the global count is of
 	used        int
+	open        map[net.Conn]struct{} // the connections being served
+	stopped     bool
+}
+
+// start serves the listener in the background.
+func (s *server) start(listener net.Listener) *server {
+	go s.serve(listener)
+	return s
+}
+
+// stop ends every connection: a client still connected when the owner leaves is not left
+// talking to it.
+func (s *server) stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopped = true
+	for conn := range s.open {
+		_ = conn.Close()
+	}
+}
+
+// track notes a connection as open; false when the server has stopped.
+func (s *server) track(conn net.Conn, open bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !open {
+		delete(s.open, conn)
+		return true
+	}
+	if s.stopped {
+		return false
+	}
+	if s.open == nil {
+		s.open = map[net.Conn]struct{}{}
+	}
+	s.open[conn] = struct{}{}
+	return true
 }
 
 // serve accepts connections until the listener is closed.
@@ -70,7 +107,10 @@ func (s *server) serve(listener net.Listener) {
 		go func() {
 			defer s.connections.Add(-1)
 			defer conn.Close()
-			s.connection(conn, pid)
+			if s.track(conn, true) {
+				defer s.track(conn, false)
+				s.connection(conn, pid)
+			}
 		}()
 	}
 }

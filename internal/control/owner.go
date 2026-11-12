@@ -61,8 +61,9 @@ type Phone interface {
 	Send(domain.Command) error
 	SetDND(on bool) error
 	Settings() app.Settings
-	Contacts(search string) ([]app.Contact, error)
-	History(filter app.HistoryFilter, search string) ([]app.HistoryEntry, error)
+	// ContactsUpTo and HistoryUpTo list at most limit records, in the order the window lists them.
+	ContactsUpTo(search string, limit int) ([]app.Contact, error)
+	HistoryUpTo(filter app.HistoryFilter, search string, limit int) ([]app.HistoryEntry, error)
 	AudioDevices() (inputs, outputs []ports.Device, err error)
 	Ledger() (app.Ledger, error)
 }
@@ -99,9 +100,12 @@ type Owner struct {
 	now func() time.Time
 	gap time.Duration
 
-	mu           sync.Mutex
-	closed       bool
-	pending      []Approval
+	mu      sync.Mutex
+	closed  bool
+	pending []Approval
+	// revoked are the grants revoked in this session: refused from then on, whatever the
+	// database made of the revocation.
+	revoked      map[string]bool
 	pausedUntil  time.Time
 	registration domain.RegistrationStatus
 	call         *domain.CallSnapshot
@@ -168,10 +172,12 @@ func (o *Owner) Welcome() Welcome {
 	return Welcome{Protocol: Protocol, Version: SchemaVersion, Mode: o.mode, Epoch: uint64(o.epoch)}
 }
 
-// Close stops the owner: what waits is left to the next epoch, which expires it.
+// Close stops the owner: it answers no request from then on, and what waited for a person is
+// left to the next epoch, which expires it.
 func (o *Owner) Close() {
 	o.mu.Lock()
 	o.closed = true
+	o.pending = nil
 	o.mu.Unlock()
 }
 
@@ -290,6 +296,10 @@ func (o *Owner) Handle(r Request, pid int) Response {
 		return Failure(r.RequestID, err)
 	}
 	o.mu.Lock()
+	if o.closed { // a client still connected while the softphone leaves
+		o.mu.Unlock()
+		return Failure(r.RequestID, fail(EngineUnavailable, "the owner is stopping"))
+	}
 	response, notify := o.handle(r, pid)
 	o.mu.Unlock()
 	if notify {
@@ -548,7 +558,7 @@ func (o *Owner) decide(operationID string, approve bool) bool {
 func (o *Owner) DenyAll() {
 	o.mu.Lock()
 	notify := false
-	for len(o.pending) > 0 {
+	for !o.closed && len(o.pending) > 0 {
 		notify = o.decide(o.pending[0].OperationID, false) || notify
 	}
 	o.pausedUntil = o.now().Add(PauseAfterDenyAll)

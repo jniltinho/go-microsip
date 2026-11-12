@@ -87,6 +87,7 @@ func peer(conn net.Conn) (pid int, ours bool) {
 type Endpoint struct {
 	listener net.Listener
 	lock     *os.File
+	server   *server
 }
 
 // Listen makes this process the owner of agent control for this user and serves the handler's
@@ -118,13 +119,15 @@ func Listen(dir string, welcome Welcome, handler Handler) (*Endpoint, error) {
 		_ = lock.Close()
 		return nil, err
 	}
-	go (&server{welcome: welcome, handler: handler, peer: peer}).serve(listener)
-	return &Endpoint{listener: listener, lock: lock}, nil
+	serving := (&server{welcome: welcome, handler: handler, peer: peer}).start(listener)
+	return &Endpoint{listener: listener, lock: lock, server: serving}, nil
 }
 
-// Close stops accepting, removes the socket and gives the lock up.
+// Close stops accepting, ends the connections that are open, removes the socket and gives the
+// lock up.
 func (e *Endpoint) Close() error {
 	err := e.listener.Close()
+	e.server.stop()
 	_ = e.lock.Close()
 	return err
 }

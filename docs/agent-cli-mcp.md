@@ -7,7 +7,8 @@ command answers `engine_unavailable` and exits 4.
 
 This page is about go-microsip, the Go rewrite. The Rust application's own page is
 [agent-cli-mcp-rust.md](agent-cli-mcp-rust.md); the two applications never answer each other's
-clients. Agent control exists on Linux; the Windows build does not have it yet.
+clients. Agent control works on Linux and on Windows; where this page names a directory of
+Linux, Windows uses `%LOCALAPPDATA%\go-microsip\control\` for the socket and the grant files.
 
 ## Rules that always apply
 
@@ -25,7 +26,8 @@ clients. Agent control exists on Linux; the Windows build does not have it yet.
   with a different request is a `conflict`. After the softphone restarts, old keys answer
   `stale_epoch` and are never run again.
 - **Same-user programs.** The socket is in a directory only you can enter
-  (`$XDG_RUNTIME_DIR/go-microsip/`), and both ends ask the kernel who the other is. A program
+  (`$XDG_RUNTIME_DIR/go-microsip/`; inside your profile on Windows), and both ends ask the
+  system which process is at the other end and whose it is. A program
   already running as your user can do anything you can, including clicking **Allow**: this is a
   consent boundary for agents limited to the MCP tools, not a sandbox. Never put personal data
   into an idempotency key: keys are kept in the local ledger for 24 hours.
@@ -37,12 +39,21 @@ In **Settings → Agent access** tick what a program may do, list the exact numb
 and how many calls it may place or answer (at most 100). **Create grant file** writes a secret
 to a new private file (mode 0600) under `$XDG_RUNTIME_DIR/go-microsip/grants/` and shows its
 path; pass it with `--grant-file FILE`. Requests the grant covers run without a prompt; anything
-else (another number, a used-up call limit, another operation) still asks you.
+else (another number, a used-up call limit, another operation) still asks you. A request that
+presents a file whose grant is unknown, expired or revoked is refused outright
+(`grant_required`): it is not turned into a prompt.
 
 A grant ends when it expires, when you press **Revoke**, or when the window restarts. The secret
-is never shown and never stored: the database keeps only its hash. **Show audit log** lists what
-was asked and decided; **Clear audit log** deletes that record after a confirmation. **Deny all
-and pause** in a prompt also stops grants for five minutes.
+is never shown and never stored: the database keeps only its hash. If a revocation cannot be
+stored (a full disk, say), the window tells you: it refuses that grant from then on all the
+same, but an export for the headless service, which another process uses, stays usable until it
+expires. **Show audit log** lists what was asked and decided; **Clear audit log** deletes that
+record after a confirmation.
+
+**Deny all and pause** in a prompt denies everything that waits and refuses new changes for five
+minutes, those a grant covers included. It does not stop what was already allowed: a read with a
+read grant still answers, and DTMF digits already being sent are finished. Revoke the grant to
+end those.
 
 Know the limits before granting:
 
@@ -83,7 +94,7 @@ A bootstrap starts one service session only; a new session needs a new export fr
 While the service runs, the window does not open (`engine_owned_by_service`) and a `sip:` or
 `tel:` link is not dialed (`uri_confirmation_unavailable`). The service's grant cannot be
 revoked while it runs, because the window is closed: stop the service to end it. After the grant
-expires the service stays registered and answers only `status`.
+expires the service stays registered and answers only `status` and `operation get`.
 
 Exit statuses of `service`: 0 stopped by a signal, 2 invalid arguments or grant file, 3 the
 bootstrap cannot be used (already used, unknown, expired or revoked), 4 something it needs is
@@ -115,7 +126,8 @@ go-microsip dnd off
 `outcome_unknown`. `CALL_ID` and `VERSION` come from `status`: a request names the call as you
 saw it, so it never lands on a call that replaced it. `--key` gives the key of a change, for a
 safe retry; without it a random one is used and printed. `--json` prints the answer as one JSON
-object.
+object on the standard output; a key that was made up for the request is then printed on the
+standard error, since a retry is safe only with it.
 
 A number or DTMF digits given as `-` are read from the standard input, which keeps them out of
 the process list:

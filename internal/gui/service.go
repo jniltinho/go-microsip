@@ -700,7 +700,7 @@ func (a *App) CreateGrant(spec GrantSpec, bootstrap bool) (string, error) {
 	}
 	path, err := control.WriteGrantFile(dir, issued)
 	if err != nil {
-		a.owner.Revoke(issued.ID)
+		_ = a.owner.Revoke(issued.ID) // refused by this window from now on, stored or not
 		return "", errors.New("the grant file could not be written; the grant was revoked")
 	}
 	return path, nil
@@ -727,13 +727,38 @@ func orEmpty(list []string) []string {
 	return list
 }
 
-// RevokeGrant ends a grant now.
+// RevokeGrant ends a grant now. An error means the database did not take the revocation: the
+// page then says what that leaves usable.
 func (a *App) RevokeGrant(id string) error {
 	if a.owner == nil {
 		return errNoAgentControl
 	}
-	a.owner.Revoke(id)
-	return nil
+	return a.owner.Revoke(id)
+}
+
+// controlledPhone is the phone as agent control drives it: a change of do-not-disturb made
+// there, with the person's consent, is told to the page, which shows the state and toggles it.
+type controlledPhone struct {
+	control.Phone
+	told func(on bool)
+}
+
+// SetDND turns do-not-disturb on or off and tells the page.
+func (c controlledPhone) SetDND(on bool) error {
+	err := c.Phone.SetDND(on)
+	if err == nil {
+		c.told(on)
+	}
+	return err
+}
+
+// dndChanged tells the page that do-not-disturb was changed by someone else.
+func (a *App) dndChanged(on bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.subscribed {
+		a.emit(UIEvent{Type: "dnd", DND: &on})
+	}
 }
 
 // AuditLog returns the latest lines of the audit trail of agent control, newest first.
@@ -897,6 +922,8 @@ type UIEvent struct {
 	Dark *bool `json:"dark,omitempty"`
 	// Number, of the "link" event: the number a sip: or tel: link asks to call.
 	Number string `json:"number,omitempty"`
+	// DND, of the "dnd" event: do-not-disturb as an agent's request left it.
+	DND *bool `json:"dnd,omitempty"`
 }
 
 // uiEvent is an engine event as the page receives it.

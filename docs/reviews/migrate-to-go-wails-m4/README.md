@@ -1,0 +1,26 @@
+# Independent review of milestone M4's agent control (Codex)
+
+Each round reviews a sanitized extract made with `git archive` (the control package, the command line, the MCP server, the window's side, the page, the checks, the receipt and its logs, and the Rust originals for comparison; no pictures, fonts or build output, nothing from `base/`, no secrets or personal paths) and the diff of the work, with `codex exec --sandbox read-only --skip-git-repo-check --ephemeral`. A review is not call evidence: the evidence is in [the M4 receipt](../../receipts/go-m4-desktop-2026-11-12.md).
+
+| Round | Commit | Scope | Verdict | Report |
+| --- | --- | --- | --- | --- |
+| 1 | `d7d31f6` | tasks 6.4, 6.5 and 6.6 | UNSOUND: 1 major, 9 minor | [codex-round1.md](codex-round1.md) |
+
+## What was done about round 1
+
+| # | Severity | Finding | Response |
+| --- | --- | --- | --- |
+| 1 | major | A revocation the database did not take was reported as done, and the capability stayed usable | Fixed. `Owner.Revoke` marks the grant revoked in the owner before it asks the database, so this window refuses it from that moment whatever the database does, and returns `ErrRevocationNotStored` when the database refused; the window's `RevokeGrant` passes the error to the page, which shows it. The message says what stays usable: an export for the headless service, which another process consumes. `TestARevocationThatIsNotStoredStillRefusesTheGrant` has a ledger whose revocations fail: the error comes back, a read and a change with the capability are `grant_required`, and the grant is no longer listed. The Rust original has the same defect; it is frozen and is not changed. |
+| 2 | minor | A closed owner still answered connected clients, and "deny all" on a closed owner with a request waiting never returned | Fixed. `Handle` answers `engine_unavailable` once the owner is closed; `Close` drops what waited (the next epoch expires it in the ledger); `DenyAll` stops on a closed owner; and the endpoint's `Close` ends the connections that are open. `TestAClosedOwnerAnswersNothing`, and `TestOneOwnerServesASessionAndTheNextTakesOver` for a client still connected when the owner leaves. |
+| 3 | minor | Do-not-disturb changed by an agent did not reach the window's indicator, whose toggle then sent the wrong state | Fixed. The window gives the owner a phone whose `SetDND` also tells the page (a "dnd" event), and the page takes the state from it. `TestAnAgentRequestWaitsForThePersonAtTheWindow` (the event after an approved `dnd_set`) and the page's test "do-not-disturb changed by an agent is what the window shows and toggles". |
+| 4 | minor | The listings paged through the first thousand records only | Fixed. The owner asks the phone for as many records as the page it serves needs (`ContactsUpTo`, `HistoryUpTo`). `TestListingsPageBeyondAThousandRecords`: 1005 calls, the page at 980 names the next one, the page at 1000 has the last five. |
+| 5 | minor | The service started telephony before it knew its bootstrap could be used | Fixed. The service opens its phone held (`PhoneOptions.Held`): the engine is told nothing, so nothing reaches the PBX, until the bootstrap is consumed and the socket is served; then `Begin` registers. `TestAHeldPhoneRegistersOnlyWhenItBegins`. The lab's service subtest still passes; it does not look at the PBX's traffic for a refused start, and the receipt says so. |
+| 6 | minor | Allow armed a second after a request arrived, not after it came on screen: behind a ringing call it was armed before anyone saw it | Fixed. The page starts the second when the request is the dialog on screen: not while a call rings over it. The page's test "a request behind a ringing call arms a second after it comes on screen". |
+| 7 | minor | A stray closing bracket after a valid request passed the framing | Fixed. After the message, the line must end. The cases `}`, `]` and a stray word are in `TestUnknownFieldsAndOperationsAreRejected`, with three requests whose field names differ in case from the contract's, which are now refused too. |
+| 8 | minor | The documentation promised more than the pause and the expiry do | Fixed in the document: "Deny all and pause" refuses new changes and does not stop a read a grant already allows or digits already being sent; an expired service grant leaves `status` and `operation get`; a request with an unknown, expired or revoked grant is refused, not turned into a prompt. The implementation is as it was. |
+| 9 | minor | With `--json`, a key made up for the request was lost | Fixed. It is printed on the standard error, beside the answer on the standard output; the document says so. `TestControlCommandsMapToOperations`. |
+| 10 | minor | The receipt called checks against the mock a walkthrough of the form | Fixed in the receipt: no check fills the form; what is checked is named for what it is. |
+
+The differences from the Rust originals the report lists as unrecorded are either gone with these fixes (pagination, the rejected service start, the closed owner, the trailing delimiters and the case of field names in a request) or recorded in the receipt (do-not-disturb, now told to the page). A hello whose field names differ in case is still taken; it carries no authority.
+
+No round has reviewed these answers yet.

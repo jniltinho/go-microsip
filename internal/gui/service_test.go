@@ -687,11 +687,11 @@ func (p *agentPhone) Send(c domain.Command) error {
 }
 func (p *agentPhone) SetDND(bool) error      { return nil }
 func (p *agentPhone) Settings() app.Settings { return app.Settings{} }
-func (p *agentPhone) Contacts(search string) ([]app.Contact, error) {
-	return p.db.SearchContacts(search, 10)
+func (p *agentPhone) ContactsUpTo(search string, limit int) ([]app.Contact, error) {
+	return p.db.SearchContacts(search, limit)
 }
-func (p *agentPhone) History(filter app.HistoryFilter, search string) ([]app.HistoryEntry, error) {
-	return p.db.RecentCalls(10, filter, search)
+func (p *agentPhone) HistoryUpTo(filter app.HistoryFilter, search string, limit int) ([]app.HistoryEntry, error) {
+	return p.db.RecentCalls(limit, filter, search)
 }
 func (p *agentPhone) AudioDevices() (inputs, outputs []ports.Device, err error) { return nil, nil, nil }
 func (p *agentPhone) Ledger() (app.Ledger, error)                               { return p.db, nil }
@@ -768,6 +768,27 @@ func TestAnAgentRequestWaitsForThePersonAtTheWindow(t *testing.T) {
 	}
 	if paused := ask("k5", "1006"); paused.Error == nil || paused.Error.Code != control.Busy {
 		t.Errorf("a request after deny all: %+v", paused)
+	}
+	// Do-not-disturb changed by an agent, with the person's yes, is told to the page.
+	controlled, err := control.NewOwner(controlledPhone{Phone: phone, told: svc.dndChanged}, svc.approvalsChanged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controlled.Close()
+	on := "k-dnd"
+	asked := controlled.Handle(control.Request{SchemaVersion: 1, RequestID: "r", IdempotencyKey: &on, Operation: control.Operation{Op: control.DNDSet, Enabled: true}}, 0)
+	if asked.OperationID == nil {
+		t.Fatalf("do-not-disturb asked for: %+v", asked)
+	}
+	controlled.Decide(*asked.OperationID, true)
+	mu.Lock()
+	told := false
+	for _, ev := range events {
+		told = told || (ev.Type == "dnd" && ev.DND != nil && *ev.DND)
+	}
+	mu.Unlock()
+	if wire, _ := json.Marshal(UIEvent{Type: "dnd", DND: &told}); !told || string(wire) != `{"type":"dnd","dnd":true}` {
+		t.Errorf("the page was not told that do-not-disturb is on (as %s)", wire)
 	}
 	// Without agent control there is nothing to decide, and the page is told of an empty list.
 	bare := &App{emit: func(UIEvent) {}}

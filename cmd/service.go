@@ -55,7 +55,8 @@ and stops on SIGTERM or an interrupt, ending calls and unregistering first.`,
 			if err := app.Validate(options); err != nil {
 				return invalidConfiguration(err)
 			}
-			phone, err := app.OpenPhone(options, app.PhoneOptions{Audio: s.platform.Audio, UserAgent: "go-microsip/" + s.version,
+			// Held: nothing registers, and nothing reaches the PBX, before the bootstrap is taken.
+			phone, err := app.OpenPhone(options, app.PhoneOptions{Audio: s.platform.Audio, UserAgent: "go-microsip/" + s.version, Held: true,
 				Log: slog.New(slog.NewTextHandler(s.stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))})
 			switch {
 			case errors.Is(err, app.ErrRunning):
@@ -85,6 +86,7 @@ and stops on SIGTERM or an interrupt, ending calls and unregistering first.`,
 			signals := make(chan os.Signal, 2)
 			signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 			defer signal.Stop(signals)
+			phone.Begin() // now the account registers
 			log(fmt.Sprintf("service ready (epoch %d)", owner.Epoch()))
 			events, active := phone.Events(), false
 			for {

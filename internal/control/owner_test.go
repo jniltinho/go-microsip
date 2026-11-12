@@ -76,12 +76,12 @@ func (e *engine) Settings() app.Settings {
 	return app.Settings{Account: e.account, Theme: "dark", AudioInput: "mic-1", DND: e.dnd}
 }
 
-func (e *engine) Contacts(search string) ([]app.Contact, error) {
-	return e.store.SearchContacts(search, 1000)
+func (e *engine) ContactsUpTo(search string, limit int) ([]app.Contact, error) {
+	return e.store.SearchContacts(search, limit)
 }
 
-func (e *engine) History(filter app.HistoryFilter, search string) ([]app.HistoryEntry, error) {
-	return e.store.RecentCalls(1000, filter, search)
+func (e *engine) HistoryUpTo(filter app.HistoryFilter, search string, limit int) ([]app.HistoryEntry, error) {
+	return e.store.RecentCalls(limit, filter, search)
 }
 
 func (e *engine) AudioDevices() (inputs, outputs []ports.Device, err error) {
@@ -818,5 +818,110 @@ func TestABootstrapIsOfNoUseToTheWindowThatIssuedIt(t *testing.T) {
 	}
 	if name, content := plain.File(); name != plain.ID+".grant" || content != plain.Capability+"\n" {
 		t.Errorf("a session's grant file: %s", name)
+	}
+}
+
+// brokenLedger is a ledger whose revocations fail, as on a full disk; everything else works.
+type brokenLedger struct{ app.Ledger }
+
+func (brokenLedger) RevokeGrant(string) error { return errors.New("the disk is full") }
+
+// A revocation the database does not take is said so, and the grant is refused by this owner
+// all the same: Revoke never leaves a capability usable while reporting that it is gone.
+func TestARevocationThatIsNotStoredStillRefusesTheGrant(t *testing.T) {
+	s := newSession(t, true)
+	issued, err := s.Issue(spec([]string{"read:history", "control:dnd"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := s.with(issued.Capability, "", Operation{Op: HistoryList}); r.Status != StatusOK {
+		t.Fatalf("history by the grant: %+v", r.Error)
+	}
+	s.mu.Lock()
+	s.ledger = brokenLedger{s.ledger}
+	s.mu.Unlock()
+	if err := s.Revoke(issued.ID); !errors.Is(err, ErrRevocationNotStored) {
+		t.Fatalf("a revocation the database refused: %v", err)
+	}
+	// The database still says the grant is active; this owner does not use it.
+	if _, active, _ := s.engine.store.ActiveGrant(capabilityHash(issued.Capability), s.Epoch()); !active {
+		t.Fatal("the test's database took the revocation")
+	}
+	if r := s.with(issued.Capability, "", Operation{Op: HistoryList}); code(r) != GrantRequired {
+		t.Errorf("a read with a grant whose revocation was not stored: %+v", r)
+	}
+	if r := s.with(issued.Capability, "r-1", Operation{Op: DNDSet, Enabled: true}); code(r) != GrantRequired || len(s.engine.take()) != 0 {
+		t.Errorf("a change with a grant whose revocation was not stored: %+v", r)
+	}
+	if grants := s.Grants(); len(grants) != 0 {
+		t.Errorf("the grant is still listed: %+v", grants)
+	}
+}
+
+// An owner that was closed answers no request and waits for nobody; "deny all" on it returns.
+func TestAClosedOwnerAnswersNothing(t *testing.T) {
+	s := newSession(t, true)
+	issued, err := s.Issue(spec([]string{"control:dnd"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ask("k-wait", dial("1002"))
+	s.Close()
+	if len(s.Pending()) != 0 {
+		t.Error("a closed owner still waits for a person")
+	}
+	done := make(chan struct{})
+	go func() { s.DenyAll(); s.Decide("op-unknown", true); s.Tick(s.clock.Add(time.Hour)); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("deny all on a closed owner did not return")
+	}
+	for name, r := range map[string]Response{"a granted change": s.with(issued.Capability, "c-1", Operation{Op: DNDSet, Enabled: true}),
+		"a change": s.ask("c-2", dial("1002")), "status": s.ask("", Operation{Op: StatusGet})} {
+		if code(r) != EngineUnavailable {
+			t.Errorf("%s on a closed owner: %+v", name, r)
+		}
+	}
+	if sent := s.engine.take(); len(sent) != 0 {
+		t.Errorf("a closed owner sent %v", sent)
+	}
+}
+
+// The listings page through everything, not through the first thousand records only.
+func TestListingsPageBeyondAThousandRecords(t *testing.T) {
+	s := newSession(t, true)
+	for i := range 1005 {
+		ended := int64(1700000100 + i)
+		if _, err := s.engine.store.RecordCall(store.CallRecord{SessionKey: fmt.Sprintf("s:%d", i), StartedUTC: int64(1700000000 + i), EndedUTC: &ended,
+			Direction: domain.Incoming, Remote: "1002", Outcome: store.Missed}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	issued, err := s.Issue(spec([]string{"read:history"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := uint32(20)
+	page := func(cursor string) (items int, next string) {
+		t.Helper()
+		r := s.with(issued.Capability, "", Operation{Op: HistoryList, Cursor: &cursor, Limit: &limit})
+		var data struct {
+			Items      []json.RawMessage `json:"items"`
+			NextCursor *string           `json:"next_cursor"`
+		}
+		if r.Status != StatusOK || json.Unmarshal(r.Data, &data) != nil {
+			t.Fatalf("history at %s: %+v", cursor, r.Error)
+		}
+		if data.NextCursor != nil {
+			next = *data.NextCursor
+		}
+		return len(data.Items), next
+	}
+	if items, next := page("o:980"); items != 20 || next != "o:1000" {
+		t.Errorf("the page at 980: %d items, next %q", items, next)
+	}
+	if items, next := page("o:1000"); items != 5 || next != "" {
+		t.Errorf("the page at 1000: %d items, next %q", items, next)
 	}
 }

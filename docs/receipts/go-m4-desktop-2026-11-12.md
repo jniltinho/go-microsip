@@ -94,7 +94,30 @@ Not covered in 6.2:
 - The Credential Manager adapter: `TestKeyringStoresReplacesAndDeletes` passes in the Windows VM, in the desktop session of the logged-on user.
 - With the lock and the address fixed, the window on Windows opens its database: the seven-skin run there requires it, and its pictures show an empty history where the earlier ones showed "the database is not available" ([`docs/prints/go/windows/`](../prints/go/windows/)).
 
-Open in 6.3: notifications, the tray and link registration on Windows; the sound on real hardware (the VM's emulated card fails the threshold); the call walkthrough of the `.exe`; that credentials survive removing the application folder (they are in the Credential Manager, outside it, which is not the same as having tried).
+- **Agent control on Windows** (`internal/control/endpoint_windows.go`): the socket is of the Unix-domain family, which Windows has, in `%LOCALAPPDATA%\go-microsip\control\`, with one owner by a lock there. Both ends ask the system which process is at the other end (`SIO_AF_UNIX_GETPEERPID`) and whose it is (its token's user), and a peer of another user is neither served nor trusted. This is not the named pipe design D10 names: the same-user rule is kept with the transport Linux uses, so that the server, the client and their limits are one piece of code; the design records the choice. Grant files are written under the same directory and take the permissions of the user's profile; they are given no access list of their own, and the check a grant file gets on Linux (owner and mode) has no counterpart on Windows.
+- **Links** (`internal/gui/entry_windows.go`): go-microsip registers itself for `sip:` and `tel:` under the current user (a link class, its command with this executable, and the capabilities Windows lists applications by), as the desktop entry declares the types on Linux. It is then a candidate in Settings, Default apps; it is not made the default.
+- **Notifications** (`internal/platform/notify/notify_windows.go`): a ringing call is a Windows toast with Answer and Reject, through the toast library the toolkit itself uses (`go-toast`, a new direct dependency, MIT or Unlicense). A toast is not taken away when its call is answered or over; a button pressed late names a call that is gone, which the engine refuses.
+- **The tray and the single instance** are the toolkit's, as on Linux.
+
+| Check, in the Windows 11 VM (`build/vm/check.ps1`, `desktop.ps1`) | Result |
+| --- | --- |
+| the control transport (`TestAClientReachesTheOwnerOnWindows`, `TestGrantFilesOnWindows`) | pass: a client reaches the owner and is named by the system's process id, from both ends; one owner at a time, and the next replaces a socket file left behind; without an owner the answer is "unavailable"; the other application's hello and a request without a hello get no answer; grant files are written once and read back |
+| a stored password and the application folder (`TestAStoredPasswordOutlivesTheRunThatLeftIt`) | pass: one copy of the test program stores a password in the Credential Manager, that copy's folder is removed, and a copy in another folder finds it |
+| links | pass: after the window ran once, the registry holds the link class with `"<this executable>" "%1"`, the `sip` and `tel` associations and the registered application, under the current user |
+| the command line against the window | pass: `status --json` is answered by the window (mode gui); `history list` exits 3 with `grant_required`; `TestTheWindowOfThisSessionAnswers`; `call dial 600 --key K --json` exits 3 with `approval_required` and the window shows who asks and for what; Escape denies it and `operation get` says `denied` |
+| a second start with a link | pass: `go-microsip.exe tel:600` ends with 0 and the running window asks "A link asks to call 600. Call it?"; one softphone process stays |
+| the close button and the notification area | pass: the close button hides the window and the softphone goes on; a second start brings the window back and ends with 0 |
+| notifications (`TestAToastOnThisDesktop`) | Windows takes the toast and lists it under go-microsip in its notification center, with the caller as plain text ([picture](../prints/go/windows/windows-toast.png)). **Not verified: its buttons.** The new Windows installation has its own do-not-disturb on, which keeps the toast off the screen, and the check did not find the button to press in the notification center |
+| the sound adapter (`TestWASAPI`) | **fails**, as in every run in this VM: the emulated sound card has no host behind it and leaves gaps of most of a second |
+
+Open in 6.3, and why the task is not checked:
+
+- **The call walkthrough of the `.exe`** (open, dial a lab extension, hang up, with pictures). The Windows VM cannot reach a PBX: the lab's PBX is on an internal Docker network, and its host profile is, by the lab's own rule, not to be exposed to a VM. A PBX the VM can reach on an isolated network is lab work of its own (task 7.1 builds the lab that 7.2 runs the VMs against).
+- **The five-minute sound threshold, the frozen window and the unplugged microphone on Windows.** They need a sound card with a host behind it; the VM's has none.
+- **The buttons of a notification**, and a notification taken away when its call ends.
+- The tray's menu on Windows (the icon, hiding to it and coming back are checked; its menu is not opened).
+- A link opened from another application with go-microsip chosen in Default apps (the registration is checked, and the start with a link; the choice is the person's and is not made by the check).
+- Grant files on Windows have no access list of their own (above).
 
 ## Task 6.4: agent control
 
@@ -163,7 +186,7 @@ That is the verification task 6.5 asks for: an unapproved MCP call waits for app
 
 Not covered in 6.5:
 
-- **The Agent access form in the built window.** It is exercised against the mock in the page's checks, and the window's service behind it by its tests; the two are tied by a check of the method names and of the fields the page sends, not by a person or a script filling the form in the real window. In the lab the bootstrap of the service subtest is issued by the test with the window's own code. The walkthrough of this screen on the artifacts is part of 6.7.
+- **The Agent access form, anywhere.** No check fills the form and presses its buttons: the page's test calls the mock backend's functions directly, the screenshot run draws the screen and opens its audit log, and the window's service behind the form has its own tests. The form and the service are tied by a check of the method names and of the fields the page sends. A button that does nothing, or a field the form leaves out, would pass all of these. In the lab the bootstrap of the service subtest is issued by the test with the window's own code. The walkthrough of this screen on the artifacts is part of 6.7.
 - A grant used through the built command line against the window (`--grant-file` there is driven in the service subtest and in the unit tests).
 - An MCP input line over 1 MiB (the limit is the SDK's, set here; no test sends one).
 - The service on a machine that really has no desktop session, and its sound devices there; here it runs in the lab container beside the session's sound service. What it says about the microphone follows the call's media, not the devices themselves as in the Rust candidate.
@@ -189,13 +212,13 @@ Not covered in 6.6: the documented commands are not each run on the built binary
 
 - **6.1 is checked** on the lab evidence above: a second start with a link, the exit during a call (asked for, and on a termination signal) and a PBX that stopped answering, each with the built window. What "Not covered in 6.1" lists is left to the manual checklist of task 7.2.
 - **6.2 is checked**: each service is driven with and without it in the lab (GNOME Keyring on a private bus, the test itself as the notification service and as the tray host; a bus with none of them), where no password reaches a file or the database; and on the default desktops of the two supported distributions the services they bring are asked with the same adapters: one desktop with a tray host and one without, both with a notification service, both with a keyring that is missing or locked and then unlocked. What "Not covered in 6.2" lists stays open for 7.2.
-- **6.3 is not checked**: see "Open in 6.3".
+- **6.3 is not checked**: its adapters are built and what a VM can show of them passes, but the call walkthrough of the `.exe` and the sound on a real card are not done; see "Open in 6.3".
 - **6.4 is checked**: the tests of `crates/control` are ported and pass, with those of the Rust owner and of its ledger; the built window serves the contract and a call asked for waits for the person; the two applications ran side by side in both supported desktops without sharing a lock, a socket or a file. The headless service was left out of it and came with 6.5.
 - **6.5 is checked**: the control commands, the MCP server with the Rust tool set and rules, and the headless service; an unapproved call from the built command line and from the built MCP server waits for Allow in the built window and is audited, and the tools that need a grant are refused without one. What "Not covered in 6.5" lists stays open.
 - **6.6 is checked**: the command line, the MCP server and the service are documented for go-microsip, the README has the platform notes, and a test runs or checks every command the two documents write.
 - 6.7 is not started.
 
-Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). Agent control (6.4 and 6.5) has had no independent review yet: it is due with the close of M4 (6.7) at the latest. A review is not call evidence.
+Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). Agent control (6.4 to 6.6) had its first Codex round, which found it unsound for one major finding (a revocation the database refused was reported as done) and nine minor ones; all ten were answered ([record](../reviews/migrate-to-go-wails-m4/README.md)), and no round has reviewed the answers or the Windows work of 6.3 yet. A review is not call evidence.
 
 ## Runs
 

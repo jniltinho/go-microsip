@@ -176,10 +176,12 @@ Platform notes:
   - The command line, the MCP server and the headless service work here:
     [Controlling go-microsip](docs/agent-cli-mcp.md).
 - **Windows** (preview; x86_64 with the WebView2 runtime). The window opens with its settings,
-  contacts and history, and the password is kept in the Credential Manager. Calls are not
-  verified there yet. Not built yet: notifications, the tray, link registration, and the command
-  line's control commands, the MCP tools and the headless service, which have no transport on
-  Windows so far.
+  contacts and history, and the password is kept in the Credential Manager, where it outlives
+  the application's folder. The close button hides the window to the notification area; a
+  `sip:` or `tel:` link can be opened with go-microsip, which asks before it calls, once you
+  choose it in Settings, Default apps; an incoming call is also a Windows notification with
+  **Answer** and **Reject**; and the command line, the MCP server and the headless service work
+  as on Linux. Calls and sound are not verified on Windows yet.
 - **macOS**: not built.
 
 `go-microsip doctor` prints a sanitized report of the configuration, the display and the sound;

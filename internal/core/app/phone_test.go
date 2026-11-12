@@ -932,3 +932,35 @@ func TestAWriteThatLandsLateDoesNotReplaceTheLaterPassword(t *testing.T) {
 		t.Error("the next start read the password of the write that landed late, not the one typed last")
 	}
 }
+
+// A phone opened Held tells the PBX nothing until Begin: the headless service takes its grant
+// in between, and a service that is refused has registered nowhere.
+func TestAHeldPhoneRegistersOnlyWhenItBegins(t *testing.T) {
+	port := registrar(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1001\"\ndomain = \"127.0.0.1\"\nport = %d\ntransport = \"tcp\"\nexpires = 60\n", port)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o := Options{ConfigPath: file, Files: own{}, Locks: &memory.Locks{},
+		Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "GO_MICROSIP_SIP_PASSWORD": "fictional-held-password"}}
+	p, err := OpenPhone(o, PhoneOptions{Held: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if !p.Settings().HasPassword {
+		t.Fatal("the configured password is not at hand")
+	}
+	select {
+	case ev := <-p.Events():
+		if r, ok := ev.(domain.RegistrationChanged); ok && r.State.Status != domain.Disabled {
+			t.Fatalf("a held phone registered (%v)", r.State)
+		}
+	case <-time.After(700 * time.Millisecond):
+	}
+	p.Begin()
+	until(t, p, "registration after Begin", registered)
+	p.Begin() // a second time: nothing more to tell
+}

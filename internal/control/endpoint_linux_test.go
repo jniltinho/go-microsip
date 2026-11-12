@@ -98,10 +98,14 @@ func TestOneOwnerServesASessionAndTheNextTakesOver(t *testing.T) {
 	if err != nil || client.Welcome().Epoch != 7 {
 		t.Fatalf("the first owner after the second tried: %v", err)
 	}
-	client.Close()
+	// A client still connected when the owner leaves is cut off, not left talking to it.
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if r := client.Do(statusRequest("late")); r.Error == nil || r.Error.Code != EngineUnavailable {
+		t.Errorf("a request on a connection the owner left: %+v", r)
+	}
+	client.Close()
 	if _, err := Dial(dir); !errors.Is(err, ErrUnavailable) {
 		t.Errorf("a client after the owner left: %v", err)
 	}

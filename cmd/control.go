@@ -108,6 +108,11 @@ func (s *session) ask(c *cobra.Command, f *controlFlags, op control.Operation) e
 	out := c.OutOrStdout()
 	if f.json {
 		_ = json.NewEncoder(out).Encode(response)
+		// The answer has no place for the key: one that was made up here goes to the standard
+		// error, since a retry is safe only with it.
+		if r.IdempotencyKey != nil && f.key == "" {
+			fmt.Fprintf(c.ErrOrStderr(), "idempotency key: %s\n", *r.IdempotencyKey)
+		}
 	} else {
 		fmt.Fprint(out, render(response, r.IdempotencyKey))
 	}

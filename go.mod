@@ -3,6 +3,7 @@ module github.com/jniltinho/go-microsip
 go 1.27
 
 require (
+	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/ebitengine/purego v0.11.1
 	github.com/emiago/diago v0.42.0
 	github.com/emiago/sipgo v1.7.0

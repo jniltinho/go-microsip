@@ -35,7 +35,7 @@ func (o *Owner) requestGrant(r Request) (app.Grant, bool, error) {
 	switch {
 	case err != nil:
 		return app.Grant{}, false, fail(StorageUnavailable, "the grant store is unavailable")
-	case !found:
+	case !found, o.revoked[grant.ID]:
 		return app.Grant{}, false, denied("the grant is unknown, expired, revoked or from another session")
 	}
 	return grant, true, nil
@@ -132,7 +132,7 @@ func (o *Owner) grantedRead(r Request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		rows, err := o.phone.Contacts(op.Query)
+		rows, err := o.phone.ContactsUpTo(op.Query, offset+limit+1) // one more: is there a next page
 		if err != nil {
 			return nil, errNoStorage
 		}
@@ -155,7 +155,7 @@ func (o *Owner) grantedRead(r Request) (any, error) {
 		if op.Filter != nil {
 			filter = map[string]app.HistoryFilter{FilterIncoming: app.IncomingCalls, FilterOutgoing: app.OutgoingCalls, FilterMissed: app.MissedCalls}[*op.Filter]
 		}
-		rows, err := o.phone.History(filter, "")
+		rows, err := o.phone.HistoryUpTo(filter, "", offset+limit+1)
 		if err != nil {
 			return nil, errNoStorage
 		}
@@ -315,14 +315,33 @@ func (o *Owner) Grants() []app.Grant {
 		return nil
 	}
 	grants, _ := o.ledger.Grants(o.epoch)
-	return grants
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.DeleteFunc(grants, func(g app.Grant) bool { return o.revoked[g.ID] })
 }
 
-// Revoke ends a grant now.
-func (o *Owner) Revoke(id string) {
-	if o.ledger != nil && o.ledger.RevokeGrant(id) == nil {
-		_ = o.ledger.Audit("grant", "revoked", "-")
+// ErrRevocationNotStored means the database did not take a revocation. This owner refuses the
+// grant from then on all the same; a bootstrap exported for the headless service, which another
+// process consumes, stays usable until it expires.
+var ErrRevocationNotStored = errors.New("the revocation could not be stored: this window refuses the grant from now on, but an export for the headless service stays usable until it expires")
+
+// Revoke ends a grant now. The grant is refused by this owner from the moment it is asked,
+// whether or not the database takes the revocation; when it does not, the error says so.
+func (o *Owner) Revoke(id string) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ledger == nil {
+		return errors.New("grants need the settings database")
 	}
+	if o.revoked == nil {
+		o.revoked = map[string]bool{}
+	}
+	o.revoked[id] = true
+	if err := o.ledger.RevokeGrant(id); err != nil {
+		return ErrRevocationNotStored
+	}
+	_ = o.ledger.Audit("grant", "revoked", "-")
+	return nil
 }
 
 // AuditRows returns the audit trail, newest first.

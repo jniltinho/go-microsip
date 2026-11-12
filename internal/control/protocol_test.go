@@ -87,6 +87,13 @@ func TestUnknownFieldsAndOperationsAreRejected(t *testing.T) {
 		`{"schema_version":1,"request_id":"r","idempotency_key":null,"operation":{"op":"status_get","more":1}}`,
 		`{"schema_version":1,"request_id":"r","idempotency_key":null,"operation":null}`,
 		`{"schema_version":1,"request_id":"r","idempotency_key":null,"operation":{"op":"status_get"}} {}`,
+		// Nothing may follow the request on its line, and its fields are spelt as the contract's.
+		`{"schema_version":1,"request_id":"r","idempotency_key":null,"operation":{"op":"status_get"}}}`,
+		`{"schema_version":1,"request_id":"r","idempotency_key":null,"operation":{"op":"status_get"}}]`,
+		`{"schema_version":1,"request_id":"r","idempotency_key":null,"operation":{"op":"status_get"}} x`,
+		`{"Schema_Version":1,"request_id":"r","idempotency_key":null,"operation":{"op":"status_get"}}`,
+		`{"schema_version":1,"REQUEST_ID":"r","idempotency_key":null,"operation":{"op":"status_get"}}`,
+		`{"schema_version":1,"request_id":"r","Capability":"abc","operation":{"op":"status_get"}}`,
 	} {
 		if r, err := parse(t, bad); err == nil {
 			t.Errorf("taken: %s (as %+v)", bad, r)

@@ -10,6 +10,7 @@ Copy-Item 'C:\dist\g0\audio.test.exe' "$work\audio.test.exe" -Force
 Copy-Item 'C:\dist\g0\lock.test.exe' "$work\lock.test.exe" -Force
 Copy-Item 'C:\dist\g0\keyring.test.exe' "$work\keyring.test.exe" -Force
 Copy-Item 'C:\dist\g0\control.test.exe' "$work\control.test.exe" -Force
+Copy-Item 'C:\dist\g0\notify.test.exe' "$work\notify.test.exe" -Force
 
 $os = Get-CimInstance Win32_OperatingSystem
 "vm-check: $($os.Caption) $($os.Version)"
@@ -124,9 +125,9 @@ if ($code -ne 0) { "vm-check: skins: FAILED (exit $code)"; Get-Content "$work\sk
 else { 'vm-check: the seven skins drawn on WebView2, each with its bundled font' }
 
 # 5. The desktop's side of the window: links, the control socket, a second start, the tray.
-$code = Invoke-Desktop 'desktop' @("powershell -NoProfile -ExecutionPolicy Bypass -File C:\vagrant\desktop.ps1 -Exe `"$work\go-microsip.exe`" -Work `"$work`" -ControlTest `"$work\control.test.exe`" -Shots C:\dist\vm") 420
+$code = Invoke-Desktop 'desktop' @("powershell -NoProfile -ExecutionPolicy Bypass -File C:\vagrant\desktop.ps1 -Exe `"$work\go-microsip.exe`" -Work `"$work`" -ControlTest `"$work\control.test.exe`" -NotifyTest `"$work\notify.test.exe`" -Shots C:\dist\vm") 480
 Get-Content "$work\desktop.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^desktop:' } | ForEach-Object { "vm-check: $_" }
 if ($code -ne 0) { "vm-check: desktop: FAILED (exit $code)"; Get-Content "$work\desktop.log" -Tail 6 -ErrorAction SilentlyContinue; $failed = "$failed desktop" }
-else { 'vm-check: links, agent control, the second start and the tray pass on Windows' }
+else { 'vm-check: links, agent control, the second start and the tray pass on Windows; the notification reaches Windows' }
 if ($failed) { "vm-check: FAIL $($os.Caption): $failed"; exit 1 }
 "vm-check: PASS $($os.Caption)"

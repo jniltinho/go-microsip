@@ -176,7 +176,9 @@ export type UiEvent =
   /** The engine stopped after "shutdown" (B2.4). */
   | { type: "stopped" }
   /** The complete list of pending agent requests, oldest first. */
-  | { type: "approvals"; approvals: Approval[] };
+  | { type: "approvals"; approvals: Approval[] }
+  /** Do-not-disturb was changed by someone else than this page: an agent, with consent. */
+  | { type: "dnd"; dnd: boolean };
 
 /**
  * What a subscriber receives: the engine's events, the desktop's light or dark preference, and

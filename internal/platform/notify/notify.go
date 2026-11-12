@@ -1,9 +1,11 @@
 // Package notify shows the desktop's notification of a call that rings, with Answer and Reject
 // where the desktop offers buttons: org.freedesktop.Notifications on Linux, as the Rust candidate
-// (LIN-01). The caller's name is the other party's text and is shown as plain text.
+// (LIN-01), and a toast on Windows. The caller's name is the other party's text and is shown as plain text.
 package notify
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -45,6 +47,26 @@ func callerText(caller string) string {
 		return "Unknown caller"
 	}
 	return out.String()
+}
+
+// toastXML is the Windows notification of a ringing call: the caller, already made plain text,
+// and two buttons whose arguments name the call.
+func toastXML(call uint64, caller string) string {
+	return fmt.Sprintf(`<toast launch="show:%[1]d" duration="long"><visual><binding template="ToastGeneric">`+
+		`<text>Incoming call</text><text>%[2]s</text></binding></visual><actions>`+
+		`<action content="Answer" arguments="answer:%[1]d" activationType="foreground"/>`+
+		`<action content="Reject" arguments="reject:%[1]d" activationType="background"/></actions></toast>`, call, caller)
+}
+
+// toastAction reads the arguments of a pressed button back into the call and the decision; a
+// click on the notification itself, or anything else, is not a decision.
+func toastAction(arguments string) (ports.CallNoticeAction, bool) {
+	kind, id, _ := strings.Cut(arguments, ":")
+	call, err := strconv.ParseUint(id, 10, 64)
+	if err != nil || (kind != "answer" && kind != "reject") {
+		return ports.CallNoticeAction{}, false
+	}
+	return ports.CallNoticeAction{Call: call, Answer: kind == "answer"}, true
 }
 
 // request is one thing asked of the desktop.

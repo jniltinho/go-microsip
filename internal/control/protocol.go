@@ -316,6 +316,25 @@ type Request struct {
 	Capability *string `json:"capability,omitempty"`
 }
 
+// requestFields are the names a request may carry, spelt exactly so.
+var requestFields = []string{"schema_version", "request_id", "idempotency_key", "operation", "capability"}
+
+// UnmarshalJSON reads a request whose fields are spelt as the contract spells them: the
+// standard decoding would also take them in another case.
+func (r *Request) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	for name := range fields {
+		if !slices.Contains(requestFields, name) {
+			return errShape
+		}
+	}
+	type plain Request // without this method
+	return json.Unmarshal(data, (*plain)(r))
+}
+
 // String describes the request without its capability.
 func (r Request) String() string {
 	capability := "none"
@@ -511,7 +530,11 @@ func ReadMessage(r *bufio.Reader, message any) error {
 		case err == nil:
 			decoder := json.NewDecoder(bytes.NewReader(line))
 			decoder.DisallowUnknownFields()
-			if decoder.Decode(message) != nil || decoder.More() {
+			if decoder.Decode(message) != nil {
+				return ErrInvalidMessage
+			}
+			// Nothing may follow the message on its line: not another value, not a stray bracket.
+			if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 				return ErrInvalidMessage
 			}
 			return nil

@@ -263,7 +263,7 @@ func Run(o Options) error {
 			}
 			// Agent control: the command line and the MCP server reach this window through a
 			// socket of this user's session. Without one the window works as before.
-			owner, err := control.NewOwner(phone, svc.approvalsChanged)
+			owner, err := control.NewOwner(controlledPhone{Phone: phone, told: svc.dndChanged}, svc.approvalsChanged)
 			if err != nil {
 				warnings.Warn("agent control is not available: " + err.Error())
 			} else {

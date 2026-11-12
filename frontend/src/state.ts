@@ -499,17 +499,28 @@ export class UiState {
       case "stopped":
         this.stopped = true;
         return;
-      case "approvals": {
+      case "approvals":
         this.approvals = event.approvals;
-        const first = event.approvals[0];
-        if (!first) this.approvalShown = null;
-        else if (this.approvalShown?.id !== first.id)
-          this.approvalShown = { id: first.id, at: now };
+        this.approvalSeen(now);
         return;
-      }
+      case "dnd":
+        this.dnd = event.dnd;
+        return;
       case "call":
-        return this.applyCall(event.call, now);
+        this.applyCall(event.call, now);
+        this.approvalSeen(now); // a ringing call hides a request, and shows it again when it goes
+        return;
     }
+  }
+
+  /**
+   * Notes when the first request came on screen. Behind the dialog of a ringing call it is not on
+   * screen: Allow arms a second after the person can see what is asked, not after it arrived.
+   */
+  private approvalSeen(now: number) {
+    const first = this.incomingRinging ? undefined : this.approvals[0];
+    if (!first) this.approvalShown = null;
+    else if (this.approvalShown?.id !== first.id) this.approvalShown = { id: first.id, at: now };
   }
 
   private applyCall(snapshot: CallSnapshot, now: number) {

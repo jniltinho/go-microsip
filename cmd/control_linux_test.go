@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -128,6 +129,13 @@ func TestControlCommandsMapToOperations(t *testing.T) {
 		} else if !strings.HasPrefix(out, "ok\n") || !strings.Contains(out, `"registration": "registered"`) {
 			t.Errorf("%s: the answer for a person:\n%s", c.line, out)
 		}
+	}
+	// With --json the answer has no place for a key made up here: it is said beside the answer.
+	if _, out := cli(env, "dnd", "on", "--json"); !regexp.MustCompile(`(?m)^idempotency key: cli-[0-9a-f]{24}$`).MatchString(out) || !strings.Contains(out, `"status":"ok"`) {
+		t.Errorf("dnd on --json does not say its key:\n%s", out)
+	}
+	if _, out := cli(env, "dnd", "on", "--json", "--key", "mine-1"); strings.Contains(out, "idempotency key") {
+		t.Errorf("dnd on --json --key repeats the key it was given:\n%s", out)
 	}
 	// Two random keys are two keys.
 	cli(env, "dnd", "on")
