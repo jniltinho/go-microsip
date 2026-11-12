@@ -48,9 +48,12 @@ type call struct {
 	gone bool
 
 	sound bool // the audio goroutines run
-	audio ports.MediaIO
-	stop  context.CancelFunc
-	pumps sync.WaitGroup
+	// earlyFailed: the audio that played before the answer ended on its own; the answer starts
+	// the call's sound again.
+	earlyFailed bool
+	audio       ports.MediaIO
+	stop        context.CancelFunc
+	pumps       sync.WaitGroup
 	// privacy is hold, mute and the count of their changes in one word (see private), so the send
 	// goroutine never sees one without the others: a word it has seen before means that nothing
 	// changed in between.

@@ -7,6 +7,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/jniltinho/go-microsip/internal/core/ports"
 )
@@ -22,6 +23,8 @@ type Audio struct {
 	Unavailable bool
 	// Denied makes Open fail with ports.ErrMicrophoneDenied.
 	Denied bool
+	// OpenDelay is how long Open takes, as a sound service that is slow to answer.
+	OpenDelay time.Duration
 
 	mu     sync.Mutex
 	opened []*Stream
@@ -39,6 +42,7 @@ func (a *Audio) Outputs() ([]ports.Device, error) {
 
 // Open returns a new stream, or ports.ErrNoAudioService when Unavailable is set.
 func (a *Audio) Open(input, output string) (ports.MediaIO, error) {
+	time.Sleep(a.OpenDelay)
 	if a.Unavailable {
 		return nil, ports.ErrNoAudioService
 	}
@@ -55,6 +59,7 @@ func (a *Audio) Open(input, output string) (ports.MediaIO, error) {
 // OpenOutput returns a new stream that is only played to, or ports.ErrNoAudioService when
 // Unavailable is set.
 func (a *Audio) OpenOutput(output string) (ports.Player, error) {
+	time.Sleep(a.OpenDelay)
 	if a.Unavailable {
 		return nil, ports.ErrNoAudioService
 	}

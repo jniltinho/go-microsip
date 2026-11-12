@@ -291,23 +291,33 @@ func TestTheSoftphoneNamesItsExtensionInContactAndItsProductInUserAgent(t *testi
 
 // earlyLab is a PBX that plays audio of its own before it answers, as a trunk does while a mobile
 // number rings: 183 Session Progress with a description of its audio, a 1 kHz tone sent to the
-// softphone for two and a half seconds, then the answer. It counts what the softphone sends to
-// its audio port, and how much of that is anything but silence.
-func earlyLab(t *testing.T) (port int, sentBack, loud *atomic.Int64, answered chan struct{}) {
+// softphone for two and a half seconds, then the answer, whose description differs from the
+// 183's in what says nothing of the audio (the origin's version, the session's name). It counts
+// what the softphone sends to its audio port, how much of that is anything but silence, and
+// what both counts were when it answered. With garbage, the first thing it sends to the
+// softphone's audio port is not an RTP packet.
+type earlyPBX struct {
+	port             int
+	sentBack, loud   atomic.Int64
+	before, loudThen atomic.Int64 // the two counts at the answer
+	answered         chan struct{}
+}
+
+func earlyLab(t *testing.T, garbage bool) *earlyPBX {
 	t.Helper()
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	addr := probe.Addr().String()
-	port = probe.Addr().(*net.TCPAddr).Port
+	pbx := &earlyPBX{port: probe.Addr().(*net.TCPAddr).Port, answered: make(chan struct{})}
+	sentBack, loud, answered := &pbx.sentBack, &pbx.loud, pbx.answered
 	probe.Close()
 	rtp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { rtp.Close() })
-	sentBack, loud, answered = new(atomic.Int64), new(atomic.Int64), make(chan struct{})
 	go func() {
 		buf := make([]byte, 2048)
 		for {
@@ -333,8 +343,9 @@ func earlyLab(t *testing.T) (port int, sentBack, loud *atomic.Int64, answered ch
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {
-		sdp := fmt.Sprintf("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=sendrecv\r\n", rtp.LocalAddr().(*net.UDPAddr).Port)
 		with := func(code int, reason string) *gosip.Response {
+			// The same audio in both; the answer has another origin version and session name.
+			sdp := fmt.Sprintf("v=0\r\no=- 1 %d IN IP4 127.0.0.1\r\ns=%s\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=sendrecv\r\n", code, reason[:2], rtp.LocalAddr().(*net.UDPAddr).Port)
 			res := gosip.NewResponseFromRequest(req, code, reason, []byte(sdp))
 			res.AppendHeader(gosip.NewHeader("Content-Type", "application/sdp"))
 			res.AppendHeader(gosip.NewHeader("Contact", fmt.Sprintf("<sip:lab@%s;transport=tcp>", addr)))
@@ -356,6 +367,9 @@ func earlyLab(t *testing.T) (port int, sentBack, loud *atomic.Int64, answered ch
 			packet := make([]byte, 12+media.FrameSamples)
 			tick := time.NewTicker(20 * time.Millisecond)
 			defer tick.Stop()
+			if garbage {
+				_, _ = rtp.WriteToUDP([]byte{0x80}, &to) // one byte: no RTP packet
+			}
 			for n := 0; n < 300; n++ { // six seconds: through the answer and after it
 				for i := range frame {
 					frame[i] = int16(12000 * math.Sin(2*math.Pi*1000*float64(n*media.FrameSamples+i)/8000))
@@ -372,6 +386,8 @@ func earlyLab(t *testing.T) (port int, sentBack, loud *atomic.Int64, answered ch
 			}
 		}()
 		time.Sleep(2500 * time.Millisecond)
+		pbx.before.Store(sentBack.Load())
+		pbx.loudThen.Store(loud.Load())
 		close(answered)
 		_ = tx.Respond(with(200, "OK"))
 	})
@@ -393,7 +409,7 @@ func earlyLab(t *testing.T) (port int, sentBack, loud *atomic.Int64, answered ch
 	case <-time.After(5 * time.Second):
 		t.Fatal("the PBX did not start")
 	}
-	return port, sentBack, loud, answered
+	return pbx
 }
 
 // What a PBX plays before it answers (early media) is heard: the speaker plays it in place of
@@ -402,8 +418,9 @@ func earlyLab(t *testing.T) (port int, sentBack, loud *atomic.Int64, answered ch
 // PBX's audio alone (a VPN gateway was seen to close such a path after twelve seconds). From the
 // answer on the same audio goes both ways.
 func TestAudioBeforeTheAnswerIsPlayedAndOnlySilenceIsSent(t *testing.T) {
-	port, sentBack, loud, answered := earlyLab(t)
-	o, _ := options(t, port)
+	pbx := earlyLab(t, false)
+	sentBack, loud, answered := &pbx.sentBack, &pbx.loud, pbx.answered
+	o, _ := options(t, pbx.port)
 	sound := &memory.Audio{Tone: 440}
 	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
 	if err != nil {
@@ -448,8 +465,120 @@ func TestAudioBeforeTheAnswerIsPlayedAndOnlySilenceIsSent(t *testing.T) {
 		c, ok := ev.(domain.CallChanged)
 		return ok && c.Call.Phase.Kind == domain.Established
 	})
+	// The whole time before the answer, as the PBX counted it when it answered: two and a half
+	// seconds, so one to three frames of silence and nothing else.
+	if n, heard := pbx.before.Load(), pbx.loudThen.Load(); n < 1 || n > 3 || heard != 0 {
+		t.Errorf("up to its answer the PBX got %d packets, %d of them not silence; want one of silence a second for two and a half seconds", n, heard)
+	}
 	soon(t, "the microphone's audio at the PBX after the answer", func() bool { return loud.Load() >= 25 })
 	if sound.CallStreams() != 1 || call.Closed() {
 		t.Errorf("after the answer the call has %d streams, its first one closed: %v", sound.CallStreams(), call.Closed())
+	}
+}
+
+// A datagram that is not an RTP packet, arriving first on the call's audio port from the PBX's
+// own address, is dropped: it does not stop the audio. What the PBX plays is heard before the
+// answer and after it, and the microphone reaches the PBX after the answer.
+func TestADatagramThatIsNotRTPDoesNotStopTheCallsAudio(t *testing.T) {
+	pbx := earlyLab(t, true)
+	o, _ := options(t, pbx.port)
+	sound := &memory.Audio{Tone: 440}
+	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	target, _ := domain.ParseDialTarget("1002")
+	if err := p.Send(domain.Dial{Target: target}); err != nil {
+		t.Fatal(err)
+	}
+	soon(t, "sound of the ringing call", func() bool { return sound.CallStreams() == 1 })
+	call := sound.Last()
+	soon(t, "the PBX's audio on the speaker before the answer", func() bool {
+		frames, share := call.Heard(1000)
+		return frames >= 25 && share[1000] > 0.9
+	})
+	select {
+	case <-pbx.answered:
+		t.Fatal("the PBX answered before its early audio was heard: the test proved nothing")
+	default:
+	}
+	until(t, p, "the answer", func(ev domain.Event) bool {
+		c, ok := ev.(domain.CallChanged)
+		return ok && c.Call.Phase.Kind == domain.Established
+	})
+	call.Reset()
+	soon(t, "the PBX's audio on the speaker after the answer", func() bool {
+		frames, share := call.Heard(1000)
+		return frames >= 25 && share[1000] > 0.9
+	})
+	soon(t, "the microphone's audio at the PBX after the answer", func() bool { return pbx.loud.Load() >= 25 })
+	if sound.CallStreams() != 1 || call.Closed() {
+		t.Errorf("the call has %d streams, its first one closed: %v", sound.CallStreams(), call.Closed())
+	}
+}
+
+// A sound test that is stopped while its devices are still opening never plays, and none starts
+// on a phone that was closed.
+func TestAnAudioTestStoppedWhileItOpensNeverPlays(t *testing.T) {
+	dir := t.TempDir()
+	o := Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	sound := &memory.Audio{Tone: 1000, OpenDelay: 300 * time.Millisecond}
+	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan error, 1)
+	go func() { started <- p.StartAudioTest() }()
+	soon(t, "a test that is starting", func() bool { running, _ := p.AudioTest(); return running })
+	p.StopAudioTest() // returns once the devices that were opening are closed again
+	if err := <-started; err != nil {
+		t.Fatal(err)
+	}
+	if running, _ := p.AudioTest(); running {
+		t.Error("the stopped test is running")
+	}
+	if s := sound.Last(); s == nil || !s.Closed() {
+		t.Errorf("the devices that were opening: %v, want them closed", s)
+	} else if frames, _ := s.Heard(); frames != 0 {
+		t.Errorf("the stopped test played %d frames", frames)
+	}
+	p.Close()
+	if err := p.StartAudioTest(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(400 * time.Millisecond)
+	if running, _ := p.AudioTest(); running || sound.OpenStreams() != 0 {
+		t.Errorf("after Close a test is running: %v, with %d streams open", running, sound.OpenStreams())
+	}
+}
+
+// A ringback whose speaker is still opening when the call ends plays nothing afterwards.
+func TestATonesSpeakerThatOpensAfterTheCallEndedPlaysNothing(t *testing.T) {
+	o, _ := options(t, ringingRegistrar(t))
+	sound := &memory.Audio{Tone: 1000, OpenDelay: 300 * time.Millisecond}
+	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	target, _ := domain.ParseDialTarget("1002")
+	if err := p.Send(domain.Dial{Target: target}); err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "the call ringing", func(ev domain.Event) bool {
+		c, ok := ev.(domain.CallChanged)
+		return ok && c.Call.Phase.Kind == domain.Ringing
+	})
+	if err := p.Send(domain.Hangup{Call: 1}); err != nil { // while the speaker is still opening
+		t.Fatal(err)
+	}
+	soon(t, "the speaker that was opening", func() bool { return len(sound.OutputStreams()) == 1 })
+	back := sound.OutputStreams()[0]
+	soon(t, "the speaker closed again", back.Closed)
+	if frames, _ := back.Heard(); frames != 0 {
+		t.Errorf("%d frames of the ringback were played after the call ended", frames)
 	}
 }

@@ -66,7 +66,10 @@ ring)
 			for _ in $(seq 60); do up && break; sleep 1; done
 			for _ in $(seq 300); do up || break; sleep 1; done
 			sleep 4
-			pbx "channel originate PJSIP/$2 application Echo" >/dev/null
+			if ! said=$(pbx "channel originate PJSIP/$2 application Echo") || echo "$said" | grep -qi "no such command\|unable\|fail"; then
+				echo "vm-lab: FAILED: the PBX did not originate the second call to $2"
+				exit 1
+			fi
 			sleep 6
 			pbx "channel request hangup all" >/dev/null
 			echo "vm-lab: the PBX called $2 again and gave up after six seconds"

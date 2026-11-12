@@ -83,6 +83,7 @@ const fail = (e: unknown) =>
 // itself, when a call begins, and when the settings are left.
 const test = reactive({ running: false, level: 0 });
 let watching: ReturnType<typeof setInterval> | undefined;
+let gone = false; // the settings were left
 function watched() {
   clearInterval(watching);
   watching = undefined;
@@ -99,6 +100,8 @@ async function toggleTest() {
   } catch (e) {
     return fail(e);
   }
+  // The settings were left while the devices were opening: the test that just began is not theirs.
+  if (gone) return void stopAudioTest().catch(() => {});
   test.running = true;
   watching = setInterval(async () => {
     const t = await audioTest().catch(() => ({ running: false, level: 0 }));
@@ -108,7 +111,8 @@ async function toggleTest() {
   }, 100);
 }
 onUnmounted(() => {
-  if (test.running) void stopAudioTest().catch(() => {});
+  gone = true;
+  void stopAudioTest().catch(() => {}); // also one that is still starting
   watched();
 });
 

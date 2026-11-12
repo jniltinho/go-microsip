@@ -125,6 +125,11 @@ func (a *actor) sound(c *call, p pattern) {
 			return
 		}
 		defer out.Close()
+		select {
+		case <-t.stop:
+			return // over while the device was opening: nothing of the tone is queued
+		default:
+		}
 		tick := time.NewTicker(toneFrame)
 		defer tick.Stop()
 		g := generator{p: p}

@@ -26,35 +26,40 @@ type audioTest struct {
 
 // StartAudioTest plays a tone on the speaker chosen in the settings and measures the chosen
 // microphone, with no call, until StopAudioTest, a call, or ten seconds. It is refused during a
-// call, and does nothing when a test is already running.
+// call, and does nothing when a test is already running or starting. A test that is stopped
+// while its devices are still opening never plays.
 func (p *Phone) StartAudioTest() error {
-	if p.inCall.Load() {
-		return Refused(domain.NoticeBusy)
-	}
-	p.mu.Lock()
-	running := p.test != nil
-	p.mu.Unlock()
-	if running {
-		return nil
-	}
-	sound, err := chosen{p.audio, p}.Open("", "")
-	if err != nil {
-		return err
-	}
 	t := &audioTest{stop: make(chan struct{}), done: make(chan struct{})}
 	p.mu.Lock()
-	// Under the lock a call that began meanwhile is seen here, or sees this test and stops it.
-	if p.inCall.Load() || p.test != nil {
-		busy := p.inCall.Load()
+	// Under the lock a call that begins meanwhile sees this test, starting or running, and stops
+	// it; one that began before is seen here.
+	switch {
+	case p.inCall.Load():
 		p.mu.Unlock()
-		sound.Close()
-		if busy {
-			return Refused(domain.NoticeBusy)
-		}
+		return Refused(domain.NoticeBusy)
+	case p.test != nil || p.closed:
+		p.mu.Unlock()
 		return nil
 	}
 	p.test = t
 	p.mu.Unlock()
+	sound, err := chosen{p.audio, p}.Open("", "")
+	if err != nil {
+		p.mu.Lock()
+		if p.test == t {
+			p.test = nil
+		}
+		p.mu.Unlock()
+		close(t.done)
+		return err
+	}
+	select {
+	case <-t.stop: // stopped while the devices were opening
+		sound.Close()
+		close(t.done)
+		return nil
+	default:
+	}
 	go p.runAudioTest(t, sound)
 	return nil
 }

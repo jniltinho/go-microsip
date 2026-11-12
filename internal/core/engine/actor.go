@@ -273,20 +273,24 @@ const addressCheck = 3 * time.Second
 func (a *actor) watchAddress(ctx context.Context, ep *sip.Endpoint, gen int) {
 	tick := time.NewTicker(addressCheck)
 	defer tick.Stop()
+	gone := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
 		}
-		if ep.AddressGone() {
+		// Told once for each time the address goes: an endpoint that a call keeps alive is
+		// registered again in place, and its address may go a second time.
+		now := ep.AddressGone()
+		if now && !gone {
 			a.e.post(func() {
 				if gen == a.generation && a.reg.Status == domain.Registered {
 					a.registrationFailed(sip.ErrAddressGone)
 				}
 			})
-			return
 		}
+		gone = now
 	}
 }
 
@@ -590,7 +594,11 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 		a.watch(c)
 	}
 	if c.settled != nil {
-		c.private(onEarly, false) // the audio runs since the early media: from now it also sends
+		if c.earlyFailed {
+			a.resound(c, med)
+		} else {
+			c.private(onEarly, false) // the audio runs since the early media: from now it also sends
+		}
 		return
 	}
 	a.openSound(c, med)
@@ -629,14 +637,7 @@ func (a *actor) openSound(c *call, med *diago.DialogMedia) {
 				if audio == nil {
 					return // stopAudio took the devices and closes them
 				}
-				if err = c.startAudio(med, audio, opts.Log, func() {
-					a.e.post(func() {
-						opts.Log.Warn("the microphone stopped delivering")
-						a.notice(domain.NoticeMicrophoneLost)
-					})
-				}, func(direction string, cause error) {
-					a.e.post(func() { a.mediaFailed(c, direction, cause) })
-				}); err != nil {
+				if err = a.startSound(c, med, audio); err != nil {
 					go audio.Close()
 				}
 				close(c.settled)
@@ -654,6 +655,46 @@ func (a *actor) openSound(c *call, med *diago.DialogMedia) {
 	}()
 }
 
+// startSound connects opened sound devices to a call's media.
+func (a *actor) startSound(c *call, med *diago.DialogMedia, audio ports.MediaIO) error {
+	opts := a.e.opts
+	return c.startAudio(med, audio, opts.Log, func() {
+		a.e.post(func() {
+			opts.Log.Warn("the microphone stopped delivering")
+			a.notice(domain.NoticeMicrophoneLost)
+		})
+	}, func(direction string, cause error) {
+		a.e.post(func() { a.mediaFailed(c, direction, cause) })
+	})
+}
+
+// resound starts an answered call's sound again, on the devices it has, after the audio it
+// played before the answer ended on its own: a goroutine of it is gone, and an answered call
+// that looks fine and hears nothing must not be. A failure after this one ends the call, as for
+// any answered call.
+func (a *actor) resound(c *call, med *diago.DialogMedia) {
+	c.earlyFailed = false
+	if !c.sound {
+		c.private(onEarly, false) // the devices never ran: the user was told when they failed
+		return
+	}
+	audio := c.audio
+	c.stop()
+	go func() {
+		c.pumps.Wait()
+		a.e.post(func() {
+			if c.released != nil || c.snap.Phase.IsFinal() {
+				return // over meanwhile: stopAudio closes the devices
+			}
+			c.private(onEarly, false)
+			if err := a.startSound(c, med, audio); err != nil {
+				a.e.opts.Log.Warn("audio unavailable", "error", err)
+				a.notice(domain.NoticeAudioUnavailable)
+			}
+		})
+	}()
+}
+
 // mediaGrace is how long a dialog has to turn out ended after its audio stopped: when the other
 // side hangs up, the audio may end a moment before the dialog says so.
 const mediaGrace = 500 * time.Millisecond
@@ -662,6 +703,13 @@ const mediaGrace = 500 * time.Millisecond
 // established and carries nothing is worse than one that ends. Audio that stops because the other
 // side hung up is not a failure: the dialog ends within a moment and the call ends as it should.
 func (a *actor) mediaFailed(c *call, direction string, cause error) {
+	if c.snap.Phase.Kind == domain.Ringing {
+		// What played before the answer stopped: the call still rings, and its sound is started
+		// again when it is answered.
+		a.e.opts.Log.Warn("the audio before the answer stopped", "direction", direction, "error", cause)
+		c.earlyFailed = true
+		return
+	}
 	if k := c.snap.Phase.Kind; k != domain.Established && k != domain.Held {
 		return
 	}

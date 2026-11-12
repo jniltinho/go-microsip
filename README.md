@@ -191,7 +191,9 @@ Platform notes:
 
 Limits of this version, known and accepted for it:
 
-- **The network.** There is no STUN and no keepalive. Calls work with a PBX that keeps the
+- **The network.** There is no STUN and no SIP keepalive: nothing is sent between two
+  renewals of a registration to keep its path open (a call that only receives does send a
+  frame of silence a second, see "Audio before the answer"). Calls work with a PBX that keeps the
   audio passing through itself and answers to the address packets come from (symmetric RTP),
   which is how the lab's Asterisk is set and what a default FreePBX extension asks for; a PBX
   that expects the softphone to know its public address is not supported. Behind a home
@@ -205,9 +207,13 @@ Limits of this version, known and accepted for it:
 - **Audio before the answer.** What a PBX plays before a call is answered (early media: an
   operator's own ringing tone, or a message such as "this number is unavailable") is played
   in place of the softphone's ringback tone. Nothing of the microphone is sent before the
-  answer or on hold; one frame of silence a second is, so that a firewall or a VPN gateway
-  does not close a path that carries the other side's audio alone. With an account that
+  answer or on hold; one frame of silence a second is. One VPN gateway was seen to close its
+  tunnel after about twelve seconds that carried the other side's audio alone, and held
+  with this frame: that is one installation's behavior, not a guarantee for others. With an account that
   requires SRTP, audio before the answer that is not encrypted is not played.
+- **A call answered on another phone.** When a PBX rings this softphone and another phone
+  of the same extension, and the other one answers, the call is notified and listed here as
+  missed: the softphone does not read why the PBX stopped ringing it.
 - **A network that goes away.** When the address the account registered from leaves the
   machine (a VPN that dropped, a cable pulled), the window says so within a few seconds and
   the account registers again by itself once the network is back: tried after 5 s, then at

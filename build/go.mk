@@ -133,8 +133,14 @@ go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 
 go-measure: ## Go: start-up and memory beside the Rust candidate in the kept desktop VMs
 	@cp -f $(firstword $(wildcard dist/rust-microsip-*.AppImage)) $(GO_DIST)/g0/rust-microsip.AppImage
 	@cp -f dist/windows/rust-microsip.exe $(GO_DIST)/g0/rust-microsip.exe
-	cd build/vm && for vm in ubuntu2604 debian13; do vagrant ssh $$vm -c "/vagrant/measure.sh $(GO_VERSION) 10" | grep '^measure:'; done
-	cd build/vm && vagrant winrm windows11 -s powershell -c 'C:\vagrant\measure.ps1 -Version $(GO_VERSION) -Runs 10' | grep '^measure:'
+	@# A VM whose measurement fails, prints nothing or leaves something unmeasured fails the target.
+	cd build/vm && for vm in ubuntu2604 debian13; do \
+		out=$$(vagrant ssh $$vm -c "/vagrant/measure.sh $(GO_VERSION) 10") || { echo "measure: FAILED on $$vm" >&2; exit 1; }; \
+		printf '%s\n' "$$out" | grep '^measure:' || { echo "measure: nothing measured on $$vm" >&2; exit 1; }; \
+	done
+	cd build/vm && out=$$(vagrant winrm windows11 -s powershell -c 'C:\vagrant\measure.ps1 -Version $(GO_VERSION) -Runs 10') || { echo "measure: FAILED on windows11" >&2; exit 1; }; \
+		printf '%s\n' "$$out" | grep '^measure:' || { echo "measure: nothing measured on windows11" >&2; exit 1; }; \
+		if printf '%s\n' "$$out" | grep -q 'NOT MEASURED'; then echo "measure: something was not measured on windows11" >&2; exit 1; fi
 
 # FreePBX 17 in a VM, installed by Sangoma's installer (task 7.1): the lab's scenarios against it.
 go-freepbx: ## Go: registration, calls, DTMF, hold and transfer against FreePBX 17 in a lab VM (KEEP=1 keeps the VMs)

@@ -24,6 +24,8 @@ var (
 
 	// DroppedForeignSource counts packets dropped because they came from another address.
 	DroppedForeignSource atomic.Uint64
+	// DroppedMalformed counts datagrams on the RTP port that were not RTP packets.
+	DroppedMalformed atomic.Uint64
 	// DroppedUnauthenticated counts SRTP and SRTCP packets dropped because they failed
 	// authentication or were replayed.
 	DroppedUnauthenticated atomic.Uint64

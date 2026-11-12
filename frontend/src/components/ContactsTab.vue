@@ -33,7 +33,13 @@ async function picked() {
   if (!file) return;
   if (file.size > CSV_MAX_BYTES)
     return ui.setNotice("Not imported: the file is over 10 MB", Date.now());
-  ui.dispatch({ type: "importContacts", text: await file.text() });
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    return ui.setNotice("Not imported: the file could not be read", Date.now());
+  }
+  ui.dispatch({ type: "importContacts", text });
 }
 
 async function toggleFavorite(c: Contact) {

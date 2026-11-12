@@ -927,7 +927,12 @@ func (m *MediaSession) ReadRTP(buf []byte, pkt *rtp.Packet) (int, error) {
 		}
 	} else {
 		if err := RTPUnmarshal(buf[:n], pkt); err != nil {
-			return n, err
+			// go-microsip: a datagram that is not an RTP packet is dropped and counted, like one
+			// from another address: returned as an error it ended the call's receive side for
+			// good, since the readers above keep the error.
+			DroppedMalformed.Add(1)
+			*pkt = rtp.Packet{}
+			return 0, nil
 		}
 	}
 

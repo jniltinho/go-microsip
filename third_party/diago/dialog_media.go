@@ -1007,8 +1007,10 @@ func (w *ComfortNoiseWriter) Write(buf []byte) (n int, err error) {
 	return w.comfortNoiseWriter.Write(buf)
 }
 
-// sameMedia reports whether two SDP bodies describe the same media: every line but the origin,
-// whose version a server may raise between its 183 and its answer. (go-microsip)
+// sameMedia reports whether two SDP bodies describe the same media: their connection, media and
+// attribute lines (addresses, ports, codecs, direction, keys). The origin, whose version a server
+// may raise between its 183 and its answer, the session's name and its times say nothing of the
+// media. (go-microsip)
 func sameMedia(a, b []byte) bool {
 	if len(a) == 0 || len(b) == 0 {
 		return false
@@ -1016,7 +1018,8 @@ func sameMedia(a, b []byte) bool {
 	lines := func(sdp []byte) []string {
 		var out []string
 		for _, line := range strings.Split(string(sdp), "\n") {
-			if line = strings.TrimRight(line, "\r"); line != "" && !strings.HasPrefix(line, "o=") {
+			line = strings.TrimRight(line, "\r")
+			if strings.HasPrefix(line, "c=") || strings.HasPrefix(line, "m=") || strings.HasPrefix(line, "a=") {
 				out = append(out, line)
 			}
 		}
