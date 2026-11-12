@@ -50,6 +50,19 @@ func (p *CSVPreview) DuplicateCount() int { return p.duplicates }
 // Issues are the rejected rows. Any issue blocks the whole import.
 func (p *CSVPreview) Issues() []CSVIssue { return p.issues }
 
+// WithoutIssues is the preview of the rows that were not rejected: what a user who has seen the
+// rejected rows may still import.
+func (p *CSVPreview) WithoutIssues() *CSVPreview {
+	clean := *p
+	clean.issues = nil
+	return &clean
+}
+
+// String names the reason a row was rejected.
+func (k CSVIssueKind) String() string {
+	return [...]string{"broken quoting", "wrong number of columns", "invalid name", "invalid number", "invalid label", "too many numbers for one contact"}[k]
+}
+
 // Importable reports whether there are no issues and at least one contact.
 func (p *CSVPreview) Importable() bool { return len(p.issues) == 0 && len(p.contacts) > 0 }
 

@@ -254,6 +254,21 @@ export interface AudioTest {
   level: number;
 }
 
+/** What importing a CSV text of contacts would do; nothing is stored by asking. */
+export interface ContactsCsv {
+  /** Contacts the text holds, new or to be given numbers. */
+  contacts: number;
+  /** Its data rows, and those that repeat another and are skipped. */
+  records: number;
+  duplicates: number;
+  refused: { line: number; reason: string }[];
+}
+export interface ContactsImported {
+  created: number;
+  merged: number;
+  numbers: number;
+}
+
 export interface ContactNumber {
   number: string;
   /** Optional label such as "work"; empty when none. */
@@ -317,6 +332,10 @@ export interface Backend {
   contacts(search: string): Promise<Contact[]>;
   saveContact(contact: Contact): Promise<Contact>;
   deleteContact(id: number): Promise<void>;
+  /** Reads a CSV text (name,number[,label]) and says what an import would do. Stores nothing. */
+  previewContactsCsv(text: string): Promise<ContactsCsv>;
+  /** Stores the contacts of the text, without its refused rows. */
+  importContactsCsv(text: string): Promise<ContactsImported>;
   /** History entries, newest first, whose remote party contains `search`. */
   history(filter: HistoryFilter, search: string): Promise<HistoryEntry[]>;
   deleteCall(id: number): Promise<void>;
@@ -442,6 +461,8 @@ function wails({ Call, Events }: Wails): Backend {
     contacts: (search) => call("Contacts", search),
     saveContact: (contact) => call("SaveContact", contact),
     deleteContact: (id) => call("DeleteContact", id),
+    previewContactsCsv: (text) => call("PreviewContactsCSV", text),
+    importContactsCsv: (text) => call("ImportContactsCSV", text),
     history: (filter, search) => call("History", filter, search),
     deleteCall: (id) => call("DeleteCall", id),
     clearHistory: () => call("ClearHistory"),
@@ -488,6 +509,8 @@ export const audioTest = via("audioTest");
 export const contacts = via("contacts");
 export const saveContact = via("saveContact");
 export const deleteContact = via("deleteContact");
+export const previewContactsCsv = via("previewContactsCsv");
+export const importContactsCsv = via("importContactsCsv");
 export const history = via("history");
 export const deleteCall = via("deleteCall");
 export const clearHistory = via("clearHistory");

@@ -20,7 +20,7 @@ import Icon from "./Icon.vue";
 import SkinPicker from "./SkinPicker.vue";
 
 // What the Rust candidate offers and this contract does not carry yet: listed, never faked.
-const MISSING = ["Speaker and microphone volume", "Contact CSV import"];
+const MISSING = ["Speaker and microphone volume"];
 
 const a = ui.account;
 const form = reactive({

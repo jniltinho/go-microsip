@@ -240,13 +240,27 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
     <Dialog v-else-if="ui.confirm" title="Confirm" @cancel="ui.dispatch({ type: 'cancelConfirm' })">
       <p>{{ confirmQuestion(ui.confirm) }}</p>
+      <!-- The refused rows of a CSV import: the file's line and why, as text. -->
+      <ul
+        v-if="ui.confirm.kind === 'importContacts' && ui.confirm.preview.refused.length"
+        class="well max-h-[8rem] overflow-auto p-1.5 text-[0.9rem]"
+        aria-label="Refused rows"
+      >
+        <li v-for="r in ui.confirm.preview.refused" :key="r.line">
+          Line {{ r.line }}: {{ r.reason }}
+        </li>
+      </ul>
       <div class="flex justify-end gap-1.5">
         <button class="btn" autofocus @click="ui.dispatch({ type: 'cancelConfirm' })">
           Cancel
         </button>
         <button
           class="btn"
-          :class="ui.confirm.kind === 'dial' ? 'btn-call' : 'btn-hangup'"
+          :class="
+            ui.confirm.kind === 'dial' || ui.confirm.kind === 'importContacts'
+              ? 'btn-call'
+              : 'btn-hangup'
+          "
           @click="ui.dispatch({ type: 'confirm' })"
         >
           {{ confirmButton(ui.confirm) }}

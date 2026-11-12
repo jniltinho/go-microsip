@@ -717,3 +717,45 @@ func (p *Phone) Close() {
 		p.release()
 	})
 }
+
+// ContactsCSV is what importing a CSV text would do: how many contacts it holds (new ones, and
+// existing ones that would get numbers), how many of its rows repeat another and are skipped,
+// and the rows that are refused.
+type ContactsCSV struct {
+	Contacts, Records, Duplicates int
+	Refused                       []CSVRefusal
+}
+
+// CSVRefusal is one refused row of a CSV text: the line it starts on and why.
+type CSVRefusal struct {
+	Line   int
+	Reason string
+}
+
+// PreviewContactsCSV reads a CSV text of contacts (name,number[,label]) and stores nothing.
+func (p *Phone) PreviewContactsCSV(text string) (ContactsCSV, error) {
+	preview, err := store.PreviewCSV(text)
+	if err != nil {
+		return ContactsCSV{}, err
+	}
+	out := ContactsCSV{Contacts: len(preview.Contacts()), Records: preview.RecordCount(), Duplicates: preview.DuplicateCount()}
+	for _, issue := range preview.Issues() {
+		out.Refused = append(out.Refused, CSVRefusal{Line: issue.Line, Reason: issue.Kind.String()})
+	}
+	return out, nil
+}
+
+// ImportContactsCSV stores the contacts of a CSV text in one transaction, without its refused
+// rows: what PreviewContactsCSV counted. A contact whose name exists already gets the numbers it
+// does not have yet.
+func (p *Phone) ImportContactsCSV(text string) (store.ImportSummary, error) {
+	s, err := p.storage()
+	if err != nil {
+		return store.ImportSummary{}, err
+	}
+	preview, err := store.PreviewCSV(text)
+	if err != nil {
+		return store.ImportSummary{}, err
+	}
+	return s.ImportCSV(preview.WithoutIssues())
+}

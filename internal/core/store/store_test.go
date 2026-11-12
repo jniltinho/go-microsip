@@ -416,6 +416,14 @@ func TestCSVPreviewHandlesQuotesCRLFBOMDuplicatesAndIssues(t *testing.T) {
 	if _, err := s.ImportCSV(p); !is(err, CSVInvalid) || count(t, s, "contacts") != 0 {
 		t.Errorf("importing a preview with issues: %v", err)
 	}
+	// The rows that were not rejected can still be imported, by whoever has seen the others.
+	done, err := s.ImportCSV(p.WithoutIssues())
+	if err != nil || done.ContactsCreated != 2 || done.NumbersAdded != 3 || count(t, s, "contacts") != 2 {
+		t.Errorf("importing the rows without issues: %+v, %v", done, err)
+	}
+	if len(p.Issues()) != 5 {
+		t.Errorf("the preview lost its issues: %v", p.Issues())
+	}
 }
 
 func TestCSVLimitsAndHeaderAreEnforced(t *testing.T) {

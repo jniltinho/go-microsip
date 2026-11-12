@@ -24,6 +24,18 @@ watch(
   { immediate: true },
 );
 
+// A CSV file of contacts: read here, counted by the backend, stored only after the question.
+const csv = ref<HTMLInputElement>();
+const CSV_MAX_BYTES = 10 << 20;
+async function picked() {
+  const file = csv.value?.files?.[0];
+  if (csv.value) csv.value.value = ""; // the same file can be picked again
+  if (!file) return;
+  if (file.size > CSV_MAX_BYTES)
+    return ui.setNotice("Not imported: the file is over 10 MB", Date.now());
+  ui.dispatch({ type: "importContacts", text: await file.text() });
+}
+
 async function toggleFavorite(c: Contact) {
   try {
     await saveContact({ ...c, favorite: !c.favorite });
@@ -104,6 +116,18 @@ async function toggleFavorite(c: Contact) {
       <button class="btn" @click="ui.dispatch({ type: 'newContact' })">
         <Icon name="plus" />Add
       </button>
+      <button class="btn" title="Import contacts from a CSV file" @click="csv?.click()">
+        <Icon name="in" />Import CSV
+      </button>
+      <input
+        ref="csv"
+        class="hidden"
+        type="file"
+        accept=".csv,text/csv"
+        aria-label="CSV file of contacts"
+        tabindex="-1"
+        @change="picked"
+      />
     </div>
   </section>
 </template>

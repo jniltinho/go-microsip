@@ -1015,3 +1015,42 @@ func TestAHeldPhoneRegistersOnlyWhenItBegins(t *testing.T) {
 		t.Errorf("the PBX heard %d registrations after Begin, want 1", n)
 	}
 }
+
+// A CSV text of contacts is previewed without anything being stored, the preview says what is
+// refused and why, and the import stores the rows that were not refused, once.
+func TestContactsCSVIsPreviewedThenImported(t *testing.T) {
+	dir := t.TempDir()
+	o := Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	text := "name,number,label\nAna,1002,desk\nAna,1002,desk\nAna,1003,\nBia,1004,\nBad,sip:1@x,\n"
+	preview, err := p.PreviewContactsCSV(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.Contacts != 2 || preview.Records != 5 || preview.Duplicates != 1 ||
+		len(preview.Refused) != 1 || preview.Refused[0] != (CSVRefusal{Line: 6, Reason: "invalid number"}) {
+		t.Errorf("the preview: %+v", preview)
+	}
+	if list, err := p.Contacts(""); err != nil || len(list) != 0 {
+		t.Fatalf("after the preview %d contacts are stored (%v), want none", len(list), err)
+	}
+	done, err := p.ImportContactsCSV(text)
+	if err != nil || done.ContactsCreated != 2 || done.NumbersAdded != 3 {
+		t.Errorf("the import: %+v, %v", done, err)
+	}
+	list, err := p.Contacts("")
+	if err != nil || len(list) != 2 || list[0].Name != "Ana" || len(list[0].Numbers) != 2 || list[1].Name != "Bia" {
+		t.Errorf("the contacts after the import: %+v, %v", list, err)
+	}
+	// The same file again adds nothing.
+	if again, err := p.ImportContactsCSV(text); err != nil || again.ContactsCreated != 0 || again.NumbersAdded != 0 {
+		t.Errorf("the same import again: %+v, %v", again, err)
+	}
+	if _, err := p.PreviewContactsCSV("who,what\nAna,1002\n"); err == nil {
+		t.Error("a text with another header was previewed")
+	}
+}

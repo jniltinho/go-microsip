@@ -579,6 +579,36 @@ func (a *App) SaveContact(c Contact) (Contact, error) {
 	return contactOf(saved), err
 }
 
+// PreviewContactsCSV says what importing this CSV text would do, and stores nothing: the page
+// shows it and asks.
+func (a *App) PreviewContactsCSV(text string) (ContactsCSV, error) {
+	p, err := a.engine()
+	if err != nil {
+		return ContactsCSV{}, err
+	}
+	preview, err := p.PreviewContactsCSV(text)
+	if err != nil {
+		return ContactsCSV{}, err
+	}
+	out := ContactsCSV{Contacts: preview.Contacts, Records: preview.Records, Duplicates: preview.Duplicates, Refused: []CSVRefusal{}}
+	for _, r := range preview.Refused {
+		out.Refused = append(out.Refused, CSVRefusal{Line: r.Line, Reason: r.Reason})
+	}
+	return out, nil
+}
+
+// ImportContactsCSV stores the contacts of this CSV text, without its refused rows, after the
+// person confirmed the preview.
+func (a *App) ImportContactsCSV(text string) (ContactsImported, error) {
+	p, err := a.engine()
+	if err != nil {
+		return ContactsImported{}, err
+	}
+	done, err := p.ImportContactsCSV(text)
+	a.refreshRecent() // a call may now have a name
+	return ContactsImported{Created: done.ContactsCreated, Merged: done.ContactsMerged, Numbers: done.NumbersAdded}, err
+}
+
 // DeleteContact deletes a contact.
 func (a *App) DeleteContact(id int64) error {
 	p, err := a.engine()
@@ -892,6 +922,29 @@ type AudioTest struct {
 	Running bool `json:"running"`
 	// Level is the microphone's peak, from 0 (silence) to 1 (full scale).
 	Level float64 `json:"level"`
+}
+
+// ContactsCSV is the preview of a CSV import.
+type ContactsCSV struct {
+	// Contacts is how many contacts the text holds, new or to be given numbers.
+	Contacts int `json:"contacts"`
+	// Records is its data rows; Duplicates those that repeat another and are skipped.
+	Records    int          `json:"records"`
+	Duplicates int          `json:"duplicates"`
+	Refused    []CSVRefusal `json:"refused"`
+}
+
+// CSVRefusal is one refused row of a CSV text.
+type CSVRefusal struct {
+	Line   int    `json:"line"`
+	Reason string `json:"reason"`
+}
+
+// ContactsImported is what a CSV import stored.
+type ContactsImported struct {
+	Created int `json:"created"`
+	Merged  int `json:"merged"`
+	Numbers int `json:"numbers"`
 }
 
 // ContactNumber is one number of a contact.

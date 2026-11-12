@@ -47,6 +47,22 @@ class Fake {
   deleteCall = (id: number) => Promise.resolve(void this.saved.push(`deleteCall(${id})`));
   clearHistory = () => Promise.resolve(void this.saved.push("clearHistory"));
   deleteContact = (id: number) => Promise.resolve(void this.saved.push(`deleteContact(${id})`));
+  csv = {
+    contacts: 2,
+    records: 4,
+    duplicates: 1,
+    refused: [{ line: 5, reason: "invalid number" }],
+  };
+  previewContactsCsv = (text: string) => {
+    this.saved.push(`preview(${text.length})`);
+    return this.csv.records < 0
+      ? Promise.reject("the CSV header must be name,number")
+      : Promise.resolve(this.csv);
+  };
+  importContactsCsv = (text: string) => {
+    this.saved.push(`import(${text.length})`);
+    return Promise.resolve({ created: 1, merged: 1, numbers: 3 });
+  };
   approve = (id: string) => Promise.resolve(void this.saved.push(`approve(${id})`));
   deny = (id: string) => Promise.resolve(void this.saved.push(`deny(${id})`));
   denyAll = () => Promise.resolve(void this.saved.push("denyAll"));
@@ -518,4 +534,44 @@ test("ages and durations", () => {
     "2 d ago",
   ]);
   expect([formatDuration(5000), formatDuration(3_725_000)]).toEqual(["0:05", "1:02:05"]);
+});
+
+// A CSV file of contacts is counted first and stored only after the yes: the question says what
+// would be added, skipped and refused; Cancel stores nothing; a file with nothing to import, or
+// one that cannot be read, is not asked about.
+test("a CSV import asks before it stores", async () => {
+  const [st, b] = fresh();
+  const text = "name,number\nAna,1002\n";
+  await st.dispatch({ type: "importContacts", text }, 0);
+  expect(b.saved).toEqual([`preview(${text.length})`]);
+  expect(st.confirm).toEqual({ kind: "importContacts", text, preview: b.csv });
+  expect(confirmQuestion(st.confirm!)).toBe(
+    "Import 2 contacts from 4 rows? 1 row repeated, skipped. 1 row refused, listed below.",
+  );
+  await st.dispatch({ type: "cancelConfirm" }, 0);
+  expect(b.saved).toEqual([`preview(${text.length})`]);
+  expect(st.contactsRevision).toBe(0);
+
+  await st.dispatch({ type: "importContacts", text }, 0);
+  await st.dispatch({ type: "confirm" }, 0);
+  expect(b.saved.filter((s) => s.startsWith("import("))).toEqual([`import(${text.length})`]);
+  expect(st.contactsRevision).toBe(1);
+  expect(st.notice(0)).toBe("Imported: 1 new, 1 updated, 3 numbers added");
+  expect(st.confirm).toBeNull();
+
+  b.saved = [];
+  b.csv = {
+    contacts: 0,
+    records: 1,
+    duplicates: 0,
+    refused: [{ line: 2, reason: "invalid number" }],
+  };
+  await st.dispatch({ type: "importContacts", text }, 0);
+  expect(st.confirm).toBeNull();
+  expect(st.notice(0)).toBe("Nothing to import: all 1 row refused");
+  b.csv = { contacts: 0, records: -1, duplicates: 0, refused: [] };
+  await st.dispatch({ type: "importContacts", text }, 0);
+  expect(st.confirm).toBeNull();
+  expect(st.notice(0)).toBe("Not imported: the CSV header must be name,number");
+  expect(b.saved.some((s) => s.startsWith("import("))).toBe(false);
 });

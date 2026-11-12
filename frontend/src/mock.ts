@@ -50,6 +50,30 @@ const stored = (key: string) => {
   }
 };
 
+// A plain reading of name,number[,label] lines, enough for the simulated import: no quoting.
+function readCsv(text: string) {
+  const byName = new Map<string, { number: string; label: string }[]>();
+  const preview = {
+    contacts: 0,
+    records: 0,
+    duplicates: 0,
+    refused: [] as { line: number; reason: string }[],
+  };
+  text.split(/\r?\n/).forEach((row, i) => {
+    if (i === 0 || !row.trim()) return;
+    preview.records++;
+    const [name = "", number = "", label = ""] = row.split(",").map((f) => f.trim());
+    if (!name) return void preview.refused.push({ line: i + 1, reason: "invalid name" });
+    if (!/^[0-9*#+]+$/.test(number))
+      return void preview.refused.push({ line: i + 1, reason: "invalid number" });
+    const numbers = byName.get(name) ?? [];
+    if (numbers.some((n) => n.number === number)) return void preview.duplicates++;
+    byName.set(name, [...numbers, { number, label }]);
+  });
+  preview.contacts = byName.size;
+  return { preview, byName };
+}
+
 export function createMock(): Backend {
   let handler: (event: UiEvent) => void = () => {};
   let registration: Registration = { state: "registered" };
@@ -435,6 +459,25 @@ export function createMock(): Backend {
     deleteContact: (id) => {
       people = people.filter((p) => p.id !== id);
       return ok();
+    },
+    previewContactsCsv: (text) => Promise.resolve(readCsv(text).preview),
+    importContactsCsv: (text) => {
+      const done = { created: 0, merged: 0, numbers: 0 };
+      for (const [name, numbers] of readCsv(text).byName) {
+        let person = people.find((p) => p.name === name);
+        if (person) done.merged++;
+        else {
+          person = { id: nextRow++, name, favorite: false, numbers: [] };
+          people = [...people, person];
+          done.created++;
+        }
+        for (const n of numbers)
+          if (!person.numbers.some((have) => have.number === n.number)) {
+            person.numbers.push(n);
+            done.numbers++;
+          }
+      }
+      return Promise.resolve(done);
     },
     history: (filter, search) =>
       Promise.resolve(

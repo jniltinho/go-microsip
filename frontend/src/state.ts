@@ -9,6 +9,7 @@ import type {
   CallSnapshot,
   Command,
   Contact,
+  ContactsCsv,
   EndReason,
   Notice,
   Registration,
@@ -40,19 +41,34 @@ export type Confirm =
   | { kind: "deleteCall"; id: number }
   | { kind: "clearHistory" }
   | { kind: "deleteContact"; id: number }
+  /** A CSV text of contacts that was read and counted; nothing of it is stored yet. */
+  | { kind: "importContacts"; text: string; preview: ContactsCsv }
   | { kind: "quit" }
   | { kind: "dial"; number: string };
+const rows = (n: number) => `${n} ${n === 1 ? "row" : "rows"}`;
 export const confirmQuestion = (c: Confirm) =>
   c.kind === "dial"
     ? `A link asks to call ${c.number}. Call it?`
-    : {
-        deleteCall: "Delete this history entry?",
-        clearHistory: "Delete the whole call history?",
-        deleteContact: "Delete this contact?",
-        quit: "Hang up and quit?",
-      }[c.kind];
+    : c.kind === "importContacts"
+      ? `Import ${c.preview.contacts} ${c.preview.contacts === 1 ? "contact" : "contacts"} from ${rows(c.preview.records)}?` +
+        (c.preview.duplicates ? ` ${rows(c.preview.duplicates)} repeated, skipped.` : "") +
+        (c.preview.refused.length
+          ? ` ${rows(c.preview.refused.length)} refused, listed below.`
+          : "")
+      : {
+          deleteCall: "Delete this history entry?",
+          clearHistory: "Delete the whole call history?",
+          deleteContact: "Delete this contact?",
+          quit: "Hang up and quit?",
+        }[c.kind];
 export const confirmButton = (c: Confirm) =>
-  c.kind === "quit" ? "Hang up and quit" : c.kind === "dial" ? "Call" : "Delete";
+  c.kind === "quit"
+    ? "Hang up and quit"
+    : c.kind === "dial"
+      ? "Call"
+      : c.kind === "importContacts"
+        ? "Import"
+        : "Delete";
 
 /** The current call plus UI-side timing. */
 export interface ActiveCall {
@@ -87,6 +103,8 @@ export type Action =
   | { type: "deleteCall"; id: number }
   | { type: "clearHistory" }
   | { type: "deleteContact"; id: number }
+  /** Read a CSV text of contacts and ask before anything is stored. */
+  | { type: "importContacts"; text: string }
   | { type: "newContact"; number?: string }
   | { type: "editContact"; contact: Contact }
   | { type: "confirm" }
@@ -115,6 +133,8 @@ export type Engine = Pick<
   | "deleteCall"
   | "clearHistory"
   | "deleteContact"
+  | "previewContactsCsv"
+  | "importContactsCsv"
   | "approve"
   | "deny"
   | "denyAll"
@@ -336,6 +356,21 @@ export class UiState {
       case "clearHistory":
         this.ask({ kind: "clearHistory" }, now);
         return;
+      case "importContacts":
+        try {
+          const preview = await this.engine.previewContactsCsv(action.text);
+          if (preview.contacts === 0)
+            return this.setNotice(
+              preview.refused.length
+                ? `Nothing to import: all ${rows(preview.refused.length)} refused`
+                : "Nothing to import: the file has no contacts",
+              now,
+            );
+          this.ask({ kind: "importContacts", text: action.text, preview }, now);
+        } catch (e) {
+          this.setNotice(`Not imported: ${String(e)}`, now);
+        }
+        return;
       case "newContact":
         this.closeView();
         this.contactForm = {
@@ -477,6 +512,14 @@ export class UiState {
           await this.engine.deleteContact(confirm.id);
           this.contactsRevision++;
           return;
+        case "importContacts": {
+          const done = await this.engine.importContactsCsv(confirm.text);
+          this.contactsRevision++;
+          return this.setNotice(
+            `Imported: ${done.created} new, ${done.merged} updated, ${done.numbers} numbers added`,
+            now,
+          );
+        }
       }
       this.historyRevision++;
     } catch (e) {

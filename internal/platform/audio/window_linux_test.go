@@ -1538,6 +1538,55 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	const hostile = `<img src=x onerror=alert(1)><b>Ana</b>`
 	peer := user[:3] + "2"
 	w.click("Contacts")
+
+	// Contacts come in from a CSV file, picked in the desktop's own file dialog: the window says
+	// what the file holds and what it refuses, and stores nothing before the yes.
+	csv := filepath.Join(dir, "contacts.csv")
+	if err := os.WriteFile(csv, []byte("name,number,label\nLab Ana,7001,desk\nLab Ana,7001,desk\nLab Bia,7002,\nBad,sip:1@x,\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pick := func() {
+		t.Helper()
+		w.click("Import CSV")
+		for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(200 * time.Millisecond) {
+			out, _ := exec.Command("xdotool", "getactivewindow").Output()
+			if id := strings.TrimSpace(string(out)); id != "" && id != w.id {
+				break // the file dialog is a window of its own and has the keyboard
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("no file dialog opened for the CSV import")
+			}
+		}
+		time.Sleep(500 * time.Millisecond) // the dialog draws its list
+		// A path typed from its first slash goes to the dialog's location field, which the
+		// slash opens when it is not there yet (the dialog remembers it between uses).
+		w.xdotool("type", "--delay", "30", csv)
+		// The dialog completes what is typed with names it knows: what it added after the
+		// cursor goes away again.
+		w.xdotool("key", "--clearmodifiers", "shift+End")
+		w.xdotool("key", "--clearmodifiers", "Delete")
+		w.xdotool("key", "--clearmodifiers", "Return")
+		w.until(15*time.Second, "the question about the CSV file", func() bool {
+			return w.shows("Import 2 contacts from 4 rows?", "1 row repeated, skipped.", "1 row refused, listed below.", "Line 5: invalid number")
+		})
+	}
+	pick()
+	w.shot(user + "-5a-csv-import-asked")
+	if !w.shows("No contacts yet.") {
+		t.Error("contacts are listed while the import is only asked about")
+	}
+	w.click("Cancel")
+	w.until(5*time.Second, "the import given up", func() bool { return !w.shows("Import 2 contacts") })
+	if w.watch(time.Second, func() bool { return !w.shows("No contacts yet.") }) {
+		t.Error("the import that was given up stored contacts")
+	}
+	pick()
+	w.click("Import")
+	w.until(10*time.Second, "the imported contacts listed", func() bool {
+		return w.shows("Lab Ana", "Lab Bia", "7001", "Imported: 2 new, 0 updated, 2 numbers added") && !w.shows("Bad")
+	})
+	w.shot(user + "-5b-csv-imported")
+
 	w.click("Add")
 	w.until(10*time.Second, "the contact form", func() bool { return w.shows("New contact") })
 	w.write(hostile) // the name field has the focus: nothing is clicked first
