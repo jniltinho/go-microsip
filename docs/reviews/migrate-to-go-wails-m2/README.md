@@ -7,6 +7,7 @@ Each round reviews a sanitized extract made with `git archive` (no engine, no th
 | 1 | `b33616c` | SOUND WITH CHANGES: 4 major | [codex-round1.md](codex-round1.md) |
 | 2 | `c12b375` | SOUND WITH CHANGES: 3 of the 4 resolved, 1 partially; 1 new major | [codex-round2.md](codex-round2.md) |
 | 3 | `74e73d7` | SOUND WITH CHANGES: both open items resolved; 2 new major | [codex-round3.md](codex-round3.md) |
+| 4 | `757cf47` | SOUND WITH CHANGES: 1 resolved, 1 partially; 1 new major | [codex-round4.md](codex-round4.md) |
 
 ## What was done about round 1
 
@@ -36,3 +37,12 @@ Receipt: the page's test count is 27 (18 of the reducer and validation, 9 of the
 | 2 | A value a file holds and that cannot be read (a transport in capitals) became a default: the account was offered as configured, saved "successfully", and registered from the default | Fixed. An account is offered as configured only when the whole configuration resolves, and an account is saved only if the configuration resolves with it; otherwise the save is refused with the file's error and nothing is stored. `TestPhoneRefusesAnAccountOverAnInvalidFileValue`. A form that completes an incomplete account, and one that repairs a value stored in the database, still go through. |
 
 Receipt: the wrong-password check is described as the separate run it is, and the AppImage's figures are those of its log.
+
+## What was done about round 4
+
+| # | Finding | Response |
+| --- | --- | --- |
+| R3.2 | The check of the whole configuration was skipped when the edit had nothing to write, because a file held every field | Fixed. The check runs before the empty edit is reported as done. `TestPhoneRefusesAnAccountWhenTheFileHoldsEverything` has a file with every field and one unreadable value. |
+| 1 | A registration asked from the window used the system's roots when the configured CA bundle had not been read: the phone started the engine without it | Fixed, in the engine too. The bundle is read whether or not an account is complete yet. When it cannot be used the engine is told (`Options.Untrusted`) and refuses a TLS registration as a certificate failure without contacting the server, so the window shows "Failed: certificate rejected" from an engine event, on its own at the start and when the person asks. A bundle configured after the start needs a restart: registering over TLS before that is refused (`ErrRestartForCA`). Tests: `TestATLSAccountDoesNotRegisterWithoutItsBundle` (a listener that must stay untouched; a TCP account on the same engine is free to try) and `TestPhoneDoesNotRegisterOverTLSWithoutItsBundle`. The engine's lab scenarios pass after the change (66 of 66). The refusal for a bundle changed after the start reaches the page as "Not possible in the current call state", which says too little; the log has the reason. |
+
+Receipt: the sound figures of the binary are those of its log.
