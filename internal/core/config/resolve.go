@@ -307,6 +307,17 @@ func build(layers []layer) (Stored, map[Field]Source, error) {
 	return config, b.provenance, b.err
 }
 
+// unknownTheme: the source that sets ui.theme names no skin of this version (ParseTheme then
+// gives System).
+func unknownTheme(layers []layer) bool {
+	for _, l := range layers {
+		if raw, ok := l.values[UITheme]; ok {
+			return string(ParseTheme(raw)) != raw
+		}
+	}
+	return false
+}
+
 // Resolve builds the effective configuration from every source. On an error the caller must not
 // register the account.
 func Resolve(c Context) (*Effective, error) {
@@ -319,7 +330,7 @@ func Resolve(c Context) (*Effective, error) {
 		return nil, err
 	}
 	e := &Effective{
-		Config: config, LiteralPasswordWarning: in.hasLiteral, ConfigFile: in.configFile,
+		Config: config, LiteralPasswordWarning: in.hasLiteral, ConfigFile: in.configFile, UnknownTheme: unknownTheme(in.layers),
 		LegacyEnv: in.legacy, provenance: provenance,
 	}
 	// The password: the environment, then a private .env, then a private file, then a TOML literal.

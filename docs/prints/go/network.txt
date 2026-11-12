@@ -1,0 +1,7 @@
+light: drawn as "light", 27 requests, 0 outside the page's own origin
+dark: drawn as "dark", 27 requests, 0 outside the page's own origin
+xp: drawn as "xp", 27 requests, 0 outside the page's own origin
+macos: drawn as "macos", 27 requests, 0 outside the page's own origin
+ubuntu: drawn as "ubuntu", 27 requests, 0 outside the page's own origin
+win98: drawn as "win98", 27 requests, 0 outside the page's own origin
+matrix: drawn as "matrix", 27 requests, 0 outside the page's own origin

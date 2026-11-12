@@ -614,10 +614,17 @@ func TestSQLiteLayerAloneResolvesAndInvalidValuesNameTheOrigin(t *testing.T) {
 	if cfg := ok(t, c); cfg.Config.UI.Theme != ThemeSystem || cfg.Source(UITheme) != SQLite {
 		t.Errorf("unknown theme: %q from %v", cfg.Config.UI.Theme, cfg.Source(UITheme))
 	}
+	// The doctor says so, without the value.
+	if report := Doctor(c); !report.OK || !report.UnknownTheme || !strings.Contains(report.String(), "names a skin this version does not have") || strings.Contains(report.String(), "neon") {
+		t.Errorf("doctor with an unknown theme: %s", report)
+	}
 	// A higher source hides the stored value.
 	c.Flags[UITheme] = "ubuntu"
 	if cfg := ok(t, c); cfg.Config.UI.Theme != ThemeUbuntu || cfg.Source(UITheme) != Flag {
 		t.Errorf("theme %q from %v", cfg.Config.UI.Theme, cfg.Source(UITheme))
+	}
+	if report := Doctor(c); report.UnknownTheme || strings.Contains(report.String(), "names a skin") {
+		t.Errorf("doctor with a known theme over an unknown one: %s", report)
 	}
 	if len(Themes()) != 8 || ParseTheme("xp") != ThemeXP || ParseTheme("macos") != ThemeMacOS || ParseTheme("matrix") != ThemeMatrix || ParseTheme("") != ThemeSystem {
 		t.Errorf("themes: %v", Themes())

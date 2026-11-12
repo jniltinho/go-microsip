@@ -52,13 +52,13 @@ Spec references use the capability name and requirement title. Every milestone g
 
 ## 5. M3 — skins and refinement
 
-- [ ] 5.1 Define the full token set (surfaces, text, borders, accent, selection, focus, call states, chrome, fonts, bevels, metrics) and remove literal colors from components; verify the frontend test finds no color literal outside `frontend/src/themes/` (ui-themes: One token contract for all skins)
-- [ ] 5.2 Add the Windows XP and Windows 98 skins; verify the screenshot matrix shows every screen in both and the skin test passes with the full token set
-- [ ] 5.3 Add the macOS and Ubuntu skins; verify the screenshot matrix and that the skin test requires all six shipped skins (ui-themes: Shipped skins)
+- [x] 5.1 Define the full token set (surfaces, text, borders, accent, selection, focus, call states, chrome, fonts, bevels, metrics) and remove literal colors from components; verify the frontend test finds no color literal outside `frontend/src/themes/` (ui-themes: One token contract for all skins)
+- [x] 5.2 Add the Windows XP and Windows 98 skins; verify the screenshot matrix shows every screen in both and the skin test passes with the full token set
+- [x] 5.3 Add the macOS and Ubuntu skins; verify the screenshot matrix and that the skin test requires all shipped skins (seven since the owner asked for Matrix) (ui-themes: Shipped skins)
 - [ ] 5.4 Bundle open-licensed fonts and icons with entries in the third-party notices; verify an offline start renders every skin and the network log shows no styling request (ui-themes: Self-contained skins)
-- [ ] 5.5 Add the automated contrast audit and the state-not-by-color check to the screenshot run; verify no element is below 4.5:1 (in Light and Dark: no text below 7:1, no control boundary or focus ring below 3:1) and muted/hold/error carry an icon and label in every skin (ui-themes: Legibility and call-state clarity in every skin)
+- [x] 5.5 Add the automated contrast audit and the state-not-by-color check to the screenshot run; verify no element is below 4.5:1 (in Light and Dark: no text below 7:1, no control boundary or focus ring below 3:1) and muted/hold/error carry an icon and label in every skin (ui-themes: Legibility and call-state clarity in every skin)
 - [ ] 5.6 Refine layout, spacing, focus order and compact-window proportions with the owner on the built application; verify the review notes and before/after screenshots are stored in `docs/prints/go/`
-- [ ] 5.7 Document adding a skin in `docs/themes.md`; verify by following it to add and then remove a throwaway skin without editing any screen
+- [x] 5.7 Document adding a skin in `docs/themes.md`; verify by following it to add and then remove a throwaway skin without editing any screen
 - [ ] 5.8 Close M3: update the parity matrix, run format/vet/tests and `make go-dist`, drive this milestone's exact AppImage and `.exe` with `agent-desktop` through every skin (switch, dial, hang up) and link the receipts, run the Codex review, then commit and push; verify artifacts, checksums, the packaged-application screenshots per skin and the status report (milestone-distribution: Automated interface checks)
 
 ## 6. M4 — platform integration and agent control

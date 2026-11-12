@@ -23,11 +23,12 @@ GO_LINUX   := CGO_ENABLED=1 go build -tags production
 endif
 # The window checks need WebKit's own sandbox (bubblewrap): user namespaces, an unmasked /proc and
 # this user's passwd entry for the session bus.
-GO_GUI     := GO_DOCKER_FLAGS="--init --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
-              --security-opt systempaths=unconfined -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro" $(GO)
+GO_GUI_FLAGS := --init --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+              --security-opt systempaths=unconfined -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro
+GO_GUI     := GO_DOCKER_FLAGS="$(GO_GUI_FLAGS)" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
-	go-frontend-test go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
+	go-frontend-test go-offline-skins go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
 	go-vm go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
@@ -62,6 +63,9 @@ go-headless: go-build ## Go: version, doctor and an MCP handshake with no displa
 
 go-self-test: go-build ## Go: the window opens under Xvfb and the page calls the backend
 	$(GO_GUI) build/qa/self-test.sh $(GO_BIN)
+
+go-offline-skins: go-build ## Go: the window starts in every skin in a container with no network
+	GO_DOCKER_FLAGS="--network none $(GO_GUI_FLAGS)" $(GO) build/qa/offline-skins.sh $(GO_BIN) $(OUT)
 
 go-prints: go-build ## Go: screenshots of the window into docs/prints/go/
 	$(GO_GUI) build/qa/prints.sh $(GO_BIN) docs/prints/go

@@ -65,6 +65,7 @@ changes `go.mod`. Design and tasks are in `openspec/changes/migrate-to-go-wails/
 | `make go-build` | Linux binary into `dist/go/` (`GO_WINDOW=purego` default, `cgo` fallback). |
 | `make go-headless` | With no display: `version`, `doctor`, an MCP handshake, the password-argument refusal and the configuration commands. |
 | `make go-self-test` | The window opens under Xvfb, the page calls the backend, and the page is confined: an inline script, `eval` and a new window do not run, a navigation to another address is refused and the page stays, and the process has no listening socket. It starts no phone and touches no profile. |
+| `make go-offline-skins` | The built window starts in each skin in a container with no network (`--network none`) and draws its home screen; the built page is scanned for anything loaded from outside itself. `OUT=<directory>` keeps a picture of each skin. |
 | `make go-audio` | Audio adapter against PipeWire with virtual sound cards (`SECONDS=300` for the threshold run). |
 | `make go-lab` | The SIP/SRTP probes, the engine scenarios and the softphone without a window against the disposable Asterisk lab (`SCENARIO=engine/` runs one group). |
 | `make go-call` | A call placed by the built binary with real sound: PipeWire's virtual sound cards inside the lab network, plain and secure, with a microphone unplugged (`SECONDS=300` for the threshold run). |

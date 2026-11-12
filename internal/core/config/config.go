@@ -330,6 +330,8 @@ type Effective struct {
 	LiteralPasswordWarning bool
 	// ConfigFile is the TOML file that was loaded, or empty.
 	ConfigFile string
+	// UnknownTheme: ui.theme named a skin this version does not have, and System is used.
+	UnknownTheme bool
 	// LegacyEnv lists the RUST_MICROSIP_ variable names that were found and not read.
 	LegacyEnv []string
 

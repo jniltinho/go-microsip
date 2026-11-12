@@ -31,6 +31,8 @@ type DoctorReport struct {
 	PasswordSource *string `json:"password_source"`
 	// LiteralPasswordWarning: a literal password was found in TOML.
 	LiteralPasswordWarning bool `json:"literal_password_warning"`
+	// UnknownTheme: ui.theme names a skin this version does not have; the window starts with System.
+	UnknownTheme bool `json:"unknown_theme"`
 	// IgnoredLegacyEnv names the RUST_MICROSIP_ variables that are set and not read.
 	IgnoredLegacyEnv []string `json:"ignored_legacy_env"`
 	// Fields are the effective fields; empty when resolution failed.
@@ -53,7 +55,7 @@ func Doctor(c Context) DoctorReport {
 		sort.Strings(r.IgnoredLegacyEnv)
 		return r
 	}
-	r.OK, r.LiteralPasswordWarning = true, cfg.LiteralPasswordWarning
+	r.OK, r.LiteralPasswordWarning, r.UnknownTheme = true, cfg.LiteralPasswordWarning, cfg.UnknownTheme
 	r.IgnoredLegacyEnv = append(r.IgnoredLegacyEnv, cfg.LegacyEnv...)
 	if cfg.ConfigFile != "" {
 		r.ConfigFile = &cfg.ConfigFile
@@ -117,6 +119,9 @@ func (r DoctorReport) String() string {
 	fmt.Fprintf(&b, "password: %s [%s]\n", present, source)
 	if r.LiteralPasswordWarning {
 		b.WriteString("warning: literal password in TOML; prefer password_env\n")
+	}
+	if r.UnknownTheme {
+		b.WriteString("warning: ui.theme names a skin this version does not have; the window starts with System\n")
 	}
 	legacy()
 	return b.String()
