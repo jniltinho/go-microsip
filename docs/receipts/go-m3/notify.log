@@ -1,0 +1,10 @@
+--- PASS: TestCallNotificationsOnASessionBus (0.58s)
+--- PASS: TestCallerTextIsPlain (0.00s)
+PASS
+notify: the notifier passed against a notification service
+--- PASS: TestNoNotificationServiceIsQuiet (0.30s)
+PASS
+notify: a session bus without a notification service is quiet
+--- PASS: TestNoNotificationServiceIsQuiet (0.30s)
+PASS
+notify: a session without a bus is quiet

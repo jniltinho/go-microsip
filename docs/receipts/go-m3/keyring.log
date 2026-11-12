@@ -1,0 +1,14 @@
+--- PASS: TestKeyringStoresReplacesAndDeletes (0.01s)
+PASS
+--- PASS: TestALockedKeyringIsReportedAndNotPrompted (0.00s)
+PASS
+keyring: the keyring adapter passed against GNOME Keyring
+--- PASS: TestNoKeyringIsReported (0.00s)
+PASS
+keyring: a session bus without a keyring is reported as no keyring
+--- PASS: TestNoKeyringIsReported (0.00s)
+PASS
+keyring: a session without a bus is reported as no keyring
+--- PASS: TestASilentBusDoesNotHoldTheCaller (5.00s)
+PASS
+keyring: a session bus that says nothing does not hold the caller

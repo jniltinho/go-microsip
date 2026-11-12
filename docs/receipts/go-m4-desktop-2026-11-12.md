@@ -69,15 +69,14 @@ Open in 6.3: notifications, the tray and link registration on Windows; the sound
 
 ## Runs
 
-Artifacts `0.3.0-m3` of commit `4a5bd14`, with the checks of that commit, unless a row says otherwise.
+Artifacts `0.3.0-m3` of commit `1ff7b57` (`make go-dist`, `dirty false`, checksums verified) with the checks of that commit, except the virtual machines, which ran the artifacts and checks of commit `4a5bd14`.
 
 | Command | Result |
 | --- | --- |
 | `make go-check`, `make go-test`, `make go-frontend-test` | pass (33 page tests) |
 | `make go-lab` | 68 of 68 scenarios |
-| `make go-appimage-call` | pass: the AppImage through the two accounts, the wrong password, every skin, links, quitting during a call and the remembered password ([log](go-m3/appimage-call.log)) |
-| `make go-window-call` at the commit of this receipt | pass, with the two cases added since: the notification's Reject and a termination signal during a call ([log](go-m3/window-call.log)) |
-| `make go-keyring`, `make go-notify` at the commit of this receipt | pass |
-| `make go-vm GO_VMS="windows11 ubuntu2604 debian13"` | Ubuntu 26.04 and Debian 13 (GNOME on Wayland): pass ([log](go-m3/vm-ubuntu2604.log), [log](go-m3/vm-debian13.log)). Windows 11: the instance lock, the Credential Manager, the window, no listening port and the seven skins with their database pass; the emulated sound card fails the audio threshold, so the run as a whole fails ([log](go-m3/vm-windows11.log)) |
-
-The artifacts of the commit of this receipt are built and driven after it; the M3 receipt's closing section is updated with them.
+| `make go-appimage-call` | pass: the AppImage through the two accounts (with the notification's Reject), the wrong password, every skin, links, quitting during a call, a termination signal during a call and the remembered password ([log](go-m3/appimage-call.log)) |
+| `make go-self-test`, `make go-offline-skins` | pass |
+| `make go-keyring` | pass ([log](go-m3/keyring.log)) |
+| `make go-notify` | pass ([log](go-m3/notify.log)) |
+| `make go-vm GO_VMS="windows11 ubuntu2604 debian13"` (commit `4a5bd14`) | Ubuntu 26.04 and Debian 13 (GNOME on Wayland): pass ([log](go-m3/vm-ubuntu2604.log), [log](go-m3/vm-debian13.log)). Windows 11: the instance lock, the Credential Manager, the window, no listening port and the seven skins with their database pass; the emulated sound card fails the audio threshold, so the run as a whole fails ([log](go-m3/vm-windows11.log)) |
