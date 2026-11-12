@@ -424,8 +424,10 @@ func (a *actor) dial(target domain.DialTarget) {
 	ctx, cancel := context.WithTimeout(context.Background(), noAnswerTimeout)
 	c.cancel = cancel
 	go func() {
-		d, med, err := ep.Dial(ctx, target.Value(), func(status int) {
+		d, med, err := ep.DialEarly(ctx, target.Value(), func(status int) {
 			a.e.post(func() { a.progress(c, status) })
+		}, func(med *diago.DialogMedia) {
+			a.e.post(func() { a.early(c, med) })
 		})
 		a.e.post(func() {
 			if c.snap.Phase.IsFinal() { // ended meanwhile
@@ -560,6 +562,28 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 	if c.snap.Direction == domain.Outgoing {
 		a.watch(c)
 	}
+	if c.settled != nil {
+		c.private(onEarly, false) // the audio runs since the early media: from now it also sends
+		return
+	}
+	a.openSound(c, med)
+}
+
+// early starts the audio of an outgoing call that still rings, when the other side plays
+// something before the answer (an operator's ringing tone, a recorded message): the speaker
+// plays it in place of the ringback, and nothing is sent until the call is answered.
+func (a *actor) early(c *call, med *diago.DialogMedia) {
+	if c.snap.Phase.Kind != domain.Ringing || c.media != nil {
+		return // over or answered meanwhile: the dialog that ends closes its media
+	}
+	c.media = med
+	c.private(onEarly, true)
+	c.quiet()
+	a.openSound(c, med)
+}
+
+// openSound opens the sound devices of a call and connects them to its media.
+func (a *actor) openSound(c *call, med *diago.DialogMedia) {
 	// The sound service is asked beside the actor: one that does not answer must not keep the
 	// engine from taking commands, Shutdown among them.
 	opts := a.e.opts

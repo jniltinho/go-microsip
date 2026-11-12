@@ -1,14 +1,24 @@
 package app
 
 import (
+	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
+	"net"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/emiago/sipgo"
+	gosip "github.com/emiago/sipgo/sip"
+
 	"github.com/jniltinho/go-microsip/internal/core/domain"
 	"github.com/jniltinho/go-microsip/internal/core/engine"
+	"github.com/jniltinho/go-microsip/internal/core/media"
 	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 )
 
@@ -276,5 +286,158 @@ func TestTheSoftphoneNamesItsExtensionInContactAndItsProductInUserAgent(t *testi
 		if want := method + " contact 1001 product go-microsip/test"; got != want {
 			t.Errorf("the softphone sent %q, want %q", got, want)
 		}
+	}
+}
+
+// earlyLab is a PBX that plays audio of its own before it answers, as a trunk does while a mobile
+// number rings: 183 Session Progress with a description of its audio, a 1 kHz tone sent to the
+// softphone for a second and a half, then the answer. It counts what the softphone sends to its
+// audio port.
+func earlyLab(t *testing.T) (port int, sentBack *atomic.Int64, answered chan struct{}) {
+	t.Helper()
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := probe.Addr().String()
+	port = probe.Addr().(*net.TCPAddr).Port
+	probe.Close()
+	rtp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rtp.Close() })
+	sentBack, answered = new(atomic.Int64), make(chan struct{})
+	go func() {
+		buf := make([]byte, 2048)
+		for {
+			if _, _, err := rtp.ReadFromUDP(buf); err != nil {
+				return
+			}
+			sentBack.Add(1)
+		}
+	}()
+	ua, err := sipgo.NewUA()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := sipgo.NewServer(ua)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.OnRegister(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
+	})
+	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		sdp := fmt.Sprintf("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=sendrecv\r\n", rtp.LocalAddr().(*net.UDPAddr).Port)
+		with := func(code int, reason string) *gosip.Response {
+			res := gosip.NewResponseFromRequest(req, code, reason, []byte(sdp))
+			res.AppendHeader(gosip.NewHeader("Content-Type", "application/sdp"))
+			res.AppendHeader(gosip.NewHeader("Contact", fmt.Sprintf("<sip:lab@%s;transport=tcp>", addr)))
+			return res
+		}
+		_ = tx.Respond(with(183, "Session Progress"))
+		// Where the softphone listens for audio, from its offer.
+		var to net.UDPAddr
+		for _, line := range strings.Split(string(req.Body()), "\r\n") {
+			if rest, ok := strings.CutPrefix(line, "c=IN IP4 "); ok {
+				to.IP = net.ParseIP(rest)
+			}
+			if rest, ok := strings.CutPrefix(line, "m=audio "); ok {
+				_, _ = fmt.Sscanf(rest, "%d", &to.Port)
+			}
+		}
+		go func() {
+			var frame [media.FrameSamples]int16
+			packet := make([]byte, 12+media.FrameSamples)
+			tick := time.NewTicker(20 * time.Millisecond)
+			defer tick.Stop()
+			for n := 0; n < 300; n++ { // six seconds: through the answer and after it
+				for i := range frame {
+					frame[i] = int16(12000 * math.Sin(2*math.Pi*1000*float64(n*media.FrameSamples+i)/8000))
+				}
+				packet[0], packet[1] = 0x80, 0
+				binary.BigEndian.PutUint16(packet[2:], uint16(n))
+				binary.BigEndian.PutUint32(packet[4:], uint32(n*media.FrameSamples))
+				binary.BigEndian.PutUint32(packet[8:], 0x1234)
+				media.PCMU.Encode(packet[12:], &frame)
+				if _, err := rtp.WriteToUDP(packet, &to); err != nil {
+					return
+				}
+				<-tick.C
+			}
+		}()
+		time.Sleep(1500 * time.Millisecond)
+		close(answered)
+		_ = tx.Respond(with(200, "OK"))
+	})
+	srv.OnAck(func(*gosip.Request, gosip.ServerTransaction) {})
+	srv.OnBye(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
+	})
+	srv.OnCancel(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel(); _ = ua.Close() })
+	ready := make(chan struct{})
+	go func() {
+		_ = srv.ListenAndServe(context.WithValue(ctx, sipgo.ListenReadyCtxKey, sipgo.ListenReadyCtxValue(ready)), "tcp", addr)
+	}()
+	select {
+	case <-ready:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the PBX did not start")
+	}
+	return port, sentBack, answered
+}
+
+// What a PBX plays before it answers (early media) is heard: the speaker plays it in place of
+// the ringback while the call still rings, nothing is sent to the PBX before the answer, and
+// from the answer on the same audio goes both ways.
+func TestAudioBeforeTheAnswerIsPlayedAndNothingIsSent(t *testing.T) {
+	port, sentBack, answered := earlyLab(t)
+	o, _ := options(t, port)
+	sound := &memory.Audio{Tone: 440}
+	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	target, _ := domain.ParseDialTarget("1002")
+	if err := p.Send(domain.Dial{Target: target}); err != nil {
+		t.Fatal(err)
+	}
+	soon(t, "sound of the ringing call", func() bool { return sound.CallStreams() == 1 })
+	var call *memory.Stream
+	soon(t, "half a second of the PBX's audio on the speaker", func() bool {
+		call = sound.Last()
+		frames, _ := call.Heard()
+		return frames >= 25
+	})
+	select {
+	case <-answered:
+		t.Fatal("the PBX answered before its early audio was heard: the test proved nothing")
+	default:
+	}
+	if _, share := call.Heard(1000); share[1000] < 0.9 {
+		t.Errorf("before the answer the speaker got the PBX's tone in %.0f %% of its frames", 100*share[1000])
+	}
+	if n := sentBack.Load(); n != 0 {
+		t.Errorf("%d packets were sent to the PBX's audio before it answered", n)
+	}
+	for _, back := range sound.OutputStreams() {
+		if !back.Closed() {
+			t.Error("the ringback still plays beside the PBX's audio")
+		}
+	}
+	until(t, p, "the answer", func(ev domain.Event) bool {
+		c, ok := ev.(domain.CallChanged)
+		return ok && c.Call.Phase.Kind == domain.Established
+	})
+	soon(t, "the microphone's audio at the PBX after the answer", func() bool { return sentBack.Load() >= 25 })
+	if sound.CallStreams() != 1 || call.Closed() {
+		t.Errorf("after the answer the call has %d streams, its first one closed: %v", sound.CallStreams(), call.Closed())
 	}
 }

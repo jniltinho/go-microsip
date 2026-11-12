@@ -344,20 +344,57 @@ func (e *Endpoint) Unregister(ctx context.Context) error {
 // set, is told each provisional status (180 Ringing, 183 Session Progress). A secure-media account
 // ends a call whose answer is not SRTP and returns ErrInsecureAnswer.
 func (e *Endpoint) Dial(ctx context.Context, target string, onProgress func(status int)) (*diago.DialogClientSession, *diago.DialogMedia, error) {
+	return e.DialEarly(ctx, target, onProgress, nil)
+}
+
+// DialEarly is Dial for a caller that plays what the other side sends before the answer (early
+// media: an operator's ringing tone, a recorded message). onEarly, when set, is given the call's
+// media once a 183 Session Progress described it, while the call still rings: the caller may
+// receive on it and must send nothing yet. The media is then the caller's to close, also when
+// the call fails afterwards; on an answer the same media is returned. A secure-media account is
+// not handed early media that is not SRTP.
+func (e *Endpoint) DialEarly(ctx context.Context, target string, onProgress func(status int), onEarly func(*diago.DialogMedia)) (*diago.DialogClientSession, *diago.DialogMedia, error) {
 	// shortcut: the call is addressed to the server's host, so an account whose domain differs from
 	// its server sends To with the server's name; add an outbound-proxy route when one is needed.
-	d, med, err := e.dg.Invite(ctx, e.uri(target), diago.InviteOptions{
-		Transport: e.Account.Settings.Transport.String(),
-		Username:  e.authUser(), Password: e.Account.Password.Reveal(),
-		Headers: []gosip.Header{e.identity(), gosip.NewHeader("User-Agent", e.product)},
-		OnResponse: func(res *gosip.Response) error {
-			if onProgress != nil && res.StatusCode > 100 && res.StatusCode < 200 {
+	d, err := e.dg.NewDialog(e.uri(target), diago.NewDialogOptions{Transport: e.Account.Settings.Transport.String()})
+	if err != nil {
+		return nil, nil, err
+	}
+	var progress []byte // the body of the last 183
+	told := func(res *gosip.Response) error {
+		if res.StatusCode > 100 && res.StatusCode < 200 {
+			if res.StatusCode == gosip.StatusSessionInProgress {
+				progress = res.Body()
+			}
+			if onProgress != nil {
 				onProgress(res.StatusCode)
 			}
-			return nil
-		},
+		}
+		return nil
+	}
+	user, password := e.authUser(), e.Account.Password.Reveal()
+	med, err := d.Invite(ctx, diago.InviteClientOptions{
+		Username: user, Password: password,
+		Headers:          []gosip.Header{e.identity(), gosip.NewHeader("User-Agent", e.product)},
+		OnResponse:       told,
+		EarlyMediaDetect: onEarly != nil,
 	})
+	handed := false
+	if errors.Is(err, diago.ErrClientEarlyMedia) {
+		if !e.secure() || offersSRTP(progress) {
+			handed = true
+			onEarly(med)
+		}
+		err = d.WaitAnswer(ctx, med, sipgo.AnswerOptions{Username: user, Password: password, OnResponse: told})
+	}
+	if err == nil {
+		err = d.Ack(ctx)
+	}
 	if err != nil {
+		if med != nil && !handed {
+			_ = med.Close()
+		}
+		_ = d.Close()
 		// The library reports this one as a text only.
 		if text := err.Error(); strings.Contains(text, "no supported codecs found") || strings.Contains(text, "no codecs found in SDP") {
 			err = fmt.Errorf("%w: %v", ErrNoCommonCodec, err)

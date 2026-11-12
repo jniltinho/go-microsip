@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,6 +55,8 @@ type DialogMedia struct {
 	// rtp session is created for usage with RTPPacketReader and RTPPacketWriter
 	// it adds RTCP layer and RTP monitoring before passing packets to MediaSession
 	rtpSession *media.RTPSession
+	// go-microsip: the SDP of the 183 that the running early media was set up from.
+	earlySDP []byte
 	// Packet reader is default reader for RTP audio stream
 	// Use always AudioReader to get current Audio reader
 	// Use this only as read only
@@ -255,6 +258,11 @@ func (d *DialogMedia) checkEarlyMedia(remoteSDP []byte) error {
 	}
 	if d.mediaSession == nil {
 		return fmt.Errorf("no media session present")
+	}
+	// go-microsip: an answer that describes the media the 183 described changes nothing, and
+	// applying it again would write the session while the early media is being read.
+	if sameMedia(d.earlySDP, remoteSDP) {
+		return nil
 	}
 	if err := d.mediaSession.RemoteSDP(remoteSDP, true); err != nil {
 		return fmt.Errorf("sdp update media remote SDP applying failed: %w", err)
@@ -997,4 +1005,22 @@ func (w *ComfortNoiseWriter) Write(buf []byte) (n int, err error) {
 		return 0, fmt.Errorf("comfort noise writer is not initialized")
 	}
 	return w.comfortNoiseWriter.Write(buf)
+}
+
+// sameMedia reports whether two SDP bodies describe the same media: every line but the origin,
+// whose version a server may raise between its 183 and its answer. (go-microsip)
+func sameMedia(a, b []byte) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+	lines := func(sdp []byte) []string {
+		var out []string
+		for _, line := range strings.Split(string(sdp), "\n") {
+			if line = strings.TrimRight(line, "\r"); line != "" && !strings.HasPrefix(line, "o=") {
+				out = append(out, line)
+			}
+		}
+		return out
+	}
+	return slices.Equal(lines(a), lines(b))
 }

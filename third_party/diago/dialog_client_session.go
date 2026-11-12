@@ -349,6 +349,7 @@ func (d *DialogClientSession) waitAnswerEarly(ctx context.Context, med *DialogMe
 
 		rtpSess := media.NewRTPSession(sess)
 		med.mu.Lock()
+		med.earlySDP = append([]byte(nil), remoteSDP...) // go-microsip: see checkEarlyMedia
 		med.initRTPSessionUnsafe(sess, rtpSess)
 		med.onCloseUnsafe(func() error {
 			return rtpSess.Close()

@@ -202,9 +202,9 @@ type microphone struct {
 // leave just after it.
 func (m *microphone) next(privacy func() uint64) (out *[media.FrameSamples]int16, fed bool) {
 	word := privacy()
-	if word&(onHold|onMute) != 0 {
+	if word&(onHold|onMute|onEarly) != 0 {
 		m.audio.Capture(&m.frame) // read and dropped, so the device's queue does not fill up
-		if word&onHold != 0 {
+		if word&(onHold|onEarly) != 0 {
 			return nil, true
 		}
 		return &m.silence, true // muted: silence keeps the stream alive
@@ -231,10 +231,13 @@ func (m *microphone) next(privacy func() uint64) (out *[media.FrameSamples]int16
 	return &m.frame, true
 }
 
-// The privacy word: hold, mute, and above them the count of changes.
+// The privacy word: hold, mute, a call that is not answered yet, and above them the count of
+// changes. Before the answer a call may hear what the other side plays (early media) and sends
+// nothing, as on hold.
 const (
 	onHold uint64 = 1 << iota
 	onMute
+	onEarly
 	privacyChange
 )
 
