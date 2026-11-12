@@ -112,8 +112,8 @@ Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force
 # 6. Notifications: a ringing call is a toast with Answer and Reject. The notifier's own test
 # hands the toast to Windows and waits for a button; this script looks for the button on the
 # screen and presses it when it finds it. A new Windows installation has its own do-not-disturb
-# on, which keeps toasts off the screen: the toast is then in the notification center, of which
-# a picture is taken, and its button is reported as not pressed.
+# on for a while, which keeps toasts off the screen: the toast is then in the notification
+# center, of which a picture is taken. A button that is not found is reported as not pressed.
 if ($NotifyTest) {
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
     $env:GO_MICROSIP_NOTIFY_TEST = 'desktop'
@@ -166,7 +166,7 @@ if ($NotifyTest) {
     } catch { "desktop: notifications: the notification history was not read: $($_.Exception.Message)" }
     if ($t.ExitCode -ne 0) { Fail 'notifications: the toast test' }
     elseif ($pressed) { 'desktop: notifications: the toast was shown and its Answer button, pressed on the screen, decided the call' }
-    elseif ($held -gt 0) { "desktop: notifications: Windows took the toast and holds $held notification(s) of go-microsip in its notification center; NOT VERIFIED: its buttons (Windows' own do-not-disturb kept it off the screen, and the button was not found there)" }
+    elseif ($held -gt 0) { "desktop: notifications: Windows took the toast and holds $held notification(s) of go-microsip in its notification center; NOT VERIFIED: its buttons (the check did not find one to press, on the screen or in the notification center)" }
     else { Fail 'notifications: Windows holds no notification of go-microsip' }
     [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
 }

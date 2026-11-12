@@ -181,7 +181,10 @@ Platform notes:
   `sip:` or `tel:` link can be opened with go-microsip, which asks before it calls, once you
   choose it in Settings, Default apps; an incoming call is also a Windows notification with
   **Answer** and **Reject**; and the command line, the MCP server and the headless service work
-  as on Linux. Calls and sound are not verified on Windows yet.
+  as on Linux. Calls over UDP and TCP are checked in a Windows VM against a lab PBX, with audio
+  as packets both ways; sound on a real sound card, TLS and SRTP are not verified on Windows
+  yet. At the first call Windows asks whether its firewall should let go-microsip accept
+  connections: calls, incoming ones included, work whichever you answer.
 - **macOS**: not built.
 
 `go-microsip doctor` prints a sanitized report of the configuration, the display and the sound;

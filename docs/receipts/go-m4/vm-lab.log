@@ -1,0 +1,18 @@
+Untagged: rust-microsip-asterisk:22.11.0-lab.1
+Deleted: sha256:024779e5b8d3014e7baf1c7851818a246fa4cce75058c54a8a4356dd52ecec8e
+Deleted: sha256:68a7cfadc426d1e10008298688fe95c83b909023668fc8445a710cf2f9792441
+Deleted: sha256:590ee87e16218a0111187c6e3bd19821a7675f1aafa997b7a3e98c51aae9a9a6
+Deleted: sha256:3528c2926ae141b635cbe2fb769c63e1641def227c163feadaa5863d151ca3d5
+Deleted: sha256:692f479f4c7032220b19b59baa04c40b09bb24dad8251d84ca98611069d6c6f9
+Deleted: sha256:09080398b00383b9a942673939cf27eafe1ef20070b6c5a0c10c102ffc333815
+Loaded image: rust-microsip-asterisk:22.11.0-lab.1
+Compose safety contract OK (not media/VM ACL proof)
+vm-lab: the PBX answers on 192.168.77.10 for 192.168.77.99
+vm-lab: the PBX does not answer 192.168.77.20 while its list names another address
+Compose safety contract OK (not media/VM ACL proof)
+vm-lab: the PBX answers on 192.168.77.10 for 192.168.77.20
+vm-lab: the PBX answers 192.168.77.20 once it is on the list
+vm-lab: the PBX called 1002
+vm-lab: RTP packets from 192.168.77.20 to the PBX: 1710
+vm-lab: RTP packets from the PBX to 192.168.77.20: 1709
+vm-lab: packets of anyone else dropped: 0
