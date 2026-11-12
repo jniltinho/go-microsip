@@ -66,12 +66,33 @@ func TestAClientReachesTheOwnerOnWindows(t *testing.T) {
 	if _, err := Dial(dir); !errors.Is(err, ErrUnavailable) {
 		t.Errorf("a client after the owner left: %v", err)
 	}
-	// A socket file left behind by an owner that died is replaced.
-	if err := os.WriteFile(filepath.Join(dir, SocketFile), nil, 0o600); err != nil {
+	// A file of the socket's name that is not a socket is not this application's: it is left
+	// alone, and nothing is served.
+	if err := os.WriteFile(filepath.Join(dir, SocketFile), []byte("notes"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := Listen(dir, welcome, handler); !errors.Is(err, ErrInsecure) {
+		t.Errorf("an owner where a file has the socket's name: %v", err)
+	}
+	if kept, err := os.ReadFile(filepath.Join(dir, SocketFile)); err != nil || string(kept) != "notes" {
+		t.Errorf("the file of the socket's name: %q, %v", kept, err)
+	}
+	if err := os.Remove(filepath.Join(dir, SocketFile)); err != nil {
+		t.Fatal(err)
+	}
+	// A socket left behind by an owner that died is replaced.
+	dead, err := net.Listen("unix", filepath.Join(dir, SocketFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dead.(*net.UnixListener).SetUnlinkOnClose(false)
+	dead.Close()
 	if _, err := Dial(dir); !errors.Is(err, ErrUnavailable) {
-		t.Errorf("a client of a file nobody listens on: %v", err)
+		t.Errorf("a client of a socket nobody listens on: %v", err)
+	}
+	// A process that started after its number was read is not the one the number named.
+	if _, err := userOf(uint32(os.Getpid()), time.Now().Add(-time.Hour)); !errors.Is(err, errRecycled) {
+		t.Errorf("a process newer than the question: %v", err)
 	}
 	welcome.Epoch = 8
 	next, err := Listen(dir, welcome, handler)

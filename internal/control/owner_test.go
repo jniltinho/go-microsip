@@ -858,6 +858,39 @@ func TestARevocationThatIsNotStoredStillRefusesTheGrant(t *testing.T) {
 	}
 }
 
+// An export for the headless service whose revocation the database did not take is still
+// usable by a service started later, so the window keeps listing it; revoked again when the
+// database works, it starts no service.
+func TestABootstrapWhoseRevocationIsNotStoredStaysListed(t *testing.T) {
+	s := newSession(t, true)
+	issued, err := s.IssueBootstrap(spec([]string{"control:dnd"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	working := s.ledger
+	s.mu.Lock()
+	s.ledger = brokenLedger{working}
+	s.mu.Unlock()
+	if err := s.Revoke(issued.ID); !errors.Is(err, ErrRevocationNotStored) {
+		t.Fatalf("a revocation the database refused: %v", err)
+	}
+	if grants := s.Grants(); len(grants) != 1 || grants[0].ID != issued.ID || grants[0].BootstrapID == "" {
+		t.Fatalf("the export that is still usable is not listed: %+v", grants)
+	}
+	s.mu.Lock()
+	s.ledger = working
+	s.mu.Unlock()
+	if err := s.Revoke(issued.ID); err != nil {
+		t.Fatalf("the revocation, asked again: %v", err)
+	}
+	if grants := s.Grants(); len(grants) != 0 {
+		t.Errorf("the revoked export is still listed: %+v", grants)
+	}
+	if _, err := NewServiceOwner(s.engine, issued.BootstrapID, issued.Capability); !errors.Is(err, ErrBootstrapInvalid) {
+		t.Errorf("a service started with the revoked export: %v", err)
+	}
+}
+
 // An owner that was closed answers no request and waits for nobody; "deny all" on it returns.
 func TestAClosedOwnerAnswersNothing(t *testing.T) {
 	s := newSession(t, true)

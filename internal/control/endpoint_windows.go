@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -35,13 +36,29 @@ func RuntimeDir(getenv func(string) string) (string, error) {
 	return "", ErrNoRuntimeDir
 }
 
-// userOf returns the user a process runs as.
-func userOf(pid uint32) (*windows.SID, error) {
+// errRecycled means the number of a process was given to another one after it was read.
+var errRecycled = errors.New("the process number was taken by another process")
+
+// userOf returns the user a process runs as. Windows gives the number of a process that ended to
+// a later one: a process that started after the number was asked for is not the one it named.
+//
+// shortcut: a peer that ended before its number was asked for, whose number a process started
+// before that moment already has, is taken for that process. It needs a peer that got into the
+// user's own directory first; serve a named pipe and impersonate its client if that is ever
+// not enough.
+func userOf(pid uint32, asked time.Time) (*windows.SID, error) {
 	process, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
 	if err != nil {
 		return nil, err
 	}
 	defer windows.CloseHandle(process)
+	var created, exited, inKernel, inUser windows.Filetime
+	if err := windows.GetProcessTimes(process, &created, &exited, &inKernel, &inUser); err != nil {
+		return nil, err
+	}
+	if time.Unix(0, created.Nanoseconds()).After(asked) {
+		return nil, errRecycled
+	}
 	var token windows.Token
 	if err := windows.OpenProcessToken(process, windows.TOKEN_QUERY, &token); err != nil {
 		return nil, err
@@ -66,16 +83,17 @@ func peer(conn net.Conn) (pid int, ours bool) {
 		return 0, false
 	}
 	var other, returned uint32
+	asked := time.Now()
 	if raw.Control(func(fd uintptr) {
 		err = windows.WSAIoctl(windows.Handle(fd), sioAFUnixGetPeerPID, nil, 0, (*byte)(unsafe.Pointer(&other)), uint32(unsafe.Sizeof(other)), &returned, nil, 0)
 	}) != nil || err != nil || other == 0 {
 		return 0, false
 	}
-	theirs, err := userOf(other)
+	theirs, err := userOf(other, asked)
 	if err != nil {
 		return 0, false
 	}
-	mine, err := userOf(windows.GetCurrentProcessId())
+	mine, err := userOf(windows.GetCurrentProcessId(), asked)
 	if err != nil {
 		return 0, false
 	}
@@ -108,11 +126,21 @@ func Listen(dir string, welcome Welcome, handler Handler) (*Endpoint, error) {
 		}
 		return nil, err
 	}
-	// With the lock held, a socket left here is of an owner that is gone.
+	// With the lock held, a socket left here is of an owner that is gone. Anything else of that
+	// name is not this application's to remove.
 	socket := filepath.Join(dir, SocketFile)
-	if err := os.Remove(socket); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	switch info, err := os.Lstat(socket); {
+	case err == nil && info.Mode().Type() == fs.ModeSocket:
+		err = os.Remove(socket)
+		fallthrough
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		if err != nil {
+			_ = lock.Close()
+			return nil, err
+		}
+	case err == nil:
 		_ = lock.Close()
-		return nil, err
+		return nil, ErrInsecure
 	}
 	listener, err := net.Listen("unix", socket)
 	if err != nil {

@@ -2,6 +2,7 @@ package gui
 
 import (
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -181,13 +182,21 @@ func (a *App) Subscribe() error {
 	if _, err := a.engine(); err != nil {
 		return err
 	}
+	// Read before a.mu is taken: agent control tells the page of a change with its own lock
+	// held (dndChanged), so that lock is never asked for under this one.
+	waiting := a.approvals()
+	defer func() { // a request that came or went meanwhile, of which no page had been told
+		if now := a.approvals(); !slices.Equal(*now, *waiting) {
+			a.approvalsChanged()
+		}
+	}()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.emit(uiEvent(a.registration))
 	if a.call != nil {
 		a.emit(uiEvent(domain.CallChanged{Call: *a.call}))
 	}
-	a.emit(UIEvent{Type: "approvals", Approvals: a.approvals()})
+	a.emit(UIEvent{Type: "approvals", Approvals: waiting})
 	a.emitDesktop()
 	if a.stopped {
 		a.emit(UIEvent{Type: "stopped"})

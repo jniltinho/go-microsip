@@ -4,9 +4,12 @@
 package notify
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/jniltinho/go-microsip/internal/core/ports"
@@ -49,24 +52,57 @@ func callerText(caller string) string {
 	return out.String()
 }
 
-// toastXML is the Windows notification of a ringing call: the caller, already made plain text,
-// and two buttons whose arguments name the call.
-func toastXML(call uint64, caller string) string {
-	return fmt.Sprintf(`<toast launch="show:%[1]d" duration="long"><visual><binding template="ToastGeneric">`+
-		`<text>Incoming call</text><text>%[2]s</text></binding></visual><actions>`+
-		`<action content="Answer" arguments="answer:%[1]d" activationType="foreground"/>`+
-		`<action content="Reject" arguments="reject:%[1]d" activationType="background"/></actions></toast>`, call, caller)
+// toasts is the Windows notifications of this run whose buttons still decide a call. A
+// notification outlives its call and the run that showed it, and a call's number starts again
+// with every run: a button counts only when it names this run and a call that still rings.
+type toasts struct {
+	mu      sync.Mutex
+	run     string
+	ringing map[uint64]bool
 }
 
-// toastAction reads the arguments of a pressed button back into the call and the decision; a
-// click on the notification itself, or anything else, is not a decision.
-func toastAction(arguments string) (ports.CallNoticeAction, bool) {
-	kind, id, _ := strings.Cut(arguments, ":")
-	call, err := strconv.ParseUint(id, 10, 64)
-	if err != nil || (kind != "answer" && kind != "reject") {
+// newToasts names this run with system randomness.
+func newToasts() *toasts {
+	name := make([]byte, 8)
+	_, _ = rand.Read(name) // never fails (crypto/rand)
+	return &toasts{run: hex.EncodeToString(name), ringing: map[uint64]bool{}}
+}
+
+// xml is the notification of a ringing call: the caller, already made plain text, and two
+// buttons whose arguments name the run and the call. The call rings from here on.
+func (t *toasts) xml(call uint64, caller string) string {
+	t.mu.Lock()
+	t.ringing[call] = true
+	t.mu.Unlock()
+	return fmt.Sprintf(`<toast launch="show:%[1]s:%[2]d" duration="long"><visual><binding template="ToastGeneric">`+
+		`<text>Incoming call</text><text>%[3]s</text></binding></visual><actions>`+
+		`<action content="Answer" arguments="answer:%[1]s:%[2]d" activationType="foreground"/>`+
+		`<action content="Reject" arguments="reject:%[1]s:%[2]d" activationType="background"/></actions></toast>`, t.run, call, caller)
+}
+
+// closed ends what the call's notification can decide.
+func (t *toasts) closed(call uint64) {
+	t.mu.Lock()
+	delete(t.ringing, call)
+	t.mu.Unlock()
+}
+
+// pressed reads the arguments of a pressed button back into the call and the decision, once per
+// call. A click on the notification itself, a notification of another run or of a call that no
+// longer rings, or anything else, is not a decision.
+func (t *toasts) pressed(arguments string) (ports.CallNoticeAction, bool) {
+	part := strings.Split(arguments, ":")
+	if len(part) != 3 || part[1] != t.run || (part[0] != "answer" && part[0] != "reject") {
 		return ports.CallNoticeAction{}, false
 	}
-	return ports.CallNoticeAction{Call: call, Answer: kind == "answer"}, true
+	call, err := strconv.ParseUint(part[2], 10, 64)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if err != nil || !t.ringing[call] {
+		return ports.CallNoticeAction{}, false
+	}
+	delete(t.ringing, call)
+	return ports.CallNoticeAction{Call: call, Answer: part[0] == "answer"}, true
 }
 
 // request is one thing asked of the desktop.

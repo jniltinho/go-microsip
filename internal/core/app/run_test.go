@@ -37,6 +37,15 @@ func registrar(t *testing.T) (port int) { return lab(t, 486) }
 // ringingRegistrar accepts every REGISTER and lets every call ring without an answer.
 func ringingRegistrar(t *testing.T) (port int) { return lab(t, 180) }
 
+// heard counts the REGISTER requests each lab PBX received, by its port.
+var heard sync.Map
+
+// registrations is how many REGISTER requests the lab PBX on port received.
+func registrations(port int) int64 {
+	n, _ := heard.LoadOrStore(port, new(atomic.Int64))
+	return n.(*atomic.Int64).Load()
+}
+
 func lab(t *testing.T, invite int) (port int) {
 	t.Helper()
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
@@ -55,6 +64,8 @@ func lab(t *testing.T, invite int) (port int) {
 		t.Fatal(err)
 	}
 	srv.OnRegister(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		n, _ := heard.LoadOrStore(port, new(atomic.Int64))
+		n.(*atomic.Int64).Add(1)
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {

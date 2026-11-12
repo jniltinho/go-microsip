@@ -64,8 +64,11 @@ async function create(bootstrap: boolean) {
 }
 
 async function revoke(id: string) {
-  await revokeGrant(id).catch((e: unknown) => (failure.value = String(e)));
+  // A revocation that was not stored is said after the list is read again, which clears the
+  // message otherwise: an export for the headless service is then still listed, and usable.
+  const refused = await revokeGrant(id).then(() => "", String);
   await refresh();
+  if (refused) failure.value = refused;
 }
 
 async function toggleLog() {

@@ -953,14 +953,25 @@ func TestAHeldPhoneRegistersOnlyWhenItBegins(t *testing.T) {
 	if !p.Settings().HasPassword {
 		t.Fatal("the configured password is not at hand")
 	}
-	select {
-	case ev := <-p.Events():
-		if r, ok := ev.(domain.RegistrationChanged); ok && r.State.Status != domain.Disabled {
-			t.Fatalf("a held phone registered (%v)", r.State)
+	// The whole wait, not its first event: nothing but "disabled" is told, and the PBX hears nothing.
+	for quiet := time.After(700 * time.Millisecond); quiet != nil; {
+		select {
+		case ev := <-p.Events():
+			if r, ok := ev.(domain.RegistrationChanged); ok && r.State.Status != domain.Disabled {
+				t.Fatalf("a held phone registered (%v)", r.State)
+			}
+		case <-quiet:
+			quiet = nil
 		}
-	case <-time.After(700 * time.Millisecond):
+	}
+	if n := registrations(port); n != 0 {
+		t.Fatalf("the PBX heard %d registrations from a held phone", n)
 	}
 	p.Begin()
 	until(t, p, "registration after Begin", registered)
 	p.Begin() // a second time: nothing more to tell
+	time.Sleep(300 * time.Millisecond)
+	if n := registrations(port); n != 1 {
+		t.Errorf("the PBX heard %d registrations after Begin, want 1", n)
+	}
 }

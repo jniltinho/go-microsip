@@ -309,7 +309,10 @@ func (o *Owner) issue(spec GrantSpec, bootstrap bool) (IssuedGrant, error) {
 	return issued, nil
 }
 
-// Grants lists the grants that can still be used, for the window.
+// Grants lists the grants that can still be used, for the window. A grant of this session that
+// was revoked here is not one, stored or not. An export for the headless service whose
+// revocation the database did not take is: the service that takes it is another process, so it
+// stays listed, to be revoked again.
 func (o *Owner) Grants() []app.Grant {
 	if o.ledger == nil {
 		return nil
@@ -317,7 +320,7 @@ func (o *Owner) Grants() []app.Grant {
 	grants, _ := o.ledger.Grants(o.epoch)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return slices.DeleteFunc(grants, func(g app.Grant) bool { return o.revoked[g.ID] })
+	return slices.DeleteFunc(grants, func(g app.Grant) bool { return o.revoked[g.ID] && g.BootstrapID == "" })
 }
 
 // ErrRevocationNotStored means the database did not take a revocation. This owner refuses the

@@ -163,6 +163,12 @@ if ($NotifyTest) {
     $env:GO_MICROSIP_NOTIFY_TEST = 'desktop'
     $toast = "$Work\toast.log"
     Remove-Item $toast -ErrorAction SilentlyContinue
+    # What earlier runs left in the notification center goes first: what is counted below is
+    # this run's toast.
+    try {
+        [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+        [Windows.UI.Notifications.ToastNotificationManager]::History.Clear('go-microsip')
+    } catch { "desktop: notifications: the notification history was not cleared: $($_.Exception.Message)" }
     $t = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"`"$NotifyTest`" -test.v -test.run TestAToastOnThisDesktop > `"$toast`" 2>&1`"" -PassThru -WindowStyle Hidden
     $pressed = $false
     $pictured = $false

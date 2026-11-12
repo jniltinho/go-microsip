@@ -5,6 +5,7 @@ Each round reviews a sanitized extract made with `git archive` (the control pack
 | Round | Commit | Scope | Verdict | Report |
 | --- | --- | --- | --- | --- |
 | 1 | `d7d31f6` | tasks 6.4, 6.5 and 6.6 | UNSOUND: 1 major, 9 minor | [codex-round1.md](codex-round1.md) |
+| 2 | `1ca14bf` | the answers to round 1, and task 6.3's Windows work | UNSOUND: 3 major, 5 minor (8 of the 10 round-1 findings resolved, 2 in part) | [codex-round2.md](codex-round2.md) |
 
 ## What was done about round 1
 
@@ -22,5 +23,20 @@ Each round reviews a sanitized extract made with `git archive` (the control pack
 | 10 | minor | The receipt called checks against the mock a walkthrough of the form | Fixed in the receipt: no check fills the form; what is checked is named for what it is. |
 
 The differences from the Rust originals the report lists as unrecorded are either gone with these fixes (pagination, the rejected service start, the closed owner, the trailing delimiters and the case of field names in a request) or recorded in the receipt (do-not-disturb, now told to the page). A hello whose field names differ in case is still taken; it carries no authority.
+
+## What was done about round 2
+
+Round 2 read commit `1ca14bf`, whose Windows desktop script (`build/vm/desktop.ps1`) was broken by an editing mistake; its third finding is that mistake, found by the review and by the run on that commit independently.
+
+| # | Severity | Finding | Response |
+| --- | --- | --- | --- |
+| 1 | major | A revocation of an export for the headless service that the database did not take made the export disappear from the list, and the page cleared the warning: a service started later could still use it | Fixed. `Owner.Grants` keeps listing such an export (a grant of this session stays hidden: this window refuses it and it ends with the window), so it can be revoked again; the page keeps the refusal on screen after it reads the list again. `TestABootstrapWhoseRevocationIsNotStoredStaysListed`: listed after the failed revocation, gone after the one that is stored, and no service starts with it then. Not tested: the page's two lines, for which there is no component test harness (the page's tests run its state and the mock backend, whose revocation cannot fail). |
+| 2 | major | A toast left by an earlier run could decide a call of a later run that had the same number | Fixed. The buttons of a toast name the run, a name made of system randomness when the notifier starts, and the call; a button counts only for this run and for a call that still rings, once. `TestAToastNamesTheRunAndTheCallInItsButtons`: a button of another run with the same call number, a second press, and a press after the call stopped ringing decide nothing. |
+| 3 | major | The Windows receipt named checks the script did not perform, and a toast left by an earlier run could pass for this run's | The script was restored in commit `a4ce823` (the second start, the call that waits and is denied, the tray, and the notifier's own test), and the receipt's runs name the commit, the artifact and the script they are of. The notification step now clears what earlier runs left in the notification center before it counts. |
+| 4 | minor | Agent control told the page of a do-not-disturb change with its lock held while a subscribing page asked for that lock with the page's lock held | Fixed. `Subscribe` reads the waiting requests before it takes the page's lock, and tells the page again when they changed meanwhile. `TestAPageSubscribesWhileAnAgentChangesDoNotDisturb` runs both 300 times side by side; on the code as reviewed it stops, which was seen. |
+| 5 | minor | On Windows the process number of the peer could be given to another process between the question to the socket and the opening of the process | Narrowed, not closed. A process that started after the number was asked for is refused (`userOf`, checked in the Windows test). What stays: a peer that ended before the question, whose number a process started earlier already has. It needs a peer that got into the user's own directory first; the code says so, with what replaces it (a named pipe and impersonation, design D10's original choice). |
+| 6 | minor | On Windows a file of the socket's name that was not a socket was deleted | Fixed, as on Linux: only a socket is replaced; anything else is left alone and nothing is served (`ErrInsecure`). The Windows test leaves a genuine socket behind for the takeover and a regular file for the refusal. |
+| 7 | minor | The document said that revoking a grant ends digits already being sent | Fixed in the document: revoking ends the grant's reads and refuses its next changes; digits already being sent end with their call. |
+| 8 | minor | The held-phone test read one event and did not look at the PBX | Fixed. The test watches the whole wait and counts the REGISTER requests its PBX hears: none before `Begin`, one after `Begin` called twice. Not added: the same count through a service start with a refused bootstrap; the order in `cmd/service.go` (bootstrap, socket, then `Begin`) is what the review read. |
 
 No round has reviewed these answers yet.

@@ -797,6 +797,48 @@ func TestAnAgentRequestWaitsForThePersonAtTheWindow(t *testing.T) {
 	}
 }
 
+// A page that subscribes while agent control tells it of a change an agent made: neither waits
+// for the lock the other holds.
+func TestAPageSubscribesWhileAnAgentChangesDoNotDisturb(t *testing.T) {
+	db, err := store.OpenInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := &App{phone: &app.Phone{}, emit: func(UIEvent) {}, quit: func() {}}
+	owner, err := control.NewOwner(controlledPhone{Phone: &agentPhone{db: db}, told: svc.dndChanged}, svc.approvalsChanged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc.owner = owner
+	done := make(chan struct{}, 2)
+	go func() {
+		for range 300 {
+			_ = svc.Subscribe()
+		}
+		done <- struct{}{}
+	}()
+	go func() {
+		for i := range 300 {
+			key := fmt.Sprintf("k-%d", i)
+			asked := owner.Handle(control.Request{SchemaVersion: 1, RequestID: "r", IdempotencyKey: &key,
+				Operation: control.Operation{Op: control.DNDSet, Enabled: i%2 == 0}}, 0)
+			if asked.OperationID != nil {
+				owner.Decide(*asked.OperationID, true)
+			}
+		}
+		done <- struct{}{}
+	}()
+	for range 2 {
+		select {
+		case <-done:
+		case <-time.After(20 * time.Second):
+			t.Fatal("the page and agent control wait for each other") // the owner is left as it is: closing it would wait too
+		}
+	}
+	owner.Close()
+}
+
 // A grant made in the window is a private file whose capability runs what it covers without a
 // prompt; the list, the revocation and the audit trail are what the page shows.
 func TestAGrantMadeInTheWindowIsAPrivateFile(t *testing.T) {

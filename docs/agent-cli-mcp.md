@@ -52,8 +52,9 @@ record after a confirmation.
 
 **Deny all and pause** in a prompt denies everything that waits and refuses new changes for five
 minutes, those a grant covers included. It does not stop what was already allowed: a read with a
-read grant still answers, and DTMF digits already being sent are finished. Revoke the grant to
-end those.
+read grant still answers, and DTMF digits already being sent are finished. Revoking the grant
+ends its reads and refuses its next changes; it does not stop digits already being sent, which
+end with their call: hang up to cut them short.
 
 Know the limits before granting:
 
