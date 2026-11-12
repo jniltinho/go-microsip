@@ -35,7 +35,12 @@ func (d *Desktop) serve() {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
 		var now string
-		if err := conn.BusObject().CallWithContext(ctx, "org.freedesktop.DBus.GetNameOwner", 0, dest).Store(&now); err != nil {
+		named := func() bool {
+			return conn.BusObject().CallWithContext(ctx, "org.freedesktop.DBus.GetNameOwner", 0, dest).Store(&now) == nil
+		}
+		// A service that left has no owner, and the bus starts it again only for a call made to
+		// the service itself: one is made, then the bus is asked again.
+		if !named() && (conn.Object(dest, path).CallWithContext(ctx, dest+".GetCapabilities", 0).Err != nil || !named()) {
 			return false
 		}
 		if now != owner {

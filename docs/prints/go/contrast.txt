@@ -196,3 +196,4 @@ matrix/unavailable: ok
 matrix/stopped: ok
 control/text-in-a-transparent-badge: BELOW AAA "1.00 \"Connected\"; 1.00 \"Muted\"; 1.00 \"Encrypted (SRTP)\"; 1.00 icon in \"Connected\"; 1.00 icon in \"Muted\"; 1.00 icon in \"Encrypted (SRTP)\""
 control/transparent-shapes: BELOW AAA "1.00 icon in \"Connected\"; 1.00 icon in \"Muted\"; 1.00 icon in \"Encrypted (SRTP)\""
+control/text-on-a-translucent-background: BELOW AAA "1.12 \"Connected\"; 1.12 \"Muted\"; 1.12 \"Encrypted (SRTP)\"; 1.12 icon in \"Connected\"; 1.12 icon in \"Muted\"; 1.12 icon in \"Encrypted (SRTP)\""

@@ -539,7 +539,8 @@ func TestARingingCallIsNotifiedAndItsButtonsDecide(t *testing.T) {
 	}
 	done := make(chan struct{})
 	go func() { defer close(done); svc.forward() }()
-	go svc.decide(board.actions)
+	decided := make(chan struct{})
+	go func() { defer close(decided); svc.decide(board.actions) }()
 	call := func(id domain.CallID, direction domain.Direction, phase domain.PhaseKind, version uint64) {
 		stream <- domain.CallChanged{Call: domain.CallSnapshot{ID: id, Direction: direction, Remote: "1002", Phase: domain.CallPhase{Kind: phase}, Version: version}}
 	}
@@ -556,6 +557,7 @@ func TestARingingCallIsNotifiedAndItsButtonsDecide(t *testing.T) {
 	close(stream)
 	<-done
 	close(board.actions)
+	<-decided // every button was acted on
 	if got, want := board.all(), []string{"incoming 2 1002", "close 2", "incoming 3 1002", "close 3"}; !slices.Equal(got, want) {
 		t.Errorf("the notifications asked for: %v, want %v", got, want)
 	}

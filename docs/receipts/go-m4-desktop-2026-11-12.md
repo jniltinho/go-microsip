@@ -1,6 +1,6 @@
 # M4 so far: links, bounded quit, the keyring (2026-11-12)
 
-Change `openspec/changes/migrate-to-go-wails`, section 6. Work in progress: no task of M4 is closed by this receipt alone, and each section says what is still open. Nothing here used a production account: the PBX is the disposable lab, the extensions and passwords are its fictional ones.
+Change `openspec/changes/migrate-to-go-wails`, section 6. Work in progress: each section says what its checks show and what is still open; "Status" at the end says which tasks are checked on this evidence. Nothing here used a production account: the PBX is the disposable lab, the extensions and passwords are its fictional ones.
 
 ## Task 6.1: single instance, links, bounded shutdown
 
@@ -22,17 +22,22 @@ Change `openspec/changes/migrate-to-go-wails`, section 6. Work in progress: no t
 | `TestAConditionalShutdownIsRefusedDuringACall` | pass: a quit nobody was asked about is the engine's to decide |
 | `make go-window-call`, subtest `quit during a call` | pass: the close button during a call asks; after the yes the process is gone (0.1 s with the lab PBX answering), the call ended and the account unregistered, and the PBX takes the same extension again |
 | `make go-window-call`, subtest `a termination signal during a call` | pass: the same without a question, on SIGTERM; the call's last event arrives while the window is leaving and does not hold it |
+| `make go-window-call`, subtest `quit with a PBX that stopped answering` | pass: the built window registers with and calls a PBX of the test's own (a SIP responder on the loopback), which then reads what it is sent and answers nothing more; the close button asks, and after the yes the whole process is gone in 4.0 s, within the five the engine's stop is bounded by, having sent the hang-up and the unregistration |
 | the lab scenarios `engine/shutdown/*` | pass in `make go-lab` |
 
-Open in 6.1:
+**The desktop's links.** By the owner's decision of 2026-11-12, the entry the application installs for its icon declares `x-scheme-handler/sip` and `x-scheme-handler/tel` and passes the link on (`%u`), as the AppImage's own entry does (`TestInstallDesktop` in `internal/gui`). That makes go-microsip a candidate for those links in the desktop's list of applications; it does not make it the default, which stays the user's choice in the desktop's settings. A link never calls by itself: the page asks.
 
-- The whole process against a PBX that does not answer is not driven (the engine is, in the unit tests above); the lab has no way to silence the PBX from inside the test.
-- Registering go-microsip as the desktop's handler for `sip:` and `tel:` needs the user's consent. The entry the application installs for its icon passes a link on and claims no type; the AppImage's own entry declares both. A setting for it is not built.
+Not covered in 6.1:
+
+- A link opened from another application of a real desktop (a browser, `xdg-open`): the lab starts the binary with the link as the desktop would, and does not go through a desktop's handler table.
 - On Wayland compositors that refuse focus stealing, a second start may not raise the window; the question is still there when the user gets to it. Not tested outside the lab's X display.
+- The native question shown when the page does not answer a quit, and a quit overlapping a termination signal, are not driven by a test.
 
 ## Task 6.2: the keyring
 
-A password typed in the settings is kept in the user's keyring and nowhere else; the database keeps a reference of the form `go-microsip/<random>`, which says nothing of the account. The next start reads it and registers by itself. A password the configuration provides (the environment, a private file) still comes first. A keyring that is locked or missing leaves the password for the session, with a warning on the standard error. One that does not answer in time may or may not have taken the password: the warning says the outcome is not known, the reference is recorded, and the next start finds the password or asks. An operation has one time limit of five seconds from before it connects, and sends nothing after it; the unlock prompt of the desktop is never started from here, as in the Rust candidate.
+A password typed in the settings is kept in the user's keyring and nowhere else; the database keeps a reference of the form `go-microsip/<random>`, which says nothing of the account. The next start reads it and registers by itself. A password the configuration provides (the environment, a private file) still comes first. A keyring that is locked or missing leaves the password for the session, with a warning on the standard error. One that does not answer in time may or may not have taken the password: the warning says the outcome is not known, the reference is recorded, and the next start finds the password or asks. An operation has one time limit of five seconds from before it connects, and starts no call after it; a call already sent is the keyring's to finish. For that, every password typed is written under a reference of its own, and the entry of the one before is removed once the database names the new one: a write the keyring finishes late replaces nothing, and is left as an entry nothing names. The unlock prompt of the desktop is never started from here, as in the Rust candidate.
+
+By the owner's decision of 2026-11-12 there is no encrypted copy of the password in the database for a desktop without a keyring: there the password is typed once per session, or provided by the configuration (the environment, a private file).
 
 - Linux: the freedesktop Secret Service on the session bus (`internal/platform/keyring`), items of the default collection with the attributes `application = go-microsip` and `account = <reference>`, a "plain" session, every operation bounded by five seconds, connecting to the bus included.
 - Windows: generic credentials of the Credential Manager, named `go-microsip:<reference>`.
@@ -42,7 +47,8 @@ A password typed in the settings is kept in the user's keyring and nowhere else;
 | --- | --- |
 | `make go-keyring` | pass: against GNOME Keyring on a private session bus, unlocked with a throwaway password: store, read, replace, another reference, delete, invalid references; then the collection is locked and reading and storing answer "locked" with the keyring's prompt dismissed; then a session bus with no Secret Service and a session with no bus answer "no keyring", and no error repeats a password; then a bus that accepts the connection and never answers lets the caller go after 5.0 s |
 | `TestThePasswordKeptIsTheOneOfTheLastRegistration` (`internal/core/app`) | pass: with the first registration's keyring write held back, the second waits, and its password is the one kept |
-| `TestAnOperationGivenUpOnFindsItsTimeOver` (`internal/platform/keyring`), `TestAKeyringThatAnswersLateLeavesNothingAstray` (`internal/core/app`) | pass: an operation the caller gave up on finds its time over, so it sends nothing more; a write whose outcome is not known is said so, its reference is recorded, and the next start registers if the keyring took it and asks if it did not |
+| `TestAnOperationGivenUpOnFindsItsTimeOver` (`internal/platform/keyring`), `TestAKeyringThatAnswersLateLeavesNothingAstray` (`internal/core/app`) | pass: an operation the caller gave up on finds its time over, so it starts no further call; a write whose outcome is not known is said so, its reference is recorded, and the next start registers if the keyring took it and asks if it did not |
+| `TestAWriteThatLandsLateDoesNotReplaceTheLaterPassword` (`internal/core/app`) | pass: the first password's write is given up on and done by the keyring only after the second password's; the next start reads the second |
 | `TestATypedPasswordIsKeptInTheKeyringForTheNextStart` (`internal/core/app`) | pass: the typed password registers, is the one entry of the keyring under a reference without the account, is in no file of the profile, registers by itself at the next start, is replaced by the next one typed; without a keyring it lives for the session and the next start asks again |
 | `make go-window-call`, subtest `the password is remembered` | pass: in the built window, with no password configured, the password is typed in the settings, the account registers; no file of the profile (database, its journal, configuration, the window's trace and output) holds the password; the next start registers by itself |
 
@@ -52,12 +58,18 @@ A password typed in the settings is kept in the user's keyring and nowhere else;
 
 | Check | Result |
 | --- | --- |
-| `make go-notify` | pass: the test is the notification service of a private session bus: the text and the buttons asked for, both buttons back as actions of their call, a button of another notification, a button never offered and a button "pressed" by another process of the session ignored, a call that rings on replaces its notification, Close closes once; then a bus without a service and a session without a bus: nothing shown, nothing blocked |
+| `make go-notify` | pass: the test is the notification service of a private session bus: the text and the buttons asked for, both buttons back as actions of their call, a button of another notification, a button never offered and a button "pressed" by another process of the session ignored, a call that rings on replaces its notification, Close closes once; then a service that left: the bus starts it again for the next call, which it shows; then a bus without a service and a session without a bus: nothing shown, nothing blocked |
 | `TestCallerTextIsPlain` (`internal/platform/notify`) | pass |
 | `TestARingingCallIsNotifiedAndItsButtonsDecide` (`internal/gui`) | pass: only a call that rings here is notified, once; it is closed when answered or over; Answer and Reject reach the engine for that call |
 | `make go-window-call` | pass: the lab test is the notification service of its session; the second incoming call arrives with the window minimized, the notification names the caller and offers the two buttons, and Reject pressed there refuses the call (the caller is told) |
 
-Open in 6.2: the tray on a desktop that has one (the owner's report in the tray receipt); the keyring and the notifications on a real desktop (KWallet, GNOME Keyring, the desktop's own notification service) and a locked keyring there; a way for the user to forget the stored password; notifications on Windows (task 6.3).
+**The tray.** The tray icon, its menu (Show, the last five calls, Quit) and the close button that hides to it are in [the tray receipt](go-tray-and-route-2026-11-12.md). The lab now has a tray host of its own:
+
+| Check | Result |
+| --- | --- |
+| `make go-window-call`, subtest `the tray` | pass: the test is the session's `org.kde.StatusNotifierWatcher`, so the built window registers its tray item with it. The item's menu, read over the bus, holds "Show go-microsip" and Quit, and after a call to 600 also "↗ 600"; the close button hides the window, the process stays and the account stays registered; activating the item shows the window again; with the window hidden, choosing the call in the menu shows it and calls 600; Quit in the menu unregisters and ends the process. The other subtests run on a session without a tray host, where the close button during a call asks before it quits |
+
+Not covered in 6.2: the keyring, the notifications and the tray on a real desktop beyond the owner's use of the tray on KDE (KWallet, GNOME Keyring, the desktop's own notification service, a locked keyring there); a way for the user to forget the stored password; notifications on Windows (task 6.3).
 
 ## Task 6.3: Windows, as far as the VM shows
 
@@ -67,6 +79,17 @@ Open in 6.2: the tray on a desktop that has one (the owner's report in the tray 
 - With the lock and the address fixed, the window on Windows opens its database: the seven-skin run there requires it, and its pictures show an empty history where the earlier ones showed "the database is not available" ([`docs/prints/go/windows/`](../prints/go/windows/)).
 
 Open in 6.3: notifications, the tray and link registration on Windows; the sound on real hardware (the VM's emulated card fails the threshold); the call walkthrough of the `.exe`; that credentials survive removing the application folder (they are in the Credential Manager, outside it, which is not the same as having tried).
+
+## Status
+
+42 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 1 of 7.
+
+- **6.1 is checked** on the lab evidence above: a second start with a link, the exit during a call (asked for, and on a termination signal) and a PBX that stopped answering, each with the built window. What "Not covered in 6.1" lists is left to the manual checklist of task 7.2.
+- **6.2 is not checked.** Each service is driven with and without it, and no password reaches a file or the database, but in the lab container: GNOME Keyring on a private bus, and the test itself as the notification service and as the tray host. On a real desktop there is the owner's report of the tray on KDE and nothing recorded for the keyring and the notifications.
+- **6.3 is not checked**: see "Open in 6.3".
+- 6.4 to 6.7 are not started.
+
+Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). A review is not call evidence.
 
 ## Runs
 

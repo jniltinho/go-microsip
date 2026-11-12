@@ -43,8 +43,8 @@ type link struct {
 
 // open connects to the session bus, for an operation whose time is ctx's. The connection is the
 // process's shared one and is not closed. Every call of the operation is made with ctx, and the
-// bus library sends nothing for a context that is over: an operation that outlives its time can
-// no longer write.
+// bus library starts no call for a context that is over. A call already sent is the keyring's to
+// finish, whenever it does: callers give every password an entry of its own for that.
 func open(ctx context.Context) (*link, error) {
 	conn, err := dbus.SessionBus()
 	if err != nil {

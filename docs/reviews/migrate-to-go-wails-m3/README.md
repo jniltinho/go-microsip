@@ -11,6 +11,7 @@ The scope is wider than the skins: the tray, the close button and the local addr
 | 3 | `9792f85` | UNSOUND: N1 to N10 resolved (N3 as a recorded limit); 3 new major, 6 new minor | [codex-round3.md](codex-round3.md) |
 | 4 | `4a5bd14` | UNSOUND for M3 and for the M4 work: round 3's nine resolved (8 in part, on purpose; 9 in part); 4 new major, 3 new minor | [codex-round4.md](codex-round4.md) |
 | 5 | `5b04681` | **M3: SOUND WITH CHANGES** (one minor finding). M4 work: UNSOUND (1 major, 2 minor). Round 4's seven resolved, the third in part | [codex-round5.md](codex-round5.md) |
+| 6 | `706f438` | **M3: SOUND WITH CHANGES** (one minor finding). **M4 work: SOUND WITH CHANGES** (two minor findings). Round 5's four resolved, the first in part | [codex-round6.md](codex-round6.md) |
 
 ## What was done about round 1
 
@@ -59,7 +60,7 @@ The report re-graded two of its round-2 findings as minor (the DNS limit of N3, 
 | 5 | After Cancel the lab test slept and then looked at stale state | Fixed. `watch` reads everything the window reports for the interval and fails on any new call; used after Cancel and after the refused link. |
 | 6 | An icon whose shapes are transparent passed the state check | Fixed. The state check requires a shape that is drawn, and the contrast audit weighs an icon by its most visible shape. Two more controls: nine in all. |
 | 7 | `RGB(...)` in capitals passed the literal-color test | Fixed, with a fixture. |
-| 8 | The desktop entry the application installs for itself passes no link and declares no type | Fixed in part, on purpose. The entry now passes a link on (`%u`). It still claims no `sip:` or `tel:` handling: that makes go-microsip a candidate for the desktop's links without the user having asked, which the Rust candidate did only with consent. The AppImage's own entry declares the types. A setting that registers the handler with consent is open under task 6.1. |
+| 8 | The desktop entry the application installs for itself passes no link and declares no type | Fixed in part, on purpose. The entry now passes a link on (`%u`). It still claims no `sip:` or `tel:` handling: that makes go-microsip a candidate for the desktop's links without the user having asked, which the Rust candidate did only with consent. The AppImage's own entry declares the types. A setting that registers the handler with consent is open under task 6.1. Later, on 2026-11-12, the owner decided that the entry declares both types (the M4 receipt, task 6.1); go-microsip is then a candidate for the desktop's links, and the page still asks before it calls. |
 | 9 | Receipts mixed revisions: a packaged log older than the harness it was quoted for, and a request log from before the Ubuntu skin drew in Inter | Fixed. The request log is produced by `frontend/scripts/network-log.sh` and was run again at this state; the packaged run in the M3 receipt is the one of the final artifact, driven by the harness of the same commit; the tray receipt points to it and keeps its first run as history. |
 
 ## What was done about round 4
@@ -86,3 +87,16 @@ Round 5 is the first that finds milestone M3's work and its evidence sound, with
 | 2 | M4, minor | A button of a call's notification was taken from any sender on the bus | Fixed. A button counts only from the bus name that owns the notification service, asked before each request; a service that was replaced does not know the earlier notifications. `make go-notify` has another connection of the session "press" a real notification's Answer: nothing happens. |
 | 3 | M4, minor | The event forwarder still asked the toolkit to quit and waited for its main loop | Fixed. Quitting is asked from a goroutine of its own. The overlap the report describes (a quit already on its way when a termination signal ends the loop) is not driven by a test. |
 | 4 | M3, minor | A foreground color that is itself transparent passed the contrast and ring audits | Fixed. The color's own alpha counts in what is drawn (icons already brought theirs). One more control, a ring of a transparent color: eleven. |
+
+## What was done about round 6
+
+Round 6 finds both the M3 work and the M4 work in the extract sound, with three minor changes. They were made after the report; no round has reviewed them.
+
+| # | For | Finding | Response |
+| --- | --- | --- | --- |
+| 1 | M4, minor | A keyring write already sent when its time ran out can be finished by the keyring after a later write of the same entry, and replace the later password; the receipt said more than the code and its tests establish | Fixed, and the claims narrowed. Every password typed is written under a reference of its own; the database then names it and the entry of the one before is removed. A write the keyring finishes late lands on an entry nothing names and replaces nothing (`TestAWriteThatLandsLateDoesNotReplaceTheLaterPassword`: the first write, given up on, is done after the second; the next start reads the second). What is left in that case is that entry, with the earlier password, which the application cannot see to remove. The receipt and the code no longer say that nothing is sent after the time limit: no call is started after it. With a reference of its own per password, a timed-out write that never took effect leaves no older password to try: the next start asks. |
+| 2 | M4, minor | Once connected, a notification service that had left was never started again: the check of who owns its name is a call to the bus, which starts nothing | Fixed. When nobody owns the name, a call is made to the service itself, which lets the bus start it, and the owner is asked for again; all within the one time limit. `make go-notify` has a bus that can start the service: the test shows the first call, gives the name up, and the second call is shown by the service the bus starts (`TestANotificationServiceThatLeftIsStartedAgain`). |
+| 3 | M3, minor | A translucent background was compared as if it were opaque, so white text on a faint dark wash over white passed at 21:1 | Fixed. `contrast.js` draws the translucent colors it meets over the first opaque one, the nearest last, before it compares. One more control, a text on a translucent background: twelve. A gradient still ends the search with its stops as they are (noted in the code); no shipped skin has a translucent gradient. The whole matrix was run again with the change. |
+
+The report's notes on the receipts were followed: the M4 receipt's wording on the time limit and on the next start, and the M3 receipt's on transparency.
+

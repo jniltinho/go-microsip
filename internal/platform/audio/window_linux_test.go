@@ -3,10 +3,12 @@ package audio
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,10 +16,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/emiago/sipgo"
+	gosip "github.com/emiago/sipgo/sip"
 	"github.com/godbus/dbus/v5"
 )
 
@@ -480,6 +485,8 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("quit during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"], false) })
 	t.Run("a termination signal during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"], true) })
 	t.Run("the password is remembered", func(t *testing.T) { passwordIsRemembered(t, bin, server, passwords["1002"]) })
+	t.Run("quit with a PBX that stopped answering", func(t *testing.T) { quitWithASilentPBX(t, bin) })
+	t.Run("the tray", func(t *testing.T) { theTray(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
 	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
@@ -494,6 +501,348 @@ func TestCallThroughTheWindow(t *testing.T) {
 				windowAtScale(t, bin, server, passwords["1002"], skin, desktop.name, append(desktop.env, "GO_MICROSIP_UI_THEME="+skin))
 			})
 		}
+	}
+}
+
+// silentPBX is a PBX of the test's own on the loopback (TCP): it registers anyone and answers every
+// call, until it is told to fall silent; from then on it reads requests and answers none, like a
+// PBX that hangs or a network that drops what comes back.
+type silentPBX struct {
+	port            int
+	silent          atomic.Bool
+	byes            atomic.Int32
+	unregistrations atomic.Int32
+}
+
+func startSilentPBX(t *testing.T) *silentPBX {
+	t.Helper()
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := probe.Addr().String()
+	p := &silentPBX{port: probe.Addr().(*net.TCPAddr).Port}
+	probe.Close()
+	sink, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)}) // where the softphone's audio goes
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for buf := make([]byte, 2048); ; {
+			if _, err := sink.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+	ua, err := sipgo.NewUA()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := sipgo.NewServer(ua)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.OnRegister(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		if h := req.GetHeader("Expires"); h != nil && h.Value() == "0" {
+			p.unregistrations.Add(1)
+		}
+		if p.silent.Load() {
+			return
+		}
+		res := gosip.NewResponseFromRequest(req, 200, "OK", nil)
+		res.AppendHeader(gosip.NewHeader("Expires", "60"))
+		_ = tx.Respond(res)
+	})
+	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		if p.silent.Load() {
+			return
+		}
+		sdp := fmt.Sprintf("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\n"+
+			"m=audio %d RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=sendrecv\r\n",
+			sink.LocalAddr().(*net.UDPAddr).Port)
+		res := gosip.NewResponseFromRequest(req, 200, "OK", []byte(sdp))
+		res.AppendHeader(gosip.NewHeader("Content-Type", "application/sdp"))
+		res.AppendHeader(gosip.NewHeader("Contact", fmt.Sprintf("<sip:pbx@127.0.0.1:%d;transport=tcp>", p.port)))
+		_ = tx.Respond(res)
+	})
+	srv.OnAck(func(*gosip.Request, gosip.ServerTransaction) {})
+	srv.OnBye(func(req *gosip.Request, tx gosip.ServerTransaction) {
+		p.byes.Add(1)
+		if p.silent.Load() {
+			return
+		}
+		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel(); _ = ua.Close(); _ = sink.Close() })
+	ready := make(chan struct{})
+	go func() {
+		_ = srv.ListenAndServe(context.WithValue(ctx, sipgo.ListenReadyCtxKey, sipgo.ListenReadyCtxValue(ready)), "tcp", addr)
+	}()
+	select {
+	case <-ready:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the test's PBX did not start")
+	}
+	return p
+}
+
+// Quitting during a call when the PBX answers nothing any more (desktop-app: "Quit during a call
+// ... even if the PBX does not answer"): the whole process, window included, is gone within the
+// engine's bound of five seconds, having sent the hang-up and the unregistration.
+func quitWithASilentPBX(t *testing.T, bin string) {
+	pbx := startSilentPBX(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = \"127.0.0.1\"\nport = %d\ntransport = \"tcp\"\n", pbx.port)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	_, exited := softphone(t, bin, dir, "fictional-password", "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "registration at the test's PBX", func() bool { return w.registered == "registered" })
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	w.keys("ctrl+l", "6", "0", "0", "Return")
+	w.until(30*time.Second, "the call connected", func() bool { return w.call.Phase == "established" && w.shows("Connected", "600") })
+	pbx.silent.Store(true)
+	w.keys("alt+F4")
+	w.until(10*time.Second, "the question before quitting", func() bool { return w.shows("Hang up and quit?") })
+	asked := time.Now()
+	w.click("Hang up and quit")
+	select {
+	case <-exited:
+	case <-time.After(8 * time.Second):
+		t.Fatal("the window was still there 8 s after the yes, with a PBX that answers nothing: the bound is 5 s")
+	}
+	took := time.Since(asked)
+	t.Logf("gone %v after the yes, with a PBX that answers nothing", took.Round(10*time.Millisecond))
+	if took > 6*time.Second {
+		t.Errorf("the process took %v to end, over the engine's bound of 5 s", took.Round(10*time.Millisecond))
+	}
+	if !w.unregistered(5 * time.Second) {
+		t.Error("the engine did not report itself stopped")
+	}
+	if w.call.Phase != "ended" || w.registered != "disabled" {
+		t.Errorf("at the end the call was %q and the registration %q, want ended and disabled", w.call.Phase, w.registered)
+	}
+	if pbx.byes.Load() == 0 || pbx.unregistrations.Load() == 0 {
+		t.Errorf("the silent PBX received %d hang-ups and %d unregistrations: both are sent although nothing answers", pbx.byes.Load(), pbx.unregistrations.Load())
+	}
+}
+
+// trayHost stands in for a desktop that shows tray icons: it is the StatusNotifierWatcher of the
+// lab's session for as long as the test that made it runs, and it talks to the softphone's tray
+// item as a panel would.
+type trayHost struct {
+	conn *dbus.Conn
+	mu   sync.Mutex
+	item string // the bus name of the softphone's tray item, once it registered
+}
+
+const (
+	watcherName = "org.kde.StatusNotifierWatcher"
+	trayItem    = "/StatusNotifierItem"
+	trayMenu    = "/StatusNotifierMenu"
+)
+
+// RegisterStatusNotifierItem is the watcher's method an application calls with its item.
+func (h *trayHost) RegisterStatusNotifierItem(service string, sender dbus.Sender) *dbus.Error {
+	h.mu.Lock()
+	h.item = string(sender)
+	h.mu.Unlock()
+	return nil
+}
+
+func serveTrayHost(t *testing.T) *trayHost {
+	t.Helper()
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() }) // the session has no tray host again
+	h := &trayHost{conn: conn}
+	if err := conn.Export(h, "/StatusNotifierWatcher", watcherName); err != nil {
+		t.Fatal(err)
+	}
+	if reply, err := conn.RequestName(watcherName, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("the test could not be the tray host of the lab's session: %v %v", reply, err)
+	}
+	return h
+}
+
+// registered waits for the softphone's tray item and returns its bus name.
+func (h *trayHost) registered(t *testing.T) string {
+	t.Helper()
+	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+		h.mu.Lock()
+		item := h.item
+		h.mu.Unlock()
+		if item != "" {
+			return item
+		}
+	}
+	t.Fatal("the softphone did not register a tray item with the tray host")
+	return ""
+}
+
+// menu reads the tray menu as a panel does: the labels in order ("-" for a separator), and the id
+// of each.
+func (h *trayHost) menu(t *testing.T, item string) (labels []string, ids map[string]int32) {
+	t.Helper()
+	var revision uint32
+	var layout struct {
+		ID       int32
+		Props    map[string]dbus.Variant
+		Children []dbus.Variant
+	}
+	err := h.conn.Object(item, trayMenu).Call("com.canonical.dbusmenu.GetLayout", 0, int32(0), int32(-1), []string{}).Store(&revision, &layout)
+	if err != nil {
+		t.Fatalf("reading the tray menu: %v", err)
+	}
+	ids = map[string]int32{}
+	for _, child := range layout.Children {
+		fields, ok := child.Value().([]interface{})
+		if !ok || len(fields) < 2 {
+			t.Fatalf("a tray menu entry of an unexpected shape: %v", child)
+		}
+		id, _ := fields[0].(int32)
+		props, _ := fields[1].(map[string]dbus.Variant)
+		label := "-"
+		if kind, _ := props["type"].Value().(string); kind != "separator" {
+			label, _ = props["label"].Value().(string)
+		}
+		labels = append(labels, label)
+		ids[label] = id
+	}
+	return labels, ids
+}
+
+// choose clicks a menu entry, as a panel does.
+func (h *trayHost) choose(t *testing.T, item string, id int32) {
+	t.Helper()
+	if err := h.conn.Object(item, trayMenu).Call("com.canonical.dbusmenu.Event", 0, id, "clicked", dbus.MakeVariant(""), uint32(0)).Err; err != nil {
+		t.Fatalf("choosing a tray menu entry: %v", err)
+	}
+}
+
+// activate is a click on the tray icon.
+func (h *trayHost) activate(t *testing.T, item string) {
+	t.Helper()
+	if err := h.conn.Object(item, trayItem).Call("org.kde.StatusNotifierItem.Activate", 0, int32(0), int32(0)).Err; err != nil {
+		t.Fatalf("clicking the tray icon: %v", err)
+	}
+}
+
+// The tray, on a desktop that shows tray icons (the test is its tray host): the softphone
+// registers its icon; the close button hides the window and nothing quits; a click on the icon
+// brings it back; the menu lists the window, the latest calls and Quit; choosing a call from it
+// calls the number again; Quit quits, unregistering.
+func theTray(t *testing.T, bin, server, password string) {
+	host := serveTrayHost(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered") })
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	inSight := func() bool {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		return slices.Contains(strings.Fields(string(out)), w.id)
+	}
+	gone := func() bool {
+		select {
+		case <-exited:
+			return true
+		default:
+			return false
+		}
+	}
+	item := host.registered(t)
+
+	// The menu before any call: the window and Quit.
+	if labels, _ := host.menu(t, item); !slices.Equal(labels, []string{"Show go-microsip", "-", "Quit"}) {
+		t.Errorf("the tray menu before any call: %q", labels)
+	}
+	// A call is placed and hung up: the menu lists it.
+	w.keys("ctrl+l", "6", "0", "0", "Return")
+	w.until(30*time.Second, "the call connected", func() bool { return w.call.Phase == "established" })
+	first := w.call.ID
+	w.keys("Escape")
+	w.until(10*time.Second, "the call ended", func() bool { return w.call.Phase == "ended" && shownPhase(w.page.Text) == "" })
+	const recent = "\u2197 600"
+	var ids map[string]int32
+	w.until(10*time.Second, "the call in the tray menu", func() bool {
+		var labels []string
+		labels, ids = host.menu(t, item)
+		return slices.Equal(labels, []string{"Show go-microsip", recent, "-", "Quit"})
+	})
+
+	// The close button hides the window: nothing quits, the account stays registered.
+	w.keys("alt+F4")
+	for deadline := time.Now().Add(5 * time.Second); inSight(); time.Sleep(100 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the window is still in sight after its close button, on a desktop with a tray")
+		}
+	}
+	if w.watch(2*time.Second, func() bool { return gone() || w.registered != "registered" || w.shows("Hang up and quit?") }) {
+		t.Fatalf("after the close button on a desktop with a tray: process gone %v, registration %q", gone(), w.registered)
+	}
+	// A click on the icon brings it back.
+	host.activate(t, item)
+	for deadline := time.Now().Add(5 * time.Second); !inSight(); time.Sleep(100 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the window did not come back after a click on its tray icon")
+		}
+	}
+	// Hidden again, a call chosen from the menu shows the window and calls that number.
+	w.xdotool("windowactivate", "--sync", w.id)
+	w.keys("alt+F4")
+	for deadline := time.Now().Add(5 * time.Second); inSight(); time.Sleep(100 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the window is still in sight after its close button")
+		}
+	}
+	host.choose(t, item, ids[recent])
+	w.until(30*time.Second, "the call chosen from the tray connected", func() bool {
+		return w.call.ID != first && w.call.Phase == "established" && w.call.Remote == "600"
+	})
+	if !inSight() {
+		t.Error("the window is not in sight for the call chosen from the tray")
+	}
+	w.keys("Escape")
+	w.until(10*time.Second, "the second call ended", func() bool { return w.call.Phase == "ended" && shownPhase(w.page.Text) == "" })
+
+	// Quit from the menu: no call, so nothing is asked; the account unregisters and the process ends.
+	_, ids = host.menu(t, item)
+	host.choose(t, item, ids["Quit"])
+	select {
+	case <-exited:
+	case <-time.After(15 * time.Second):
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		t.Fatal("the softphone did not quit from its tray menu")
+	}
+	if !w.unregistered(15 * time.Second) {
+		t.Error("the softphone did not unregister after Quit from its tray menu")
 	}
 }
 

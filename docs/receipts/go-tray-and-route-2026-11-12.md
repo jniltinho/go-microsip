@@ -40,7 +40,9 @@ Evidence:
 - `make go-appimage-call`: the first version of the close button through the AppImage of commit `a24194c` ([log](go-tray/appimage-call.log)). The run of the reviewed behavior (the minimized window, the third registration) through an AppImage is the one named in [the M3 receipt](go-m3-skins-2026-11-12.md), with its commit.
 - `make go-check`, `make go-frontend-test`.
 
-**Not verified**: the icon, its menu and hiding to the tray on a desktop that has a tray host (KDE, GNOME with the AppIndicator extension) and on Windows, beyond the owner's report below; the native dialog of a page that does not answer (no test drives it). The lab cannot show a tray; it is for the owner's desktop and for tasks 6.2 and 6.3. The latest calls in the tray's menu are tested as a list (`Phone.Recent`, in `TestPhoneRegistersJournalsAndCloses`); the menu itself, and a choice from it, are not driven by a test.
+**Driven in the lab since** (`make go-window-call`, subtest `the tray`): the test is the session's tray host (`org.kde.StatusNotifierWatcher`), so the built window registers its item with it. The menu read over the bus, the call listed after it was made, the close button hiding the window with the account still registered, a click on the item showing it again, a call chosen from the menu, and Quit from the menu are in [the M4 receipt](go-m4-desktop-2026-11-12.md). That is the application's side of the tray protocol, not a desktop's drawing of it.
+
+**Not verified**: the icon and its menu as a desktop draws them (KDE, GNOME with the AppIndicator extension) and on Windows, beyond the owner's report below; the native dialog of a page that does not answer (no test drives it).
 
 ## The owner's desktop (2026-11-12)
 

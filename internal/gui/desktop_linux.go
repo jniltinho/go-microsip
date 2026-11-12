@@ -92,10 +92,11 @@ func writeAtomic(path string, b []byte) error {
 
 // desktopText is the entry for exe, or false for a path that would need escaping in Exec.
 //
-// The entry passes a link on to the application (%u), so "open with go-microsip" works, but it
-// claims no sip: or tel: handling: becoming a candidate for the desktop's links changes what the
-// user's other applications receive, and the Rust candidate did that only with the user's consent.
-// The AppImage's own entry (build/linux) declares the types: integrating it is the user's act.
+// The entry passes a link on to the application (%u) and declares that it handles sip: and tel:
+// links (the owner's decision of 2026-11-12), as the AppImage's own entry (build/linux) does. It
+// makes go-microsip a candidate for the desktop's links; which application is the default for
+// them stays the desktop's setting, which nothing here changes. A link never dials by itself: the
+// window asks first.
 func desktopText(exe string) (string, bool) {
 	if !strings.HasPrefix(exe, "/") || strings.ContainsFunc(exe, func(r rune) bool {
 		return unicode.IsControl(r) || strings.ContainsRune("\"`$\\%=", r)
@@ -104,6 +105,7 @@ func desktopText(exe string) (string, bool) {
 	}
 	return "[Desktop Entry]\nType=Application\nName=go-microsip\nGenericName=SIP Softphone\n" +
 		"Comment=Compact SIP softphone\nExec=\"" + exe + "\" %u\nIcon=" + windowIconName + "\n" +
-		"Terminal=false\nCategories=Network;Telephony;\nStartupWMClass=" + appID + "\n" +
+		"Terminal=false\nCategories=Network;Telephony;\nMimeType=x-scheme-handler/sip;x-scheme-handler/tel;\n" +
+		"StartupWMClass=" + appID + "\n" +
 		desktopMarker + "\n", true
 }

@@ -1,6 +1,6 @@
 // Contrast audit of the page as drawn (WCAG AAA), evaluated in the browser by prints.sh on every
 // screen: each visible text, field value and placeholder against the nearest painted background
-// (every stop of a gradient) at 7:1; each icon, and the edge of each button, key, call control,
+// (every stop of a gradient; a translucent color over what is under it) at 7:1; each icon, and the edge of each button, key, call control,
 // field, check box and radio (its border, an opaque line of its bevel or its face) against what it
 // stands on, at 3:1, each as it ends up drawn: at the opacity of the element and of everything it
 // is inside of. Returns what
@@ -21,17 +21,25 @@
     return (hi + 0.05) / (lo + 0.05);
   };
   const backgrounds = (el) => {
+    // A background that lets through what is under it is drawn over it: the colors met on the
+    // way to an opaque one, the nearest last.
+    const layers = [];
+    const drawn = (bases) =>
+      bases.map((base) => layers.reduceRight((bg, c) => over(c, bg, 1), base));
     for (let e = el; e; e = e.parentElement) {
       const style = getComputedStyle(e);
       const color = parse(style.backgroundColor);
-      // Layers: every opaque stop, and the color under them when there is one.
+      // Layers: every stop, and the color under them when there is one.
+      // shortcut: a gradient ends the search, its stops taken as they are; composite a
+      // translucent stop over what is under it when a skin has one.
       if (style.backgroundImage !== "none") {
         const stops = (style.backgroundImage.match(/rgba?\([^)]+\)/g) ?? []).map(parse);
-        return [...stops, color].filter((c) => c && c.a > 0);
+        return drawn([...stops, color].filter((c) => c && c.a > 0));
       }
-      if (color && color.a > 0) return [color];
+      if (color && color.a === 1) return drawn([color]);
+      if (color && color.a > 0) layers.push(color);
     }
-    return [{ r: 255, g: 255, b: 255, a: 1 }];
+    return drawn([{ r: 255, g: 255, b: 255, a: 1 }]);
   };
   // What is drawn is what the element's color becomes over its background at the opacity the
   // element ends up with: its own and that of everything it is inside of.

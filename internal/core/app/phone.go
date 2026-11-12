@@ -217,25 +217,26 @@ func (p *Phone) kept() domain.Secret {
 // keep stores a typed password in the keyring and its reference in the database, so the account
 // registers by itself at the next start. The password goes nowhere else. Without a keyring, or
 // with one that does not take it, the password lives for this session, and the warning says so.
+//
+// Every password gets a reference of its own, and the one before is removed once the database
+// names the new one. A write the keyring finishes late, after it was given up on, then lands on
+// an entry nothing names, never on a password typed after it.
 func (p *Phone) keep(secret domain.Secret) {
 	s := p.journal.store
 	if s == nil || p.o.Secrets == nil {
 		return
 	}
-	ref, err := s.SecretRef()
+	before, err := s.SecretRef()
 	if err != nil {
 		p.o.warn("the password is kept for this session only: " + err.Error())
 		return
 	}
-	fresh := ref == ""
-	if fresh {
-		id := make([]byte, 16)
-		if _, err := rand.Read(id); err != nil {
-			p.o.warn("the password is kept for this session only: " + err.Error())
-			return
-		}
-		ref = "go-microsip/" + hex.EncodeToString(id) // not a secret, and says nothing of the account
+	id := make([]byte, 16)
+	if _, err := rand.Read(id); err != nil {
+		p.o.warn("the password is kept for this session only: " + err.Error())
+		return
 	}
+	ref := "go-microsip/" + hex.EncodeToString(id) // not a secret, and says nothing of the account
 	switch err := p.o.Secrets.Set(ref, secret.Reveal()); {
 	case errors.Is(err, ports.ErrSecretsTimeout):
 		// The request may have reached the keyring. Its reference is recorded all the same: the
@@ -245,12 +246,16 @@ func (p *Phone) keep(secret domain.Secret) {
 		p.o.warn("the password is kept for this session only: " + err.Error())
 		return
 	}
-	if !fresh {
-		return
-	}
 	if err := s.SetSecretRef(ref); err != nil {
 		p.o.warn("the password is kept for this session only: " + err.Error())
 		_ = p.o.Secrets.Delete(ref) // nothing names it
+		return
+	}
+	if before == "" {
+		return
+	}
+	if err := p.o.Secrets.Delete(before); err != nil {
+		p.o.warn("the password used before was not removed from the keyring: " + err.Error())
 	}
 }
 

@@ -5,10 +5,10 @@
 # an icon in sight beside the state's label (a state is never told by color alone), and the main
 # screens of each skin for the ring of every control that takes the keyboard's focus (focus.js).
 # The results go to <output directory>/contrast.txt, states.txt and focus.txt, and any failure
-# makes the run fail. The run ends with eleven controls (a ring taken away on a call and in the menu,
+# makes the run fail. The run ends with twelve controls (a ring taken away on a call and in the menu,
 # a ring on a transparent control, a ring of a transparent color, an audit pointed at another screen, an icon hidden, an icon and
 # a text in a transparent badge, an icon whose stroke is transparent, an icon whose shapes are
-# transparent, in the state check and in the contrast audit): each must be reported, or the
+# transparent, in the state check and in the contrast audit, a text on a translucent background): each must be reported, or the
 # audits prove nothing. Run from the repository root with the dev server up (see
 # docs/ui/go-frontend.md):
 #   frontend/scripts/prints.sh [base URL] [output directory] [skins...]
@@ -272,6 +272,14 @@ if printf '%s' "$low" | grep -q 'icon in'; then
 else
 	echo "prints: CONTROL FAILED: the contrast of an icon with transparent shapes was not reported"
 fi
-echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label, $(grep -c 'controls show a ring' "$out/focus.txt") screens show a ring on every control, $controls of 11 controls caught)"
-[ "$controls" -eq 11 ] && ! grep -v '^control/' "$out/contrast.txt" | grep -q BELOW && ! grep -v '^control/' "$out/states.txt" | grep -q "NO ICON" &&
+fault muted '.badge { background: rgba(0, 0, 0, 0.05); color: rgb(255, 255, 255) } :has(> .badge) { background: rgb(255, 255, 255) }'
+low=$(abo eval "$audit")
+if printf '%s' "$low" | grep -q '[0-9] \\"Muted'; then # the text, not its icon
+	controls=$((controls + 1))
+	echo "control/text-on-a-translucent-background: BELOW AAA $low" >>"$out/contrast.txt"
+else
+	echo "prints: CONTROL FAILED: text on a translucent background was not reported"
+fi
+echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label, $(grep -c 'controls show a ring' "$out/focus.txt") screens show a ring on every control, $controls of 12 controls caught)"
+[ "$controls" -eq 12 ] && ! grep -v '^control/' "$out/contrast.txt" | grep -q BELOW && ! grep -v '^control/' "$out/states.txt" | grep -q "NO ICON" &&
 	! grep -v '^control/' "$out/focus.txt" | grep -q "RING"

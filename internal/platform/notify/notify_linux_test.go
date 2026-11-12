@@ -179,3 +179,72 @@ func TestNoNotificationServiceIsQuiet(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 	}
 }
+
+// A notification service that left is started again by the bus for the next call: the first
+// call is shown by the test, which then gives the name up; the second by the service the bus
+// starts (TestTheActivatedNotificationService, from the service file of build/qa/notify.sh).
+func TestANotificationServiceThatLeftIsStartedAgain(t *testing.T) {
+	if os.Getenv("GO_MICROSIP_NOTIFY_TEST") != "activation" {
+		t.Skip("set GO_MICROSIP_NOTIFY_TEST=activation on a bus that can start the service (make go-notify)")
+	}
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fake := &service{conn: conn}
+	if err := conn.Export(fake, path, dest); err != nil {
+		t.Fatal(err)
+	}
+	if reply, err := conn.RequestName(dest, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("the test could not be the notification service of its bus: %v %v", reply, err)
+	}
+	d := New()
+	d.Incoming(1, "Ana")
+	fake.wait(t, "the notification of call 1", func() bool { return len(fake.shown) == 1 })
+	if _, err := conn.ReleaseName(dest); err != nil {
+		t.Fatal(err)
+	}
+	d.Incoming(2, "Bia")
+	seen := os.Getenv("GO_MICROSIP_NOTIFY_SEEN")
+	for deadline := time.Now().Add(15 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		if text, _ := os.ReadFile(seen); string(text) == "Incoming call\nBia" {
+			break
+		}
+		if time.Now().After(deadline) {
+			text, _ := os.ReadFile(seen)
+			t.Fatalf("the service started again was not asked to show call 2; it saw %q", text)
+		}
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.shown) != 1 {
+		t.Errorf("the service that left was asked for %d notifications, want the first only", len(fake.shown))
+	}
+}
+
+// The notification service the bus starts for the test above: it writes down the first
+// notification it is asked for, and leaves.
+func TestTheActivatedNotificationService(t *testing.T) {
+	if os.Getenv("GO_MICROSIP_NOTIFY_TEST") != "service" {
+		t.Skip("started by the session bus of TestANotificationServiceThatLeftIsStartedAgain")
+	}
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fake := &service{conn: conn}
+	if err := conn.Export(fake, path, dest); err != nil {
+		t.Fatal(err)
+	}
+	if reply, err := conn.RequestName(dest, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("the started service could not take its name: %v %v", reply, err)
+	}
+	fake.wait(t, "a notification", func() bool { return len(fake.shown) == 1 })
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if err := os.WriteFile(os.Getenv("GO_MICROSIP_NOTIFY_SEEN"), []byte(fake.shown[0].summary+"\n"+fake.shown[0].body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}

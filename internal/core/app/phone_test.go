@@ -867,3 +867,68 @@ func TestAKeyringThatAnswersLateLeavesNothingAstray(t *testing.T) {
 		}
 	}
 }
+
+// tardyKeyring is a keyring whose first write says its time is up and is done only when the test
+// lets it: after the writes that followed. It remembers the password read last.
+type tardyKeyring struct {
+	memory.Keyring
+	first sync.Once
+	late  func()
+	read  string
+}
+
+func (k *tardyKeyring) Set(ref, password string) error {
+	tardy := false
+	k.first.Do(func() {
+		tardy = true
+		k.late = func() { _ = k.Keyring.Set(ref, password) }
+	})
+	if tardy {
+		return ports.ErrSecretsTimeout
+	}
+	return k.Keyring.Set(ref, password)
+}
+
+func (k *tardyKeyring) Get(ref string) (string, bool, error) {
+	password, ok, err := k.Keyring.Get(ref)
+	k.read = password
+	return password, ok, err
+}
+
+// A keyring may finish a write after the application gave up on it, and after the write of a
+// password typed later. The later password is the one the next start reads: each has an entry
+// of its own, so the late one replaces nothing.
+func TestAWriteThatLandsLateDoesNotReplaceTheLaterPassword(t *testing.T) {
+	port := registrar(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1001\"\ndomain = \"127.0.0.1\"\nport = %d\ntransport = \"tcp\"\nexpires = 60\n", port)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	keyring := &tardyKeyring{}
+	o := Options{ConfigPath: file, Files: own{}, Locks: &memory.Locks{}, Secrets: keyring,
+		Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}, Warn: func(string) {}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	account := *p.Settings().Account
+	first, second := "fictional-first-password", "fictional-second-password"
+	for _, password := range []string{first, second} {
+		if err := p.Register(account, &password); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keyring.late() // the first write is done now, after the second
+	p.Close()
+	p, err = OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration at the next start", registered)
+	if keyring.read != second {
+		t.Error("the next start read the password of the write that landed late, not the one typed last")
+	}
+}

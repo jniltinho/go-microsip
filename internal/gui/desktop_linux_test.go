@@ -26,7 +26,8 @@ func TestInstallDesktop(t *testing.T) {
 		t.Fatal("first install wrote nothing")
 	}
 	text, _ := os.ReadFile(path)
-	if !strings.Contains(string(text), `Exec="/opt/a/go-microsip" %u`) || !strings.Contains(string(text), "StartupWMClass="+appID) {
+	if !strings.Contains(string(text), `Exec="/opt/a/go-microsip" %u`) || !strings.Contains(string(text), "StartupWMClass="+appID) ||
+		!strings.Contains(string(text), "\nMimeType=x-scheme-handler/sip;x-scheme-handler/tel;\n") {
 		t.Fatalf("entry: %s", text)
 	}
 	if b, _ := os.ReadFile(filepath.Join(home, desktopIcon)); string(b) != "png" {
