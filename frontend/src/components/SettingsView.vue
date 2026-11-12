@@ -1,21 +1,26 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, onUnmounted, reactive, ref } from "vue";
 import {
   type AudioDevices,
   audioDevices,
+  audioTest,
   type MediaSecurity,
+  NOTICES,
+  type Notice,
   saveSettings,
   settings,
   type SipTransport,
+  startAudioTest,
+  stopAudioTest,
 } from "../api";
-import { defaultPort } from "../state";
+import { defaultPort, noticeText } from "../state";
 import { about, ui } from "../store";
 import AgentAccess from "./AgentAccess.vue";
 import Icon from "./Icon.vue";
 import SkinPicker from "./SkinPicker.vue";
 
 // What the Rust candidate offers and this contract does not carry yet: listed, never faked.
-const MISSING = ["Audio test", "Speaker and microphone volume", "Contact CSV import"];
+const MISSING = ["Speaker and microphone volume", "Contact CSV import"];
 
 const a = ui.account;
 const form = reactive({
@@ -71,8 +76,47 @@ async function save() {
   form.password = "";
 }
 
-const saveAudio = () =>
-  saveSettings(audio).catch((e: unknown) => ui.setNotice(String(e), Date.now()));
+const fail = (e: unknown) =>
+  ui.setNotice(NOTICES.includes(e as Notice) ? noticeText(e as Notice) : String(e), Date.now());
+
+// The sound test: a tone on the chosen speaker and the level of the chosen microphone. It ends by
+// itself, when a call begins, and when the settings are left.
+const test = reactive({ running: false, level: 0 });
+let watching: ReturnType<typeof setInterval> | undefined;
+function watched() {
+  clearInterval(watching);
+  watching = undefined;
+  test.running = false;
+  test.level = 0;
+}
+async function toggleTest() {
+  if (test.running) {
+    watched();
+    return stopAudioTest().catch(fail);
+  }
+  try {
+    await startAudioTest();
+  } catch (e) {
+    return fail(e);
+  }
+  test.running = true;
+  watching = setInterval(async () => {
+    const t = await audioTest().catch(() => ({ running: false, level: 0 }));
+    if (!watching) return; // stopped while the answer was on its way
+    if (t.running) test.level = t.level;
+    else watched();
+  }, 100);
+}
+onUnmounted(() => {
+  if (test.running) void stopAudioTest().catch(() => {});
+  watched();
+});
+
+// The test is of the devices it started on: another choice ends it.
+async function saveAudio() {
+  if (test.running) await toggleTest();
+  await saveSettings(audio).catch(fail);
+}
 </script>
 
 <template>
@@ -216,6 +260,27 @@ const saveAudio = () =>
             </select>
           </label>
           <p class="text-[0.9rem] text-muted">Applied on the next start.</p>
+          <div class="flex items-center gap-1.5">
+            <button
+              class="btn"
+              type="button"
+              :disabled="!devices || !!ui.call"
+              :title="ui.call ? 'Not during a call' : undefined"
+              @click="toggleTest"
+            >
+              <Icon :name="test.running ? 'close' : 'play'" />{{
+                test.running ? "Stop test" : "Test audio"
+              }}
+            </button>
+            <label v-if="test.running" class="flex flex-1 items-center gap-1.5">
+              <span class="label">Microphone level</span>
+              <meter class="flex-1" min="0" max="1" :value="test.level"></meter>
+              <span class="tabular-nums">{{ Math.round(test.level * 100) }} %</span>
+            </label>
+          </div>
+          <p v-if="test.running" class="text-[0.9rem] text-muted" role="status">
+            A tone is playing on the speaker; speak to see the microphone's level.
+          </p>
         </template>
       </fieldset>
 

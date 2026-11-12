@@ -515,6 +515,36 @@ func (a *App) AudioDevices() (AudioDevices, error) {
 	return out, nil
 }
 
+// StartAudioTest plays the test tone on the chosen speaker and measures the chosen microphone,
+// until StopAudioTest, a call, or ten seconds. It is refused during a call.
+func (a *App) StartAudioTest() error {
+	p, err := a.engine()
+	if err != nil {
+		return err
+	}
+	return p.StartAudioTest()
+}
+
+// StopAudioTest ends the sound test, when one is running.
+func (a *App) StopAudioTest() error {
+	p, err := a.engine()
+	if err != nil {
+		return err
+	}
+	p.StopAudioTest()
+	return nil
+}
+
+// AudioTest says whether the sound test is running and how loud its microphone is.
+func (a *App) AudioTest() (AudioTest, error) {
+	p, err := a.engine()
+	if err != nil {
+		return AudioTest{}, err
+	}
+	running, level := p.AudioTest()
+	return AudioTest{Running: running, Level: level}, nil
+}
+
 // Contacts lists the contacts whose name or number contains search, favorites first.
 func (a *App) Contacts(search string) ([]Contact, error) {
 	p, err := a.engine()
@@ -850,6 +880,13 @@ type AudioDevice struct {
 type AudioDevices struct {
 	Inputs  []AudioDevice `json:"inputs"`
 	Outputs []AudioDevice `json:"outputs"`
+}
+
+// AudioTest is the state of the settings' sound test.
+type AudioTest struct {
+	Running bool `json:"running"`
+	// Level is the microphone's peak, from 0 (silence) to 1 (full scale).
+	Level float64 `json:"level"`
 }
 
 // ContactNumber is one number of a contact.

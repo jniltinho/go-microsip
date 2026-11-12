@@ -197,9 +197,10 @@ Limits of this version, known and accepted for it:
   that expects the softphone to know its public address is not supported. Behind a home
   router this was not tried yet.
 - **One account**, and one call at a time.
-- **Sound.** There is no audio test yet and no volume in the window (the system's mixer has
-  one for each application). A sound device chosen in the settings is used from the next
-  start. The ring and the ringback are tones the softphone makes itself, on the speaker
+- **Sound.** There is no volume in the window (the system's mixer has one for each
+  application). A sound device chosen in the settings is used from the next start; the
+  settings' audio test uses it at once: a tone on the chosen speaker and the level of the
+  chosen microphone, for ten seconds or until it is stopped, and never during a call. The ring and the ringback are tones the softphone makes itself, on the speaker
   chosen for calls: there is no ringtone file to choose and no speaker of its own for ringing.
 - **A transfer that the PBX accepts and then fails.** FreePBX takes the other party away
   before it reports the failure: go-microsip says the transfer failed and stays in a call

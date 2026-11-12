@@ -87,6 +87,7 @@ export function createMock(): Backend {
   ];
   let failed = false;
   let noAudio = false;
+  let testing = 0; // when the sound test began; 0 when none runs
   let nextCall = 1;
   let nextRow = 100;
   let timers: ReturnType<typeof setTimeout>[] = [];
@@ -395,6 +396,25 @@ export function createMock(): Backend {
               { id: "mock:headset-out", name: "USB headset", isDefault: false },
             ],
           }),
+    startAudioTest: () => {
+      if (call) return Promise.reject("busy");
+      if (noAudio) return Promise.reject("No audio device is available");
+      testing = Date.now();
+      return ok();
+    },
+    stopAudioTest: () => {
+      testing = 0;
+      return ok();
+    },
+    audioTest: () => {
+      const ms = Date.now() - testing;
+      if (call || ms > 10_000) testing = 0;
+      // A voice that comes and goes, so the meter is seen to move.
+      return Promise.resolve({
+        running: testing !== 0,
+        level: testing ? 0.35 + 0.3 * Math.sin(ms / 300) : 0,
+      });
+    },
     contacts: (search) =>
       Promise.resolve(
         copy(

@@ -36,11 +36,11 @@ func (a *Audio) Outputs() ([]ports.Device, error) {
 }
 
 // Open returns a new stream, or ports.ErrNoAudioService when Unavailable is set.
-func (a *Audio) Open(_, _ string) (ports.MediaIO, error) {
+func (a *Audio) Open(input, output string) (ports.MediaIO, error) {
 	if a.Unavailable {
 		return nil, ports.ErrNoAudioService
 	}
-	s := &Stream{tone: a.Tone}
+	s := &Stream{tone: a.Tone, Input: input, Output: output}
 	a.mu.Lock()
 	a.opened = append(a.opened, s)
 	a.mu.Unlock()
@@ -111,6 +111,9 @@ func (a *Audio) OpenStreams() int {
 
 // Stream is one call's fake sound: the engine side is ports.MediaIO, the test side is Heard.
 type Stream struct {
+	// Input and Output are the device IDs the stream was opened on.
+	Input, Output string
+
 	tone      float64
 	output    bool // opened for playback alone
 	n         int  // engine side only

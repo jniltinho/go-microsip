@@ -245,6 +245,13 @@ export interface AudioDevices {
   outputs: AudioDevice[];
 }
 
+/** The settings' sound test: a tone on the chosen speaker, the level of the chosen microphone. */
+export interface AudioTest {
+  running: boolean;
+  /** The microphone's peak, from 0 (silence) to 1 (full scale). */
+  level: number;
+}
+
 export interface ContactNumber {
   number: string;
   /** Optional label such as "work"; empty when none. */
@@ -300,6 +307,10 @@ export interface Backend {
   settings(): Promise<Settings>;
   saveSettings(patch: SettingsPatch): Promise<void>;
   audioDevices(): Promise<AudioDevices>;
+  /** Starts the sound test; it ends by itself, on a call, or on stopAudioTest. Refused ("busy") during a call. */
+  startAudioTest(): Promise<void>;
+  stopAudioTest(): Promise<void>;
+  audioTest(): Promise<AudioTest>;
   /** Contacts whose name or number contains `search`, favorites first. */
   contacts(search: string): Promise<Contact[]>;
   saveContact(contact: Contact): Promise<Contact>;
@@ -423,6 +434,9 @@ function wails({ Call, Events }: Wails): Backend {
     settings: () => call("Settings"),
     saveSettings: (patch) => call("SaveSettings", patch),
     audioDevices: () => call("AudioDevices"),
+    startAudioTest: () => call("StartAudioTest"),
+    stopAudioTest: () => call("StopAudioTest"),
+    audioTest: () => call("AudioTest"),
     contacts: (search) => call("Contacts", search),
     saveContact: (contact) => call("SaveContact", contact),
     deleteContact: (id) => call("DeleteContact", id),
@@ -466,6 +480,9 @@ export const send = via("send");
 export const settings = via("settings");
 export const saveSettings = via("saveSettings");
 export const audioDevices = via("audioDevices");
+export const startAudioTest = via("startAudioTest");
+export const stopAudioTest = via("stopAudioTest");
+export const audioTest = via("audioTest");
 export const contacts = via("contacts");
 export const saveContact = via("saveContact");
 export const deleteContact = via("deleteContact");

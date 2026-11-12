@@ -111,6 +111,7 @@ type Phone struct {
 	mu       sync.Mutex
 	password domain.Secret    // typed in this session or read from the keyring; never written to a file
 	held     []domain.Command // what Begin tells the engine; nil once told
+	test     *audioTest       // the settings' sound test, while one runs
 }
 
 // OpenPhone starts the engine and, when an account and its password are configured, registers it.
@@ -170,6 +171,9 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 		for ev := range p.engine.Events() {
 			if c, ok := ev.(domain.CallChanged); ok {
 				p.inCall.Store(!c.Call.Phase.IsFinal())
+				if !c.Call.Phase.IsFinal() {
+					p.StopAudioTest() // a call takes the sound
+				}
 			}
 			p.journal.record(ev)
 			journaled <- ev
@@ -663,6 +667,7 @@ func (p *Phone) ClearHistory() error {
 // frees the instance lock. It is safe to call more than once.
 func (p *Phone) Close() {
 	p.closing.Do(func() {
+		p.StopAudioTest()
 		for !p.engine.Send(domain.Shutdown{}) {
 			select {
 			case <-p.engine.Done():

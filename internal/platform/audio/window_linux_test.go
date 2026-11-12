@@ -1379,6 +1379,35 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 
 	w.shot(user + "-1-registered")
 
+	// The settings' sound test, before any call: its tone on the chosen speaker, the level of the
+	// chosen microphone (the fixture's voice is in it) on the screen, and silence once the
+	// settings are left with the test still running.
+	w.click("Menu")
+	w.click("Settings")
+	w.press("Test audio")
+	level := 0
+	w.until(10*time.Second, "the running sound test with the microphone's level", func() bool {
+		if m := micLevel.FindStringSubmatch(w.page.Text); m != nil {
+			level, _ = strconv.Atoi(m[1])
+		}
+		return level > 0 && w.shows("Stop test")
+	})
+	w.shot(user + "-1a-audio-test")
+	_, tested := sound.listen(2 * time.Second)
+	if tone, sounding := blocksWith(tested, app.AudioTestHz); tone < 0.9 {
+		t.Errorf("the chosen speaker plays the test's tone in %.0f %% of two seconds of the test and anything at all in %.0f %%", tone*100, sounding*100)
+	} else {
+		t.Logf("the sound test: its tone in %.0f %% of two seconds on the chosen speaker, the microphone's level shown as %d %%", tone*100, level)
+	}
+	w.click("Close settings")
+	w.until(5*time.Second, "the settings left", func() bool { return !w.shows("Stop test") && !w.shows("Appearance") })
+	sound.listen(500 * time.Millisecond) // what was on its way to the speaker
+	if _, quiet := sound.listen(time.Second); len(quiet) == 0 {
+		t.Error("nothing was recorded from the speaker after the settings were left")
+	} else if _, sounding := blocksWith(quiet, app.AudioTestHz); sounding > 0.02 {
+		t.Errorf("the speaker still plays in %.0f %% of a second after the settings were left", sounding*100)
+	}
+
 	// A person dials the echo: Ctrl+L, the number, Enter.
 	w.keys("ctrl+l", "6", "0", "0", "Return")
 	protection := "Unencrypted (RTP)"
@@ -2125,6 +2154,15 @@ func commandLineAndMCP(t *testing.T, bin, server, password string) {
 // ringBlocks is the fraction of 20 ms blocks that carry the ring (one of its two notes, or both
 // where one gives way to the other), and the fraction that carry any sound at all.
 func ringBlocks(samples []int16) (notes, sounding float64) {
+	return blocksWith(samples, engine.RingLowHz, engine.RingHighHz)
+}
+
+// micLevel is the microphone's level as the settings' sound test shows it.
+var micLevel = regexp.MustCompile(`Microphone level\s+(\d+) %`)
+
+// blocksWith is the share of the 20 ms blocks of a recording that hold these notes, and the share
+// that hold any sound at all.
+func blocksWith(samples []int16, freqs ...float64) (notes, sounding float64) {
 	blocks := 0
 	for ; len(samples) >= FrameSamples; samples = samples[FrameSamples:] {
 		blocks++
@@ -2138,7 +2176,11 @@ func ringBlocks(samples []int16) (notes, sounding float64) {
 		if loud > FrameSamples/10 {
 			sounding++
 			// A block in which one note gives way to the other holds half of each.
-			if share(block, engine.RingLowHz)+share(block, engine.RingHighHz) > 0.4 {
+			held := 0.0
+			for _, f := range freqs {
+				held += share(block, f)
+			}
+			if held > 0.4 {
 				notes++
 			}
 		}
