@@ -283,6 +283,24 @@ func (p *Phone) Send(c domain.Command) error {
 	}
 }
 
+// ShutdownIfIdle stops the engine only when it has no call, as the engine itself knows it at that
+// moment; a window's own view of calls comes later, so it cannot decide this. With a call in
+// progress nothing changes and the answer is the engine's "busy": the window then asks the person.
+func (p *Phone) ShutdownIfIdle() error {
+	taken := make(chan bool, 1)
+	if err := p.Send(domain.Shutdown{IfIdle: true, Taken: taken}); err != nil {
+		return err
+	}
+	select {
+	case stopping := <-taken:
+		if !stopping {
+			return Refused(domain.NoticeBusy)
+		}
+	case <-p.engine.Done(): // it ended meanwhile: stopped is what was asked for
+	}
+	return nil
+}
+
 // Register registers the account. A nil password means the one at hand: typed earlier, kept in
 // the keyring, or configured. A typed password is kept in the keyring when there is one, and
 // otherwise for the session only.
@@ -514,6 +532,68 @@ func (p *Phone) History(filter HistoryFilter, search string) ([]HistoryEntry, er
 		return nil, err
 	}
 	return s.RecentCalls(listLimit, filter, search)
+}
+
+// TrayCalls is how many of the latest calls a tray menu lists, as in the Rust candidate.
+const TrayCalls = 5
+
+// RecentCall is one of the latest calls as a short list shows it.
+type RecentCall struct {
+	// Label is plain text: "↗ who" for a call placed, "↙ who" for one received, "Missed: who"
+	// for one missed, where who is the name of a contact that has the number, or the number.
+	Label string
+	// Number is what calling it again dials.
+	Number string
+}
+
+// Recent lists the newest calls that can be called again, newest first, at most limit. A call
+// whose other party is not something to dial (an anonymous caller, say) is left out. Without a
+// database there are none.
+func (p *Phone) Recent(limit int) []RecentCall {
+	s := p.journal.store
+	if s == nil || limit <= 0 {
+		return nil
+	}
+	calls, err := s.RecentCalls(4*limit, store.AllCalls, "")
+	if err != nil {
+		return nil
+	}
+	var recent []RecentCall
+	for _, entry := range calls {
+		call := entry.Call
+		if _, err := domain.ParseDialTarget(call.Remote); err != nil {
+			continue
+		}
+		who := call.Remote
+		// shortcut: one contact search per listed call (five at most); index the numbers if the
+		// list grows.
+		if contacts, err := s.SearchContacts(call.Remote, listLimit); err == nil {
+		named:
+			for _, c := range contacts {
+				for _, n := range c.Numbers {
+					if n.Number == call.Remote {
+						who = c.Name
+						break named
+					}
+				}
+			}
+		}
+		recent = append(recent, RecentCall{Label: recentLabel(call.Direction, call.Outcome, who), Number: call.Remote})
+		if len(recent) == limit {
+			break
+		}
+	}
+	return recent
+}
+
+func recentLabel(direction domain.Direction, outcome store.Outcome, who string) string {
+	switch {
+	case outcome == store.Missed:
+		return "Missed: " + who
+	case direction == domain.Outgoing:
+		return "\u2197 " + who
+	}
+	return "\u2199 " + who
 }
 
 // DeleteCall deletes one history entry.

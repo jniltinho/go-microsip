@@ -441,6 +441,55 @@ func TestAQuitOutlivesALateStopped(t *testing.T) {
 	}
 }
 
+// The page's Quit when it shows no call is conditional, and the engine decides: a call the page
+// has not heard of yet refuses it, nothing quits, and the page is told so it can ask.
+func TestAnUnaskedQuitIsTheEnginesToDecide(t *testing.T) {
+	busy := app.Refused(domain.NoticeBusy)
+	var sent []domain.Command
+	stream := make(chan domain.Event)
+	quits := make(chan struct{}, 4)
+	inCall := true
+	svc := &App{
+		emit: func(UIEvent) {}, quit: func() { quits <- struct{}{} }, stream: stream,
+		sending: func(c domain.Command) error {
+			sent = append(sent, c)
+			if stop, ok := c.(domain.Shutdown); ok && stop.IfIdle && inCall {
+				return busy
+			}
+			return nil
+		},
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); svc.forward() }()
+	if err := svc.Quit(); err != busy {
+		t.Fatalf("an unasked quit during a call the page has not seen: %v, want busy", err)
+	}
+	if stop, ok := sent[0].(domain.Shutdown); !ok || !stop.IfIdle {
+		t.Fatalf("the unasked quit sent %+v, want a conditional shutdown", sent[0])
+	}
+	// Refused: a later stop of the engine is not a quit.
+	select {
+	case <-quits:
+		t.Fatal("the application quit after its conditional quit was refused")
+	case <-time.After(100 * time.Millisecond):
+	}
+	// The person's yes is unconditional.
+	if err := svc.Shutdown(); err != nil {
+		t.Fatal(err)
+	}
+	if stop, ok := sent[len(sent)-1].(domain.Shutdown); !ok || stop.IfIdle {
+		t.Fatalf("the confirmed quit sent %+v, want an unconditional shutdown", sent[len(sent)-1])
+	}
+	stream <- domain.Stopped{}
+	close(stream)
+	<-done
+	select {
+	case <-quits:
+	case <-time.After(time.Second):
+		t.Fatal("the application did not quit after the confirmed shutdown")
+	}
+}
+
 // A sip: or tel: link reaches the page as a question: the number, checked again, waits for a page
 // that listens, and nothing is dialed by the window.
 func TestALinkIsHandedToThePageToAsk(t *testing.T) {

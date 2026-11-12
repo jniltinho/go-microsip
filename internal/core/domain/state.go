@@ -266,7 +266,15 @@ type (
 	// SetDND turns do-not-disturb on or off: while on, new incoming calls get 486.
 	SetDND struct{ On bool }
 	// Shutdown ends every call, unregisters and stops the engine within a bounded time.
-	Shutdown struct{}
+	//
+	// IfIdle makes it conditional: the engine stops only when it has no call, and otherwise
+	// changes nothing. Only the engine knows whether there is a call at the moment the command is
+	// handled; what a front end shows of calls arrives after the fact. Taken, when not nil,
+	// receives the engine's decision (true: it is stopping); the sender gives it room for one value.
+	Shutdown struct {
+		IfIdle bool
+		Taken  chan<- bool
+	}
 )
 
 func (Register) command()   {}

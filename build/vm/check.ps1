@@ -8,6 +8,7 @@ New-Item -ItemType Directory -Force $work | Out-Null
 Copy-Item "C:\dist\go-microsip-$Version-windows-amd64.exe" "$work\go-microsip.exe" -Force
 Copy-Item 'C:\dist\g0\audio.test.exe' "$work\audio.test.exe" -Force
 Copy-Item 'C:\dist\g0\lock.test.exe' "$work\lock.test.exe" -Force
+Copy-Item 'C:\dist\g0\secrets.test.exe' "$work\secrets.test.exe" -Force
 
 $os = Get-CimInstance Win32_OperatingSystem
 "vm-check: $($os.Caption) $($os.Version)"
@@ -67,6 +68,14 @@ Get-Content "$work\audio.log" -ErrorAction SilentlyContinue | Where-Object { $_ 
 $failed = ''
 if ($code -ne 0) { "vm-check: audio: FAILED (exit $code); the window is still checked"; $failed = 'audio' }
 else { 'vm-check: audio adapter OK on the Windows audio service' }
+
+# 2b. The keyring: the Credential Manager of the logged-on user, where a typed password is kept.
+# In the desktop session: a WinRM logon has no credential store of its own.
+$code = Invoke-Desktop 'secrets' @('set GO_MICROSIP_SECRETS_TEST=keyring',
+    "`"$work\secrets.test.exe`" -test.v -test.run TestKeyringStoresReplacesAndDeletes") 120
+Get-Content "$work\secrets.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match 'secrets_test|^(--- |PASS|FAIL|ok|panic)' } | ForEach-Object { "vm-check: keyring: $_" }
+if ($code -ne 0) { "vm-check: keyring: FAILED (exit $code)"; $failed = "$failed keyring" }
+else { 'vm-check: the Credential Manager stores, replaces and deletes a password' }
 
 # 3. The window on WebView2, and the page's confinement as the self-test finds it.
 $script:Samples = 0

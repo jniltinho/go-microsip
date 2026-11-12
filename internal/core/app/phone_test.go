@@ -71,6 +71,33 @@ func TestPhoneRegistersJournalsAndCloses(t *testing.T) {
 	if missed, _ := p.History(MissedCalls, ""); len(missed) != 0 {
 		t.Errorf("an outgoing busy call is listed as missed: %+v", missed)
 	}
+	// The latest calls, as a tray menu lists them: the number, then the contact that has it.
+	if recent := p.Recent(TrayCalls); len(recent) != 1 || recent[0] != (RecentCall{Label: "\u2197 1002", Number: "1002"}) {
+		t.Errorf("the latest calls: %+v", recent)
+	}
+	ana, err := p.SaveContact(0, NewContact{Name: "Ana Lima", Numbers: []ContactNumber{{Number: "1002"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recent := p.Recent(TrayCalls); len(recent) != 1 || recent[0] != (RecentCall{Label: "\u2197 Ana Lima", Number: "1002"}) {
+		t.Errorf("the latest calls with a contact: %+v", recent)
+	}
+	if err := p.DeleteContact(ana.ID); err != nil {
+		t.Fatal(err)
+	}
+	if p.Recent(0) != nil {
+		t.Error("calls listed with a limit of none")
+	}
+	for label, want := range map[string]string{
+		recentLabel(domain.Incoming, store.Missed, "1003"):     "Missed: 1003",
+		recentLabel(domain.Incoming, store.Answered, "Bia"):    "\u2199 Bia",
+		recentLabel(domain.Outgoing, store.NoAnswer, "1004"):   "\u2197 1004",
+		recentLabel(domain.Incoming, store.Rejected, "Carlos"): "\u2199 Carlos",
+	} {
+		if label != want {
+			t.Errorf("label %q, want %q", label, want)
+		}
+	}
 	if err := p.DeleteCall(calls[0].ID); err != nil {
 		t.Error(err)
 	}

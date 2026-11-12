@@ -325,7 +325,11 @@ export class UiState {
         // The number is shown as text and dialed only through the same checks as a typed one.
         const asked = parseDialTarget(action.number);
         if (!asked.ok) return this.setNotice("The link is not valid", now);
-        this.closeView();
+        // A question on the screen stays the question that is answered: a yes must not come to
+        // mean another number, or another action, than the one that was read.
+        if (this.confirm)
+          return this.setNotice("A link was ignored: answer the question on the screen first", now);
+        // The question is shown over whatever is open: a form being filled in is left as it is.
         this.confirm = { kind: "dial", number: asked.value };
         return;
       }
@@ -399,7 +403,7 @@ export class UiState {
         return;
       case "quit":
         if (this.call && !this.quitting) this.confirm = { kind: "quit" };
-        else await this.quitNow(now);
+        else await this.quitIfIdle(now);
         return;
       case "quitNow":
         return this.quitNow(now);
@@ -418,6 +422,23 @@ export class UiState {
     await this.engine[what](id).catch((e: unknown) => this.setNotice(String(e), now));
   }
 
+  /**
+   * Quit without a question, as far as this page knows of no call. The engine decides: it stops
+   * only if it has none, and a call this page has not heard of yet comes back as "busy", which is
+   * when the question is asked after all.
+   */
+  private async quitIfIdle(now: number) {
+    if (this.quitting) return;
+    this.quitting = true;
+    try {
+      await this.engine.send({ type: "quit" });
+    } catch (refused) {
+      this.quitting = false;
+      if (refused === "busy") this.confirm = { kind: "quit" };
+      else this.applyEvent({ type: "notice", notice: refused as Notice }, now);
+    }
+  }
+  /** Quit that was confirmed, or that a termination signal asks for: every call ends. */
   private async quitNow(now: number) {
     if (this.quitting) return;
     this.quitting = true;
@@ -435,6 +456,8 @@ export class UiState {
         case "quit":
           return await this.quitNow(now);
         case "dial":
+          // The yes is when the window leaves what was open, for the call.
+          if (!this.call) this.closeView();
           return await this.dispatch({ type: "dialNumber", number: confirm.number }, now);
         case "deleteCall":
           await this.engine.deleteCall(confirm.id);

@@ -158,23 +158,6 @@ func Run(o Options) error {
 	ui.Event.OnApplicationEvent(events.Common.ThemeChanged, func(*application.ApplicationEvent) { svc.desktopChanged() })
 	// The window exists before anything that may want it in sight (an incoming call) starts.
 	main = ui.Window.NewWithOptions(win)
-	if !o.SelfTest {
-		// The phone holds the instance lock of the database until the window is gone: calls are
-		// ended and the account unregistered, within the engine's bound, before Run returns.
-		// The engine's warnings go to the standard error (the desktop's journal): why a registration
-		// or a call failed. It never logs a secret.
-		warnings := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
-		phone, err := app.OpenPhone(o.Core, app.PhoneOptions{Audio: o.Audio, UserAgent: o.UserAgent, Log: warnings})
-		if err != nil {
-			svc.unavailable = err.Error() // the window says so
-		} else {
-			svc.phone = phone
-			forwarded := make(chan struct{})
-			go func() { defer close(forwarded); svc.forward() }()
-			// Leaving: the calls end and the account unregisters, and the last events are through.
-			defer func() { phone.Close(); <-forwarded }()
-		}
-	}
 	// leave quits through the page's own Quit, which asks before it ends a call. A page that is
 	// not there or does not answer cannot ask: the window asks then, in a dialog of its own,
 	// whenever an engine is running. What this side knows of a call comes after the fact, so it
@@ -205,12 +188,24 @@ func Run(o Options) error {
 		tray := ui.SystemTray.New()
 		tray.SetIcon(icon)
 		tray.SetTooltip("go-microsip")
-		menu := application.NewMenu()
-		menu.Add("Show go-microsip").OnClick(func(*application.Context) { reveal() })
-		menu.AddSeparator()
-		// The page's own Quit, in sight: it asks before it ends a call.
-		menu.Add("Quit").OnClick(func(*application.Context) { reveal(); leave() })
-		tray.SetMenu(menu)
+		// The menu: the window, the latest calls (a choice calls the number again), and Quit.
+		menu := func() *application.Menu {
+			menu := application.NewMenu()
+			menu.Add("Show go-microsip").OnClick(func(*application.Context) { reveal() })
+			for _, call := range svc.recents() {
+				number := call.Number
+				// Choosing a call is asking for it: the window comes in sight and the number is
+				// dialed; what the engine makes of it (busy, not registered) shows there.
+				menu.Add(call.Label).OnClick(func(*application.Context) { reveal(); _ = svc.Dial(number) })
+			}
+			menu.AddSeparator()
+			// The page's own Quit, in sight: it asks before it ends a call.
+			menu.Add("Quit").OnClick(func(*application.Context) { reveal(); leave() })
+			return menu
+		}
+		tray.SetMenu(menu())
+		// Before anything forwards events: the menu follows the history.
+		svc.recentChanged = func() { tray.SetMenu(menu()) }
 		tray.OnClick(reveal)
 		main.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 			if leaving.Load() {
@@ -223,6 +218,26 @@ func Run(o Options) error {
 			}
 			leave() // no tray to come back from: closing is quitting
 		})
+	}
+	if !o.SelfTest {
+		// The phone holds the instance lock of the database until the window is gone: calls are
+		// ended and the account unregistered, within the engine's bound, before Run returns.
+		// The engine's warnings go to the standard error (the desktop's journal): why a registration
+		// or a call failed. It never logs a secret.
+		warnings := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		phone, err := app.OpenPhone(o.Core, app.PhoneOptions{Audio: o.Audio, UserAgent: o.UserAgent, Log: warnings})
+		if err != nil {
+			svc.unavailable = err.Error() // the window says so
+		} else {
+			svc.phone = phone
+			if svc.recentChanged != nil {
+				svc.recentChanged() // the history of earlier sessions
+			}
+			forwarded := make(chan struct{})
+			go func() { defer close(forwarded); svc.forward() }()
+			// Leaving: the calls end and the account unregisters, and the last events are through.
+			defer func() { phone.Close(); <-forwarded }()
+		}
 	}
 	pageGone := func(UIEvent) {} // where events go once the window has closed
 	if o.Trace != "" && !o.SelfTest {

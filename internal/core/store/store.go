@@ -309,7 +309,7 @@ func Open(path string) (*Store, error) {
 	if err := createPrivateFile(path, false); err != nil {
 		return nil, err
 	}
-	s, err := open((&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String())
+	s, err := open(fileURI(path))
 	if err != nil {
 		return nil, err
 	}
@@ -325,6 +325,22 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// fileURI is the SQLite URI of a database file. The path is made absolute, and a Windows path
+// ("C:/Users/...") gets the leading slash that keeps its drive from being read as a host.
+func fileURI(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	return slashURI(filepath.ToSlash(path))
+}
+
+func slashURI(path string) string {
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return (&url.URL{Scheme: "file", Path: path}).String()
 }
 
 // OpenInMemory opens a migrated in-memory database, for tests and previews.

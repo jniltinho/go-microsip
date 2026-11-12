@@ -211,3 +211,72 @@ func TestShutdownDuringACallIsBoundedWhenThePBXStopsAnswering(t *testing.T) {
 		t.Error("no unregistration was sent before stopping")
 	}
 }
+
+// A quit nobody was asked about stops the engine only when it has no call, and the engine is the
+// one that knows: with a call it changes nothing and says so, without one it stops.
+func TestAConditionalShutdownIsRefusedDuringACall(t *testing.T) {
+	p := startPBX(t)
+	e := registered(t, p)
+	target, err := domain.ParseDialTarget("600")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Send(domain.Dial{Target: target})
+	// Asked at once, before any snapshot of the call was read: a front end would not know of it.
+	asked := make(chan bool, 1)
+	e.Send(domain.Shutdown{IfIdle: true, Taken: asked})
+	select {
+	case taken := <-asked:
+		if taken {
+			t.Fatal("the engine stopped although a call had just been dialed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the engine did not answer the conditional shutdown")
+	}
+	var call domain.CallSnapshot
+	for established := false; !established; {
+		select {
+		case ev, ok := <-e.Events():
+			if !ok {
+				t.Fatal("the engine stopped: the refused shutdown ended it")
+			}
+			if c, isCall := ev.(domain.CallChanged); isCall {
+				call = c.Call
+				established = c.Call.Phase.Kind == domain.Established
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("the call did not go on after the refused shutdown")
+		}
+	}
+	e.Send(domain.Hangup{Call: call.ID})
+	for ended := false; !ended; {
+		select {
+		case ev := <-e.Events():
+			if c, isCall := ev.(domain.CallChanged); isCall {
+				ended = c.Call.Phase.IsFinal()
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("the call did not end")
+		}
+	}
+	// Without a call the same request is taken.
+	e.Send(domain.Shutdown{IfIdle: true, Taken: asked})
+	select {
+	case taken := <-asked:
+		if !taken {
+			t.Fatal("the engine refused to stop although it had no call")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the engine did not answer the conditional shutdown")
+	}
+	for {
+		select {
+		case ev, ok := <-e.Events():
+			if _, done := ev.(domain.Stopped); done || !ok {
+				return
+			}
+		case <-time.After(shutdownTimeout + 5*time.Second):
+			t.Fatal("the engine did not stop")
+		}
+	}
+}

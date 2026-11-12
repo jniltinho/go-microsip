@@ -186,6 +186,22 @@ func (w *window) until(d time.Duration, what string, cond func() bool) {
 	}
 }
 
+// watch reads everything the window reports for d and tells whether cond held at any moment of it.
+func (w *window) watch(d time.Duration, cond func() bool) bool {
+	timeout := time.After(d)
+	for {
+		if cond() {
+			return true
+		}
+		select {
+		case line := <-w.lines:
+			w.take(line)
+		case <-timeout:
+			return cond()
+		}
+	}
+}
+
 // unregistered follows the trace until the engine has reported itself stopped, which comes after
 // it tried to unregister. It does not see the PBX: that the unregistration arrived is shown by the
 // next registration of the same extension, which the lab PBX refuses while a contact remains. An AppImage's launcher can exit before its softphone has finished,
@@ -595,27 +611,17 @@ func linksInTheWindow(t *testing.T, bin, server, password string) {
 	}
 	w.click("Cancel")
 	w.until(10*time.Second, "the question gone after Cancel", func() bool { return !w.shows(question) })
-	time.Sleep(time.Second)
-	if w.call.ID != ended {
+	// Everything the window reports for the next seconds is read: a call placed late would show.
+	if w.watch(3*time.Second, func() bool { return w.call.ID != ended }) {
 		t.Errorf("a call was placed after Cancel: %+v", w.call)
 	}
 
 	// What is not a link is refused before anything starts, as a usage error.
-	seen := w.pageAt
 	if code := second("tel:600;phone-context=x"); code != 2 {
 		t.Errorf("a link with parameters ended with %d, want the usage error 2", code)
 	}
-	time.Sleep(2 * time.Second)
-	for drained := false; !drained; { // what the window reported meanwhile
-		select {
-		case line := <-w.lines:
-			w.take(line)
-		default:
-			drained = true
-		}
-	}
-	if w.shows("A link asks") {
-		t.Errorf("a refused link reached the window (page reports since %d)", seen)
+	if w.watch(3*time.Second, func() bool { return w.shows("A link asks") || w.call.ID != ended }) {
+		t.Errorf("a refused link reached the window: question shown %v, call %+v", w.shows("A link asks"), w.call)
 	}
 }
 

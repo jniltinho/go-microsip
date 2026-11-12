@@ -91,6 +91,11 @@ func writeAtomic(path string, b []byte) error {
 }
 
 // desktopText is the entry for exe, or false for a path that would need escaping in Exec.
+//
+// The entry passes a link on to the application (%u), so "open with go-microsip" works, but it
+// claims no sip: or tel: handling: becoming a candidate for the desktop's links changes what the
+// user's other applications receive, and the Rust candidate did that only with the user's consent.
+// The AppImage's own entry (build/linux) declares the types: integrating it is the user's act.
 func desktopText(exe string) (string, bool) {
 	if !strings.HasPrefix(exe, "/") || strings.ContainsFunc(exe, func(r rune) bool {
 		return unicode.IsControl(r) || strings.ContainsRune("\"`$\\%=", r)
@@ -98,7 +103,7 @@ func desktopText(exe string) (string, bool) {
 		return "", false
 	}
 	return "[Desktop Entry]\nType=Application\nName=go-microsip\nGenericName=SIP Softphone\n" +
-		"Comment=Compact SIP softphone\nExec=\"" + exe + "\"\nIcon=" + windowIconName + "\n" +
+		"Comment=Compact SIP softphone\nExec=\"" + exe + "\" %u\nIcon=" + windowIconName + "\n" +
 		"Terminal=false\nCategories=Network;Telephony;\nStartupWMClass=" + appID + "\n" +
 		desktopMarker + "\n", true
 }

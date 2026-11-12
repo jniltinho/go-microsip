@@ -28,6 +28,9 @@ type App struct {
 	dark func() bool
 	// attention brings the window in sight (it may be hidden in the tray); nil does nothing.
 	attention func()
+	// recentChanged is told when the latest calls or their names may have changed (the tray's
+	// menu lists them); nil does nothing.
+	recentChanged func()
 	// sending and stream stand in for the phone's commands and events in tests; nil uses the phone.
 	sending func(domain.Command) error
 	stream  <-chan domain.Event
@@ -103,7 +106,7 @@ func (a *App) forward() {
 		stream = a.phone.Events()
 	}
 	for ev := range stream {
-		ringing := false
+		ringing, finished := false, false
 		a.mu.Lock()
 		switch ev := ev.(type) {
 		case domain.RegistrationChanged:
@@ -112,6 +115,7 @@ func (a *App) forward() {
 			// A call that starts ringing here must be answerable: the window comes out of the tray.
 			ringing = ev.Call.Direction == domain.Incoming && ev.Call.Phase.Kind == domain.Ringing &&
 				(a.call == nil || a.call.ID != ev.Call.ID)
+			finished = ev.Call.Phase.IsFinal() // it is in the history by now
 			a.call = nil
 			if !ev.Call.Phase.IsFinal() {
 				a.call = &ev.Call
@@ -126,6 +130,9 @@ func (a *App) forward() {
 		a.mu.Unlock()
 		if ringing && a.attention != nil {
 			a.attention()
+		}
+		if finished {
+			a.refreshRecent()
 		}
 		if quit {
 			a.quit() // the page asked for the end, and the engine has ended
@@ -266,9 +273,17 @@ func (a *App) SetDnd(on bool) error {
 }
 
 // Shutdown ends the calls, unregisters and stops the engine; the application quits when it has.
-// It is taken once: while one is on its way a second request is that same shutdown, and neither
-// sends another command nor undoes the first.
-func (a *App) Shutdown() error {
+// It is the quit a person has said yes to. It is taken once: while one is on its way a second
+// request is that same shutdown, and neither sends another command nor undoes the first.
+func (a *App) Shutdown() error { return a.stop(false) }
+
+// Quit is the quit nobody was asked about: the engine stops only if it has no call, by its own
+// account at that moment, and the application then quits. With a call it changes nothing and
+// answers "busy": the page asks the person, whose yes is Shutdown. What the page shows of calls
+// comes after the fact, so it must not decide this itself.
+func (a *App) Quit() error { return a.stop(true) }
+
+func (a *App) stop(ifIdle bool) error {
 	a.ending.Lock() // a second request waits for what became of the first
 	defer a.ending.Unlock()
 	a.mu.Lock()
@@ -282,14 +297,25 @@ func (a *App) Shutdown() error {
 	case pending:
 		return nil // the engine took it: the application quits when it has stopped
 	}
-	err := a.send(domain.Shutdown{})
+	var err error
+	switch {
+	case a.sending != nil:
+		err = a.sending(domain.Shutdown{IfIdle: ifIdle})
+	case a.phone == nil:
+		err = errors.New(a.unavailable)
+	case ifIdle:
+		err = a.phone.ShutdownIfIdle()
+	default:
+		err = a.phone.Send(domain.Shutdown{})
+	}
 	if err == app.Refused(domain.NoticeEngineFailed) {
 		// The engine has ended and its last events are still on their way here: the wish to quit
 		// stands, and forward quits when they are through.
 		return nil
 	}
 	if err != nil {
-		// Not taken (the queue was full): the page may ask again, and nothing quits meanwhile.
+		// Not taken (a call exists, or the queue was full): the page may ask again, and nothing
+		// quits meanwhile.
 		a.mu.Lock()
 		a.quitting = false
 		a.mu.Unlock()
@@ -333,6 +359,20 @@ func (a *App) leave() int {
 	}
 	a.emit(UIEvent{Type: "quit"})
 	return pageAsked
+}
+
+// recents are the latest calls for the tray's menu; none without a phone or its database.
+func (a *App) recents() []app.RecentCall {
+	if a.phone == nil {
+		return nil
+	}
+	return a.phone.Recent(app.TrayCalls)
+}
+
+func (a *App) refreshRecent() {
+	if a.recentChanged != nil {
+		a.recentChanged()
+	}
 }
 
 // QuitAsked is the page's answer to a "quit" event: it is there, and its own Quit is running.
@@ -449,6 +489,7 @@ func (a *App) SaveContact(c Contact) (Contact, error) {
 		record.Numbers = append(record.Numbers, app.ContactNumber{Number: n.Number, Label: n.Label})
 	}
 	saved, err := p.SaveContact(c.ID, record)
+	a.refreshRecent() // a call may now have a name
 	return contactOf(saved), err
 }
 
@@ -458,7 +499,9 @@ func (a *App) DeleteContact(id int64) error {
 	if err != nil {
 		return err
 	}
-	return p.DeleteContact(id)
+	err = p.DeleteContact(id)
+	a.refreshRecent()
+	return err
 }
 
 // History lists the calls, newest first: filter is all, incoming, outgoing or missed.
@@ -490,7 +533,9 @@ func (a *App) DeleteCall(id int64) error {
 	if err != nil {
 		return err
 	}
-	return p.DeleteCall(id)
+	err = p.DeleteCall(id)
+	a.refreshRecent()
+	return err
 }
 
 // ClearHistory deletes the whole history.
@@ -499,7 +544,9 @@ func (a *App) ClearHistory() error {
 	if err != nil {
 		return err
 	}
-	return p.ClearHistory()
+	err = p.ClearHistory()
+	a.refreshRecent()
+	return err
 }
 
 // errNoAgentControl: requests from agents arrive with the control channel (milestone M4); until

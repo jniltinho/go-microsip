@@ -8,6 +8,7 @@ The scope is wider than the skins: the tray, the close button and the local addr
 | --- | --- | --- | --- |
 | 1 | `5502e87` | UNSOUND: 6 major, 4 minor | [codex-round1.md](codex-round1.md) |
 | 2 | `fa9e3bd` | UNSOUND: of the ten, 4 resolved and 6 partially; 5 new major, 5 new minor | [codex-round2.md](codex-round2.md) |
+| 3 | `9792f85` | UNSOUND: N1 to N10 resolved (N3 as a recorded limit); 3 new major, 6 new minor | [codex-round3.md](codex-round3.md) |
 
 ## What was done about round 1
 
@@ -42,3 +43,19 @@ Also noted by the report and kept as it is: the skin walkthrough dials and hangs
 | N10 | The Ubuntu skin named the system's Ubuntu font before the bundled one, against the requirement of bundled assets only | Fixed. Every skin, Ubuntu included, draws first with a bundled family, and the font test requires it. Using the system's Ubuntu font first would need the requirement changed, which is the owner's decision. |
 
 Claims the report found too strong, corrected in the receipts: the focus audit's coverage (it is what `focus.txt` of the corrected run records), the literal-color test's reach, "only a yes ends a call" (true of the engine's end as a whole since N2), and the packaged run, which is now named with the commit of the artifact it drove.
+
+## What was done about round 3
+
+The report re-graded two of its round-2 findings as minor (the DNS limit of N3, the wider opacity audit of N5) and took the recorded limit of N3 as defensible. From round 3 on the extract also holds work of task 6.1 (links, the bounded stop), reviewed for defects.
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | The page quit without a question whenever it knew of no call, and what it knows of calls comes late: a call it had not heard of yet was ended | Fixed in the engine, as the report asked. `Shutdown` can be conditional (`IfIdle`): the actor, which owns the calls, takes it only when there is none and answers. The page's Quit without a question is that conditional command (`App.Quit`); "busy" brings the question, and only the yes sends the unconditional one. `TestAConditionalShutdownIsRefusedDuringACall` asks right after dialing, before any snapshot is read; `TestAnUnaskedQuitIsTheEnginesToDecide` and the page's "quitting during a call asks first" cover the two sides. |
+| 2 | A second link replaced the question on the screen, so the same "Call" approved another number, or replaced a pending delete | Fixed. A question on the screen stays the one that is answered: a link that arrives meanwhile is dropped with a notice. Tested with two links and with a link over a pending delete. |
+| 3 | Receiving a link closed the view that was open and lost what was being typed, even on Cancel | Fixed. The question is shown over what is open; the view is left only on the yes. Tested with a contact being typed and Cancel. |
+| 4 | A bracketed host was checked for its alphabet only (`[1]`, `[:::]` passed) | Fixed. The domain checks the IPv6 text form itself (it uses no library: the layering test refused `net/netip`), with fixtures for too few and too many groups, two compressions, a long group, an IPv4 tail out of range, a zone and a bare IPv4 address. |
+| 5 | After Cancel the lab test slept and then looked at stale state | Fixed. `watch` reads everything the window reports for the interval and fails on any new call; used after Cancel and after the refused link. |
+| 6 | An icon whose shapes are transparent passed the state check | Fixed. The state check requires a shape that is drawn, and the contrast audit weighs an icon by its most visible shape. Two more controls: nine in all. |
+| 7 | `RGB(...)` in capitals passed the literal-color test | Fixed, with a fixture. |
+| 8 | The desktop entry the application installs for itself passes no link and declares no type | Fixed in part, on purpose. The entry now passes a link on (`%u`). It still claims no `sip:` or `tel:` handling: that makes go-microsip a candidate for the desktop's links without the user having asked, which the Rust candidate did only with consent. The AppImage's own entry declares the types. A setting that registers the handler with consent is open under task 6.1. |
+| 9 | Receipts mixed revisions: a packaged log older than the harness it was quoted for, and a request log from before the Ubuntu skin drew in Inter | Fixed. The request log is produced by `frontend/scripts/network-log.sh` and was run again at this state; the packaged run in the M3 receipt is the one of the final artifact, driven by the harness of the same commit; the tray receipt points to it and keeps its first run as history. |

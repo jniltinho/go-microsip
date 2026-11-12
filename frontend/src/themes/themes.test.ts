@@ -141,7 +141,7 @@ const COLOR_UTILITY =
 /** What a color written outside the skins looks like, one pattern per way of writing it. */
 const LITERALS = [
   /#[0-9a-fA-F]{3,8}\b/,
-  /\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/,
+  /\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/i,
   // A Tailwind palette utility, and an arbitrary value that is a color name.
   new RegExp(`\\b(${COLOR_UTILITY})-(${PALETTE})(-\\d+)?\\b`),
   new RegExp(`\\b(${COLOR_UTILITY})-\\[(${NAMED})\\]`),
@@ -163,6 +163,7 @@ test("no color literal outside src/themes", () => {
   for (const bad of [
     "color: #fff;",
     "background: rgb(0 0 0 / 50%);",
+    "color: RGB(1, 2, 3);",
     'class="bg-red-500"',
     'class="text-[navy]"',
     'style="color: navy"',

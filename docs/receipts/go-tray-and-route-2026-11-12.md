@@ -21,10 +21,12 @@ Limits, recorded after the review:
 
 ## Tray icon and close button
 
-- A tray icon (the application's), with a menu: "Show go-microsip", "Quit". A click on the icon shows the window. Starting the application again also shows a hidden window.
+- A tray icon (the application's), with a menu: "Show go-microsip", the five latest calls, "Quit". A click on the icon shows the window. Starting the application again also shows a hidden window.
+- A latest call is listed as the Rust candidate lists it: "↗ who" for a call placed, "↙ who" for one received, "Missed: who", where who is the contact that has the number or the number itself; a call whose other party cannot be dialed is left out. Choosing one shows the window and calls the number again. The menu follows the history and the contacts.
 - The close button hides the window where the desktop shows tray icons (a `org.kde.StatusNotifierWatcher` owner on the session bus, asked at the moment of closing; always on Windows). Calls go on.
 - An incoming call that starts ringing brings the window back in sight, wherever it is.
-- Without a tray the close button quits through the page's own Quit, which asks before ending a call ("Hang up and quit?"). The same for the tray's Quit, after showing the window. Asking again is never consent: a page that answers is only asked again.
+- Without a tray the close button quits through the page's own Quit. The same for the tray's Quit, after showing the window. Asking again is never consent: a page that answers is only asked again.
+- The page's Quit asks first ("Hang up and quit?") when it shows a call. When it shows none it does not decide by itself: it asks the engine to stop only if it has no call, and the engine, which is where calls are, refuses when it has one; the page then asks. Only the yes sends the unconditional stop.
 - When no page is listening, or the page did not answer the last request within three seconds, the window asks by itself in a native dialog (Cancel by default) whenever an engine is running, and only a yes ends it. The window does not judge whether there is a call: what it knows of calls comes after the fact. Without an engine, or once it has stopped, it quits at once.
 - A shutdown is taken once: a second request while the first is on its way is that same shutdown. A wish to quit is kept when the engine has already ended and its last events have not arrived, and the application quits when they are through.
 - `--self-test` creates no tray and keeps the toolkit's close.
@@ -33,11 +35,12 @@ Evidence:
 
 - `TestLeavingAsksThePageThatListens` (`internal/gui`), in `make go-test`: four requests in a row over a page that answers quit nothing; an unanswered request is asked again until its time is over and is then left to the window; three shutdown requests are one shutdown.
 - `TestAQuitOutlivesALateStopped`: the engine's last events held back until after the quit was asked, a stream that closes without `Stopped`, and a full queue, which is a refusal.
+- `TestAConditionalShutdownIsRefusedDuringACall` (`internal/core/engine`): a conditional stop asked right after dialing, before any snapshot of the call is read, is refused and the call goes on; without a call it is taken. `TestAnUnaskedQuitIsTheEnginesToDecide` (`internal/gui`) and "quitting during a call asks first and signals do not" (the page): the unasked quit is the conditional one, "busy" brings the question, the yes is unconditional.
 - `make go-window-call` ([log](go-m3/window-call.log), after the review): on the lab desktop, which has a session bus and no tray host, Alt+F4 during an established call shows the question and Cancel keeps the call; Alt+F4 without a call ends the process, and the same extension then registers again, which the lab PBX refuses while a contact remains (`max_contacts=1`, `remove_existing=no`); a minimized window is back in sight when a call comes in.
 - `make go-appimage-call`: the first version of the close button through the AppImage of commit `a24194c` ([log](go-tray/appimage-call.log)). The run of the reviewed behavior (the minimized window, the third registration) through an AppImage is the one named in [the M3 receipt](go-m3-skins-2026-11-12.md), with its commit.
 - `make go-check`, `make go-frontend-test`.
 
-**Not verified**: the icon, its menu and hiding to the tray on a desktop that has a tray host (KDE, GNOME with the AppIndicator extension) and on Windows, beyond the owner's report below; the native dialog of a page that does not answer (no test drives it). The lab cannot show a tray; it is for the owner's desktop and for tasks 6.2 and 6.3. Recent calls in the tray menu, which the Rust candidate has, are not built.
+**Not verified**: the icon, its menu and hiding to the tray on a desktop that has a tray host (KDE, GNOME with the AppIndicator extension) and on Windows, beyond the owner's report below; the native dialog of a page that does not answer (no test drives it). The lab cannot show a tray; it is for the owner's desktop and for tasks 6.2 and 6.3. The latest calls in the tray's menu are tested as a list (`Phone.Recent`, in `TestPhoneRegistersJournalsAndCloses`); the menu itself, and a choice from it, are not driven by a test.
 
 ## The owner's desktop (2026-11-12)
 

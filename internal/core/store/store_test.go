@@ -787,3 +787,22 @@ func TestConfigKeysMirrorTheConfigurationSchema(t *testing.T) {
 		t.Errorf("store keys %v, configuration keys %v", ConfigKeys, keys)
 	}
 }
+
+// The database's address for SQLite: a Windows path keeps its drive in the path (a drive read as
+// a host makes the database impossible to open), and characters that mean something in an address
+// are escaped.
+func TestTheDatabaseAddressKeepsADriveInThePath(t *testing.T) {
+	for path, want := range map[string]string{
+		"/home/u/.local/share/go-microsip/go-microsip.sqlite3":          "file:///home/u/.local/share/go-microsip/go-microsip.sqlite3",
+		"C:/Users/lab/AppData/Local/go-microsip/go-microsip.sqlite3":    "file:///C:/Users/lab/AppData/Local/go-microsip/go-microsip.sqlite3",
+		"C:/Users/a b/AppData/Local/go-microsip/go-microsip#1?.sqlite3": "file:///C:/Users/a%20b/AppData/Local/go-microsip/go-microsip%231%3F.sqlite3",
+	} {
+		if got := slashURI(path); got != want {
+			t.Errorf("%s: %s, want %s", path, got, want)
+		}
+	}
+	// A relative path is the file in the working directory, not a host.
+	if got := fileURI("relative.sqlite3"); !strings.HasPrefix(got, "file:///") || !strings.HasSuffix(got, "/relative.sqlite3") {
+		t.Errorf("a relative path: %s", got)
+	}
+}

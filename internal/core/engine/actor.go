@@ -90,7 +90,17 @@ func (e *Engine) run() {
 	for {
 		select {
 		case c := <-e.commands:
-			if _, stop := c.(domain.Shutdown); stop {
+			if stop, ok := c.(domain.Shutdown); ok {
+				taken := !(stop.IfIdle && a.call != nil) // decided here, where the calls are
+				if stop.Taken != nil {
+					select {
+					case stop.Taken <- taken:
+					default: // a sender that left no room does not hold the engine
+					}
+				}
+				if !taken {
+					continue
+				}
 				a.shutdown()
 				return
 			}

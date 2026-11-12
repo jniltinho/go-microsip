@@ -154,6 +154,12 @@ export type Command =
   | { type: "transfer"; id: number; target: string }
   | { type: "setMute"; id: number; muted: boolean }
   | { type: "setDnd"; on: boolean }
+  /**
+   * Quit nobody was asked about: the engine stops only if it has no call, and refuses with "busy"
+   * otherwise. Whether there is a call is the engine's to say: the page hears of calls later.
+   */
+  | { type: "quit" }
+  /** Quit a person said yes to: every call ends, the account unregisters, the engine stops. */
   | { type: "shutdown" };
 
 /** Saved, secret-free settings. */
@@ -293,6 +299,8 @@ function wails({ Call, Events }: Wails): Backend {
         return ["SetMute", c.id, c.muted];
       case "setDnd":
         return ["SetDnd", c.on];
+      case "quit":
+        return ["Quit"];
       case "shutdown":
         return ["Shutdown"];
     }

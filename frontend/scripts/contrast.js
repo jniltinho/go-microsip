@@ -75,7 +75,15 @@
   }
   for (const el of document.querySelectorAll("svg")) {
     if (!shown(el)) continue;
-    const low = worst(parse(getComputedStyle(el).stroke), backgrounds(el), alpha(el));
+    // An icon is its shapes: the most visible one is what is seen of it.
+    const shape = Math.max(
+      0,
+      ...[...el.querySelectorAll("path, circle, rect, line")].map((p) => {
+        const s = getComputedStyle(p);
+        return s.display === "none" || s.visibility === "hidden" ? 0 : Number(s.opacity);
+      }),
+    );
+    const low = worst(parse(getComputedStyle(el).stroke), backgrounds(el), alpha(el) * shape);
     if (low < 3)
       failures.add(`${low.toFixed(2)} icon in "${el.parentElement.innerText.trim().slice(0, 20)}"`);
   }

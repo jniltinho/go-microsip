@@ -205,6 +205,9 @@ export function createMock(): Backend {
       case "setDnd":
         saved.dnd = c.on;
         return;
+      case "quit":
+        if (call) return "busy";
+      // falls through
       case "shutdown":
         end("normal");
         register({ state: "disabled" });

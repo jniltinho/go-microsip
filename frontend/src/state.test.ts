@@ -230,11 +230,19 @@ test("quitting during a call asks first and signals do not", async () => {
   await run(st, ["quitNow"]);
   expect([st.quitting, st.confirm]).toEqual([true, null]);
   expect(b.take()).toEqual(["shutdown()"]);
-  // Without a call, quitting is immediate.
+  // Without a call the page knows of, the quit is the engine's to decide.
   [st, b] = fresh();
   await run(st, ["quit", "quit"]);
   expect(st.quitting).toBe(true);
-  expect(b.take()).toEqual(["shutdown()"]);
+  expect(b.take()).toEqual(["quit()"]);
+  // The engine has a call this page has not heard of yet: it refuses, and the question is asked.
+  [st, b] = fresh();
+  b.fail = "busy";
+  await run(st, ["quit"]);
+  expect([st.quitting, st.confirm, st.notice(0)]).toEqual([false, { kind: "quit" }, null]);
+  b.fail = null;
+  await run(st, ["confirm"]);
+  expect([st.quitting, b.take()]).toEqual([true, ["shutdown()"]]);
 });
 
 test("an account is not saved or shown during a call", async () => {
@@ -282,7 +290,7 @@ test("a refused shutdown can be tried again", async () => {
   b.fail = null;
   b.take();
   await run(st, ["quit"]);
-  expect([st.quitting, b.take()]).toEqual([true, ["shutdown()"]]);
+  expect([st.quitting, b.take()]).toEqual([true, ["quit()"]]);
 });
 
 test("switching the skin during a call leaves the call alone", async () => {
@@ -407,6 +415,35 @@ test("a link asks before it calls", async () => {
   [st, b] = fresh();
   await run(st, [{ type: "askDial", number: "1002;rm" }]);
   expect([st.confirm, b.take(), st.notice(0)]).toEqual([null, [], "The link is not valid"]);
+  // A second link while a question is on the screen does not change what the yes means.
+  [st, b] = fresh();
+  await run(st, [
+    { type: "askDial", number: "1002" },
+    { type: "askDial", number: "1003" },
+  ]);
+  expect(st.confirm).toEqual({ kind: "dial", number: "1002" });
+  expect(st.notice(0)).toBe("A link was ignored: answer the question on the screen first");
+  await run(st, ["confirm"]);
+  expect(b.take()).toEqual(["dial(1002)"]);
+  // Nor does it replace another question: a delete that waits for its answer stays a delete.
+  [st, b] = fresh();
+  await run(st, [
+    { type: "deleteContact", id: 4 },
+    { type: "askDial", number: "1003" },
+  ]);
+  expect(st.confirm).toEqual({ kind: "deleteContact", id: 4 });
+  // A form being filled in is left as it is by the question, and by Cancel.
+  [st, b] = fresh();
+  await run(st, ["newContact"]);
+  st.contactForm!.name = "Draft that must survive";
+  await run(st, [{ type: "askDial", number: "1002" }]);
+  expect([st.view, st.contactForm?.name]).toEqual(["contactEdit", "Draft that must survive"]);
+  await run(st, ["cancelConfirm"]);
+  expect([st.view, st.contactForm?.name, b.take()]).toEqual([
+    "contactEdit",
+    "Draft that must survive",
+    [],
+  ]);
   // During a call the question is asked, and a yes dials nothing.
   [st, b] = fresh();
   call(st, snap(1, "outgoing", "established", 1));
