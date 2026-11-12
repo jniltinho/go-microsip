@@ -27,3 +27,7 @@ Evidence:
 - `make go-check`, `make go-frontend-test` (31 tests).
 
 **Not verified**: the icon, its menu and hiding to the tray on a desktop that has a tray host (KDE, GNOME with the AppIndicator extension) and on Windows. The lab cannot show a tray; it is for the owner's desktop and for tasks 6.2 and 6.3. Recent calls in the tray menu, which the Rust candidate has, are not built.
+
+## The owner's desktop (2026-11-12)
+
+With the AppImage of commit `a24194c` the owner reported that the account registered on the desktop whose route to the registrar goes through the VPN, and that the close button sent the window to the tray. This is the owner's report, not a run recorded here: no call was made for it, the tray's menu and Windows remain unverified, and tasks 6.2 and 6.3 stay open.
