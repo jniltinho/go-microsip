@@ -19,6 +19,6 @@ Not judged by eye alone:
 - Focus order and keyboard operation: `frontend/scripts/keyboard-check.sh`, 52 of 52 ([log](../../receipts/go-m3/keyboard-check.log)).
 - Proportions of the compact window: `frontend/scripts/scale-check.sh`, 140 of 140: 100, 150 and 200 % in the seven skins and the minimum window of 320x480 ([log](../../receipts/go-m3/scale-check.log)); [`scale/`](scale/) holds the real window at 200 %.
 
-## Open
+## Closed
 
-The owner has not yet said that layout, spacing and proportions of the built window need nothing more. Until then task 5.6 stays unchecked.
+On 2026-11-12, after the fonts were bundled and the artifacts of commit `5b1d188` were in `dist/go`, the owner was asked whether the window needed any further adjustment of layout, spacing or proportions and answered that task 5.6 could be checked.
