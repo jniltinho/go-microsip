@@ -626,6 +626,12 @@ func TestSQLiteLayerAloneResolvesAndInvalidValuesNameTheOrigin(t *testing.T) {
 	if report := Doctor(c); report.UnknownTheme || strings.Contains(report.String(), "names a skin") {
 		t.Errorf("doctor with a known theme over an unknown one: %s", report)
 	}
+	// A profile with a skin and no account yet (a first start): the configuration is invalid, and
+	// the unknown skin is still reported.
+	first := Context{SQLite: map[Field]string{UITheme: "neon"}, Flags: map[Field]string{}, Env: map[string]string{}}
+	if report := Doctor(first); report.OK || !report.UnknownTheme || !strings.Contains(report.String(), "names a skin this version does not have") {
+		t.Errorf("doctor with an unknown theme and no account: %s", report)
+	}
 	if len(Themes()) != 8 || ParseTheme("xp") != ThemeXP || ParseTheme("macos") != ThemeMacOS || ParseTheme("matrix") != ThemeMatrix || ParseTheme("") != ThemeSystem {
 		t.Errorf("themes: %v", Themes())
 	}

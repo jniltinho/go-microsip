@@ -298,13 +298,18 @@ func TestWithoutAPhoneEveryMethodSaysWhy(t *testing.T) {
 }
 
 // The close button without a tray, and the tray's Quit: the page that listens is asked, and quits
-// for itself (it asks first during a call). No page, or no answer, is not waited for.
+// for itself (it asks first during a call). Asking again is never consent; only a page that is
+// not there, or that did not answer the last request in time, leaves the question to the window.
 func TestLeavingAsksThePageThatListens(t *testing.T) {
+	none := &App{unavailable: "no phone", emit: func(ev UIEvent) { t.Errorf("sent to no page: %+v", ev) }}
+	if !none.leave() {
+		t.Fatal("without a page the window was not told to ask by itself")
+	}
 	quits := 0
-	none := &App{unavailable: "no phone", emit: func(ev UIEvent) { t.Errorf("sent to no page: %+v", ev) }, quit: func() { quits++ }}
-	none.leave()
+	none.quit = func() { quits++ }
+	none.end()
 	if quits != 1 {
-		t.Fatalf("without a phone leaving quit %d times, want at once", quits)
+		t.Fatalf("without a phone ending quit %d times, want at once", quits)
 	}
 
 	dir := t.TempDir()
@@ -319,21 +324,61 @@ func TestLeavingAsksThePageThatListens(t *testing.T) {
 	var once sync.Once
 	svc := &App{phone: phone, emit: seen.receive, quit: func() { once.Do(func() { close(quit) }) }}
 	go svc.forward()
+	if svc.inCall() {
+		t.Fatal("a call before any was placed")
+	}
 	if err := svc.Subscribe(); err != nil {
 		t.Fatal(err)
 	}
-	svc.leave()
-	seen.wait(t, 0, "quit")
+	asked := func() (n int) {
+		for _, ev := range seen.all() {
+			if ev.Type == "quit" {
+				n++
+			}
+		}
+		return n
+	}
+	// The page answers, the person cancels, and the window is closed again at once, several
+	// times: the page is asked each time and nothing quits.
+	for n := 1; n <= 4; n++ {
+		if svc.leave() {
+			t.Fatalf("request %d: the page that answers was taken as not answering", n)
+		}
+		if got := asked(); got != n {
+			t.Fatalf("request %d: the page was asked %d times", n, got)
+		}
+		svc.QuitAsked()
+	}
+	// A request the page has not answered yet is the same request, asked once more, until the
+	// time it has to answer is over; then the window has to ask by itself.
+	if svc.leave() || svc.leave() {
+		t.Fatal("a page was taken as not answering before it had the time to")
+	}
+	svc.mu.Lock()
+	svc.asked = time.Now().Add(-2 * quitGrace)
+	svc.mu.Unlock()
+	if !svc.leave() {
+		t.Fatal("a page that did not answer in time was asked again instead of the window asking")
+	}
 	select {
 	case <-quit:
-		t.Fatal("the application quit without waiting for the page it had just asked")
+		t.Fatal("the application quit although nothing asked the engine to stop")
 	case <-time.After(300 * time.Millisecond):
 	}
-	svc.leave() // the page did not answer
+	// Ending is one shutdown however often it is asked, and the application quits when the
+	// engine has stopped.
+	svc.end()
+	if err := svc.Shutdown(); err != nil {
+		t.Fatalf("a second shutdown while the first is on its way: %v", err)
+	}
+	svc.end()
 	select {
 	case <-quit:
 	case <-time.After(15 * time.Second):
-		t.Fatal("a second request did not quit")
+		t.Fatal("the application did not quit after the engine was asked to stop")
+	}
+	if err := svc.Shutdown(); err != nil { // the engine has stopped: quitting again is quitting
+		t.Fatalf("a shutdown after the engine stopped: %v", err)
 	}
 }
 

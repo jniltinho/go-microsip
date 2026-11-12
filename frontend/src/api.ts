@@ -327,7 +327,11 @@ function wails({ Call, Events }: Wails): Backend {
     version: () => call("Version"),
     ready: () => call("Ready"),
     subscribe: async (handler) => {
-      const off = Events.On(EVENT_NAME, (e: { data: BackendEvent }) => handler(e.data));
+      const off = Events.On(EVENT_NAME, (e: { data: BackendEvent }) => {
+        // The page is there and runs its own Quit: the window need not ask by itself.
+        if (e.data.type === "quit") void call("QuitAsked");
+        handler(e.data);
+      });
       await call("Subscribe");
       return off;
     },

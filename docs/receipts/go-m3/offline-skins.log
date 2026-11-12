@@ -1,7 +1,7 @@
-offline-skins: light drawn with no network, in Inter
-offline-skins: dark drawn with no network, in Inter
-offline-skins: xp drawn with no network, in DejaVu Sans
-offline-skins: macos drawn with no network, in Inter
-offline-skins: ubuntu drawn with no network, in Inter
-offline-skins: win98 drawn with no network, in Liberation Sans
-offline-skins: matrix drawn with no network, in JetBrains Mono
+offline-skins: light drawn with no network, in Inter 100 900, no font failed
+offline-skins: dark drawn with no network, in Inter 100 900, no font failed
+offline-skins: xp drawn with no network, in DejaVu Sans 400|DejaVu Sans 700, no font failed
+offline-skins: macos drawn with no network, in Inter 100 900, no font failed
+offline-skins: ubuntu drawn with no network, in Inter 100 900, no font failed
+offline-skins: win98 drawn with no network, in Liberation Sans 400|Liberation Sans 700, no font failed
+offline-skins: matrix drawn with no network, in JetBrains Mono 400|JetBrains Mono 600, no font failed

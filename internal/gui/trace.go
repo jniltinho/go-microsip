@@ -50,8 +50,8 @@ func (t *trace) page(report string) {
 	}
 }
 
-// snapshotScript leaves in the page what it shows: its text, the skin, the bundled font families it
-// has loaded to draw it, how many images it holds (the
+// snapshotScript leaves in the page what it shows: its text, the skin, the bundled font faces it
+// has loaded to draw it ("family weight") and those that failed to load, how many images it holds (the
 // page has none of its own: one would be markup that got in), its size and scale and whether
 // anything runs off its side, and where its buttons and fields are (so a test presses the button a
 // person would, wherever a skin puts it). The page hands it over
@@ -60,7 +60,8 @@ const snapshotScript = `document.documentElement.dataset.probe = JSON.stringify(
   text: document.body.innerText,
   skin: document.documentElement.dataset.skin || "",
   theme: document.documentElement.dataset.theme || "",
-  fonts: [...new Set([...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family.replace(/"/g, "")))].sort(),
+  fonts: [...new Set([...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family.replace(/"/g, "") + " " + f.weight))].sort(),
+  fontErrors: [...document.fonts].filter((f) => f.status === "error").map((f) => f.family.replace(/"/g, "") + " " + f.weight),
   images: document.images.length,
   height: innerHeight,
   width: innerWidth,

@@ -83,12 +83,37 @@ func TestRegistrationFailure(t *testing.T) {
 	}
 }
 
-// The local address is the one the routing table gives for the registrar, not the first interface.
+// The local address is the one the routing table gives for the registrar, not the first
+// interface, and only when every address of the registrar agrees on it.
 func TestTheEndpointBindsWhereTheRegistrarIsReachedFrom(t *testing.T) {
-	if got := bindHost([]net.IP{net.ParseIP("::1"), net.ParseIP("127.0.0.1")}, 5060); got != "127.0.0.1" {
-		t.Errorf("a registrar on the loopback is reached from %s, want 127.0.0.1", got)
+	ip := net.ParseIP
+	routes := map[string]net.IP{
+		"198.51.100.10": ip("10.8.0.2"), // through a VPN
+		"198.51.100.11": ip("10.8.0.2"),
+		"203.0.113.5":   ip("192.168.1.20"), // through the local network
+		"127.0.0.1":     ip("127.0.0.1"),
 	}
-	if got := bindHost([]net.IP{net.ParseIP("2001:db8::1")}, 5060); got != "0.0.0.0" {
-		t.Errorf("without an IPv4 registrar the bind is %s, want every interface", got)
+	route := func(peer net.IP) net.IP { return routes[peer.String()] }
+	for _, c := range []struct {
+		name  string
+		peers []net.IP
+		want  string
+	}{
+		{"one registrar address through the VPN", []net.IP{ip("198.51.100.10")}, "10.8.0.2"},
+		{"two addresses reached from the same one", []net.IP{ip("198.51.100.10"), ip("198.51.100.11")}, "10.8.0.2"},
+		{"an IPv6 address beside it is not what is bound", []net.IP{ip("2001:db8::1"), ip("198.51.100.10")}, "10.8.0.2"},
+		{"addresses reached from different interfaces", []net.IP{ip("198.51.100.10"), ip("203.0.113.5")}, "0.0.0.0"},
+		{"an address with no route", []net.IP{ip("198.51.100.10"), ip("192.0.2.99")}, "0.0.0.0"},
+		{"a proxy or tunnel on this host", []net.IP{ip("127.0.0.1")}, "0.0.0.0"},
+		{"only IPv6", []net.IP{ip("2001:db8::1")}, "0.0.0.0"},
+		{"nothing resolved", nil, "0.0.0.0"},
+	} {
+		if got := localFor(c.peers, route); got != c.want {
+			t.Errorf("%s: bound to %s, want %s", c.name, got, c.want)
+		}
+	}
+	// The kernel's own answer for the loopback is the loopback, which is not bound.
+	if got := bindHost([]net.IP{ip("127.0.0.1")}, 5060); got != "0.0.0.0" {
+		t.Errorf("a registrar on the loopback binds %s, want every interface", got)
 	}
 }

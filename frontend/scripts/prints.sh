@@ -1,13 +1,17 @@
 #!/bin/sh
 # The screenshot matrix: every screen in every skin, driven with agent-browser against the mock
 # backend, by keyboard wherever a step is an action. Each screen is also audited as drawn for 7:1
-# text contrast and 3:1 edges and icons (contrast.js), and the screens of a call state or an error
-# for an icon beside the state's label (a state is never told by color alone); the results go to
-# <output directory>/contrast.txt and states.txt, and any failure makes the run fail. Run from the repository root with the dev server up (see
+# text contrast and 3:1 edges and icons (contrast.js), the screens of a call state or an error for
+# an icon in sight beside the state's label (a state is never told by color alone), and the main
+# screens of each skin for the ring of every control that takes the keyboard's focus (focus.js).
+# The results go to <output directory>/contrast.txt, states.txt and focus.txt, and any failure
+# makes the run fail. The run ends with two controls: a ring taken away and an icon hidden must
+# each be reported, or the audits prove nothing. Run from the repository root with the dev server up (see
 # docs/ui/go-frontend.md):
 #   frontend/scripts/prints.sh [base URL] [output directory] [skins...]
 set -eu
 audit=$(cat "$(dirname "$0")/contrast.js")
+focus=$(cat "$(dirname "$0")/focus.js")
 base=${1:-http://127.0.0.1:5173}
 out=$(mkdir -p "${2:-docs/prints/go}" && cd "${2:-docs/prints/go}" && pwd)
 [ $# -ge 2 ] && shift 2 || shift $#
@@ -39,7 +43,7 @@ state() {
 	screen=$1
 	shift
 	for label in "$@"; do
-		found=$(abo eval "[...document.querySelectorAll('svg')].some((s) => s.parentElement.innerText.trim().startsWith('$label'))")
+		found=$(abo eval "[...document.querySelectorAll('svg')].some((s) => { const b = s.getBoundingClientRect(), c = getComputedStyle(s); return b.width > 0 && b.height > 0 && c.visibility !== 'hidden' && Number(c.opacity) > 0 && !!s.querySelector('path, circle, rect, line') && s.parentElement.innerText.trim().startsWith('$label'); })")
 		if [ "$found" = true ]; then
 			echo "$skin/$screen: icon and label \"$label\"" >>"$out/states.txt"
 		else
@@ -47,11 +51,30 @@ state() {
 		fi
 	done
 }
+# rings audits the focus ring of every control of the screen in sight, after a key press that tells
+# the browser a person is at the keyboard. Used where the press changes nothing that follows.
+rings() {
+	abo eval "$audit" >/dev/null
+	ab press Shift
+	ab press Tab
+	ring=$(abo eval "$focus")
+	ring=${ring#\"}
+	ring=${ring%\"}
+	count=${ring%% *}
+	wrong=${ring#* }
+	[ "$wrong" != "$ring" ] || wrong=
+	if [ "${count:-0}" -gt 0 ] && [ -z "$wrong" ]; then
+		echo "$skin/$1: $count controls show a ring" >>"$out/focus.txt"
+	else
+		echo "$skin/$1: RING $count controls; $wrong" | tee -a "$out/focus.txt"
+	fi
+}
 click() { ab eval "document.querySelector('$1').click()"; }
 keys() { for k in "$@"; do ab press "$k"; done; }
 
 : >"$out/contrast.txt"
 : >"$out/states.txt"
+: >"$out/focus.txt"
 ab set viewport 360 560
 # Still pictures: a backdrop that moves (matrix) is drawn at rest, as with reduced motion.
 ab set media light reduced-motion
@@ -149,7 +172,49 @@ for skin in $skins; do
 	ab focus 'button[aria-haspopup="menu"]'
 	keys Enter End Enter
 	shot stopped
+
+	# The ring of every control that takes focus, on the screens that hold the controls.
+	scene ""
+	rings home
+	keys Control+l
+	rings keypad
+	scene active
+	rings call
+	click '[aria-label="Call controls"] button:nth-child(3)'
+	rings call-keypad
+	scene incoming
+	rings incoming
+	scene ""
+	ab focus '.tab[aria-selected="true"]'
+	keys ArrowRight
+	rings calls
+	keys ArrowRight
+	rings contacts
+	ab eval "[...document.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Add').click()"
+	rings contact-edit
+	scene ""
+	ab focus 'button[aria-haspopup="menu"]'
+	keys Enter
+	rings menu
+	keys Enter
+	rings settings
+	scene approval
+	rings approval
 done
+
+# Controls: the audits must report a ring that is taken away and an icon that is hidden.
+skin=control
+ab open "$base/?scene=muted"
+ab wait .statusbar
+ab wait 400
+ab eval "{ const s = document.createElement('style'); s.textContent = '.ctl:focus-visible, .btn:focus-visible { outline: none }'; document.head.append(s); }"
+rings ring-taken-away
+ab eval "{ const s = document.createElement('style'); s.textContent = '.badge svg { display: none }'; document.head.append(s); }"
+state icon-hidden "Muted"
+controls=0
+grep -q '^control/ring-taken-away: RING' "$out/focus.txt" && controls=$((controls + 1)) || echo "prints: CONTROL FAILED: a ring taken away was not reported"
+grep -q '^control/icon-hidden: NO ICON' "$out/states.txt" && controls=$((controls + 1)) || echo "prints: CONTROL FAILED: a hidden icon was not reported"
 ab set media light
-echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label)"
-! grep -q BELOW "$out/contrast.txt" && ! grep -q "NO ICON" "$out/states.txt"
+echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label, $(grep -c 'controls show a ring' "$out/focus.txt") screens show a ring on every control, $controls of 2 controls caught)"
+[ "$controls" -eq 2 ] && ! grep -q BELOW "$out/contrast.txt" && ! grep -v '^control/' "$out/states.txt" | grep -q "NO ICON" &&
+	! grep -v '^control/' "$out/focus.txt" | grep -q "RING"

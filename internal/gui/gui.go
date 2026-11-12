@@ -157,6 +157,30 @@ func Run(o Options) error {
 		}
 	}
 	main = ui.Window.NewWithOptions(win)
+	// leave quits through the page's own Quit, which asks before it ends a call. A page that is
+	// not there or does not answer cannot ask: the window asks then, in a dialog of its own, and
+	// only a yes ends a call.
+	var asking atomic.Bool
+	leave := func() {
+		if !svc.leave() {
+			return
+		}
+		if !svc.inCall() {
+			svc.end()
+			return
+		}
+		if !asking.CompareAndSwap(false, true) {
+			return // the question is already on the screen
+		}
+		question := ui.Dialog.Question().SetTitle("go-microsip").SetMessage("The window is not answering. Hang up and quit?")
+		yes := question.AddButton("Hang up and quit")
+		yes.OnClick(func() { asking.Store(false); svc.end() })
+		no := question.AddButton("Cancel")
+		no.OnClick(func() { asking.Store(false) })
+		question.SetDefaultButton(no)
+		question.SetCancelButton(no)
+		question.Show()
+	}
 	if !o.SelfTest { // a self-test shows no tray icon and closes like any window
 		tray := ui.SystemTray.New()
 		tray.SetIcon(icon)
@@ -165,7 +189,7 @@ func Run(o Options) error {
 		menu.Add("Show go-microsip").OnClick(func(*application.Context) { reveal() })
 		menu.AddSeparator()
 		// The page's own Quit, in sight: it asks before it ends a call.
-		menu.Add("Quit").OnClick(func(*application.Context) { reveal(); svc.leave() })
+		menu.Add("Quit").OnClick(func(*application.Context) { reveal(); leave() })
 		tray.SetMenu(menu)
 		tray.OnClick(reveal)
 		main.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
@@ -177,7 +201,7 @@ func Run(o Options) error {
 				main.Hide() // calls go on; the tray icon brings the window back
 				return
 			}
-			svc.leave() // no tray to come back from: closing is quitting
+			leave() // no tray to come back from: closing is quitting
 		})
 	}
 	pageGone := func(UIEvent) {} // where events go once the window has closed

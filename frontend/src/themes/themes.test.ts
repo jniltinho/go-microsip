@@ -131,21 +131,59 @@ test("system resolves to light or dark and unknown ids resolve to system", () =>
   expect(effectiveSkin(knownSkin("removed-skin"), true).id).toBe("dark");
 });
 
+// Every color name CSS knows (CSS Color 4), for the check below.
+const NAMED =
+  "aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen";
+const PALETTE =
+  "white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
+const COLOR_UTILITY =
+  "bg|text|border|outline|ring|fill|stroke|from|via|to|accent|caret|divide|shadow|decoration";
+/** What a color written outside the skins looks like, one pattern per way of writing it. */
+const LITERALS = [
+  /#[0-9a-fA-F]{3,8}\b/,
+  /\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/,
+  // A Tailwind palette utility, and an arbitrary value that is a color name.
+  new RegExp(`\\b(${COLOR_UTILITY})-(${PALETTE})(-\\d+)?\\b`),
+  new RegExp(`\\b(${COLOR_UTILITY})-\\[(${NAMED})\\]`),
+  // A declaration (a stylesheet, a style attribute, a style object) whose value names a color.
+  new RegExp(
+    `(color|background|border|outline|fill|stroke|shadow|caret|accent|decoration)[\\w-]*["']?\\s*:[^;{}]*?(?<![\\w-])(${NAMED})(?![\\w-])`,
+    "i",
+  ),
+];
+
 test("no color literal outside src/themes", () => {
-  const palette =
-    "white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
-  const literals = [
-    /#[0-9a-fA-F]{3,8}\b/,
-    /\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/,
-    new RegExp(
-      `\\b(bg|text|border|outline|ring|fill|stroke|from|via|to|accent|caret|divide|shadow|decoration)-(${palette})(-\\d+)?\\b`,
-    ),
-    new RegExp(`(color|background|border|fill|stroke)[\\w-]*\\s*:\\s*(${palette})\\b`),
-  ];
+  // The check itself: every way of writing a color is caught, and the tokens are not.
+  for (const bad of [
+    "color: #fff;",
+    "background: rgb(0 0 0 / 50%);",
+    'class="bg-red-500"',
+    'class="text-[navy]"',
+    'style="color: navy"',
+    "border-bottom-color: rebeccapurple;",
+    "background: linear-gradient(white, var(--panel));",
+    "boxShadow: '0 0 2px black'",
+  ])
+    expect(
+      LITERALS.some((l) => l.test(bad)),
+      `not caught: ${bad}`,
+    ).toBe(true);
+  for (const good of [
+    "color: var(--text);",
+    "background: var(--backdrop), var(--surface);",
+    'class="bg-surface text-fg text-[0.9rem] border-line"',
+    "border-color: transparent;",
+    "outline: var(--focus-width) var(--focus-style) var(--focus);",
+    "color: inherit;",
+  ])
+    expect(
+      LITERALS.some((l) => l.test(good)),
+      `caught by mistake: ${good}`,
+    ).toBe(false);
   expect(Object.keys(sources).length).toBeGreaterThan(5);
   for (const [file, text] of Object.entries(sources))
     text.split("\n").forEach((line, i) => {
-      for (const literal of literals) expect(line, `${file}:${i + 1}`).not.toMatch(literal);
+      for (const literal of LITERALS) expect(line, `${file}:${i + 1}`).not.toMatch(literal);
     });
 });
 

@@ -46,6 +46,10 @@ func Doctor(c Context) DoctorReport {
 	if err != nil {
 		msg := err.Error()
 		r.Error = &msg
+		// The skin is read whether or not an account is configured yet.
+		if in, err := load(c); err == nil {
+			r.UnknownTheme = unknownTheme(in.layers)
+		}
 		// The .env file may be the unreadable part: report the process environment at least.
 		for name := range c.Env {
 			if strings.HasPrefix(name, LegacyEnvPrefix) {
@@ -92,8 +96,14 @@ func (r DoctorReport) String() string {
 				LegacyEnvPrefix, EnvPrefix, strings.Join(r.IgnoredLegacyEnv, ", "))
 		}
 	}
+	theme := func() {
+		if r.UnknownTheme {
+			b.WriteString("warning: ui.theme names a skin this version does not have; the window starts with System\n")
+		}
+	}
 	if r.Error != nil {
 		fmt.Fprintf(&b, "configuration: INVALID\nerror: %s\n", *r.Error)
+		theme()
 		legacy()
 		return b.String()
 	}
@@ -120,9 +130,7 @@ func (r DoctorReport) String() string {
 	if r.LiteralPasswordWarning {
 		b.WriteString("warning: literal password in TOML; prefer password_env\n")
 	}
-	if r.UnknownTheme {
-		b.WriteString("warning: ui.theme names a skin this version does not have; the window starts with System\n")
-	}
+	theme()
 	legacy()
 	return b.String()
 }

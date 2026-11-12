@@ -32,6 +32,8 @@
     }
     return [{ r: 255, g: 255, b: 255, a: 1 }];
   };
+  // For focus.js, which audits the ring of each focused control with the same arithmetic.
+  window.__aaa = { parse, ratio, backgrounds };
   const modal = document.querySelector("dialog[open]");
   const failures = new Set();
   const shown = (el) => {

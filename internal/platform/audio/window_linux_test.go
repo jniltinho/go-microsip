@@ -48,10 +48,12 @@ type tracedPage struct {
 	Images int    `json:"images"`
 	Skin   string `json:"skin"`  // the skin chosen in the settings
 	Theme  string `json:"theme"` // the skin drawn: "system" resolved to light or dark
-	// Fonts are the bundled families the page has loaded to draw itself.
-	Fonts  []string `json:"fonts"`
-	Height int      `json:"height"` // of the page's visible part
-	Width  int      `json:"width"`
+	// Fonts are the bundled faces the page has loaded to draw itself ("family weight"), and
+	// FontErrors those that failed to load.
+	Fonts      []string `json:"fonts"`
+	FontErrors []string `json:"fontErrors"`
+	Height     int      `json:"height"` // of the page's visible part
+	Width      int      `json:"width"`
 	// Scale is the device pixels per CSS pixel; Overflows and Clipped say whether the page is wider
 	// than its window and how many of its controls run off its side.
 	Scale     float64 `json:"scale"`
@@ -182,7 +184,8 @@ func (w *window) until(d time.Duration, what string, cond func() bool) {
 }
 
 // unregistered follows the trace until the engine has reported itself stopped, which comes after
-// the account is unregistered. An AppImage's launcher can exit before its softphone has finished,
+// it tried to unregister. It does not see the PBX: that the unregistration arrived is shown by the
+// next registration of the same extension, which the lab PBX refuses while a contact remains. An AppImage's launcher can exit before its softphone has finished,
 // so the process's end alone does not say the extension is free.
 func (w *window) unregistered(d time.Duration) bool {
 	timeout := time.After(d)
@@ -417,21 +420,33 @@ func skinsInTheWindow(t *testing.T, bin, server, password string) {
 			t.Fatal("the window was not found on the display")
 		}
 	}
-	for _, skin := range []struct{ id, label, font string }{
-		{"light", "Light", "Inter"},
-		{"dark", "Dark", "Inter"},
-		{"xp", "Windows XP", "DejaVu Sans"},
-		{"macos", "macOS", "Inter"},
-		{"ubuntu", "Ubuntu", "Inter"},
-		{"win98", "Windows 98", "Liberation Sans"},
-		{"matrix", "Matrix", "JetBrains Mono"},
+	inter := []string{"Inter 100 900"}
+	for _, skin := range []struct {
+		id, label string
+		faces     []string // the regular and the heavier face of its bundled font, or the one variable face
+	}{
+		{"light", "Light", inter},
+		{"dark", "Dark", inter},
+		{"xp", "Windows XP", []string{"DejaVu Sans 400", "DejaVu Sans 700"}},
+		{"macos", "macOS", inter},
+		{"ubuntu", "Ubuntu", inter},
+		{"win98", "Windows 98", []string{"Liberation Sans 400", "Liberation Sans 700"}},
+		{"matrix", "Matrix", []string{"JetBrains Mono 400", "JetBrains Mono 600"}},
 	} {
 		w.click("Menu")
 		w.click("Settings")
 		w.choose(skin.label)
-		w.until(10*time.Second, "the "+skin.label+" skin drawn in "+skin.font, func() bool {
-			return w.page.Skin == skin.id && w.page.Theme == skin.id && slices.Contains(w.page.Fonts, skin.font)
+		w.until(10*time.Second, "the "+skin.label+" skin drawn in "+strings.Join(skin.faces, " and "), func() bool {
+			for _, face := range skin.faces {
+				if !slices.Contains(w.page.Fonts, face) {
+					return false
+				}
+			}
+			return w.page.Skin == skin.id && w.page.Theme == skin.id
 		})
+		if len(w.page.FontErrors) != 0 {
+			t.Errorf("in %s these fonts failed to load: %v", skin.label, w.page.FontErrors)
+		}
 		w.keys("Escape") // leaves the settings
 		w.keys("ctrl+l", "6", "0", "0", "Return")
 		w.until(30*time.Second, "the call connected in "+skin.label, func() bool {
@@ -891,6 +906,24 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	}
 	if !next.unregistered(15 * time.Second) {
 		t.Error("the restarted window did not unregister after its close button")
+	}
+	// The PBX's own word for it: it keeps one contact per extension and refuses a second one
+	// (max_contacts=1, remove_existing=no in the lab), so the same extension registers again only
+	// if the close button's unregistration reached it.
+	third := filepath.Join(dir, "ui-trace-3.jsonl")
+	probe, left := softphone(t, bin, dir, password, "--config", file, "--ui-trace", third)
+	after := &window{t: t, lines: follow(t, third)}
+	after.until(30*time.Second, "the extension registered again after the close button", func() bool {
+		return after.registered == "registered"
+	})
+	_ = syscall.Kill(-probe.Process.Pid, syscall.SIGTERM)
+	select {
+	case <-left:
+	case <-time.After(15 * time.Second):
+		t.Error("the third window did not exit after the termination signal")
+	}
+	if !after.unregistered(15 * time.Second) {
+		t.Error("the third window did not unregister after the termination signal")
 	}
 	t.Logf("%s: %s", user, strings.Join(w.story, "; "))
 }

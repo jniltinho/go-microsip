@@ -104,18 +104,40 @@ func (e *Endpoint) secure() bool { return e.Account.Settings.Media == domain.SRT
 // table. Signalling and audio are sent from it and name it: on a host with a VPN or a second
 // network card the first interface is not where the registrar's answers come back to.
 func bindHost(peers []net.IP, port int) string {
-	for _, peer := range peers {
-		if peer.To4() == nil {
-			continue // shortcut: IPv4 only, like the 0.0.0.0 it replaces; upgrade with IPv6 registrars
-		}
+	return localFor(peers, func(peer net.IP) net.IP {
 		c, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: peer, Port: port}) // a route lookup: nothing is sent
 		if err != nil {
-			continue
+			return nil
 		}
 		defer c.Close()
-		return c.LocalAddr().(*net.UDPAddr).IP.String()
+		return c.LocalAddr().(*net.UDPAddr).IP
+	})
+}
+
+// localFor is the one address every IPv4 address of the registrar is reached from, or "0.0.0.0"
+// (every interface, the kernel choosing per packet) when there is no such address: the registrar's
+// addresses are reached from different ones (requests follow the name, so any of them may be
+// used), one of them has no route, or the route is the loopback (a proxy or a tunnel on this
+// host: the audio's other end is elsewhere and could not send to 127.0.0.1).
+//
+// shortcut: IPv4 only, like the 0.0.0.0 it replaces; and the address is also the one offered for
+// audio, as softphones without ICE do; upgrade with IPv6 registrars or ICE.
+func localFor(peers []net.IP, route func(net.IP) net.IP) string {
+	var local net.IP
+	for _, peer := range peers {
+		if peer.To4() == nil {
+			continue
+		}
+		from := route(peer)
+		if from == nil || from.IsLoopback() || (local != nil && !local.Equal(from)) {
+			return "0.0.0.0"
+		}
+		local = from
 	}
-	return "0.0.0.0" // no route yet: every interface, as before
+	if local == nil {
+		return "0.0.0.0"
+	}
+	return local.String()
 }
 
 // NewEndpoint creates the user agent of a validated account. Nothing is sent until Register or Dial.

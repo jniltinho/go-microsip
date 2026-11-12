@@ -1,9 +1,11 @@
 #!/bin/sh
 # Offline start of every skin (run inside the build container started with --network none): the
 # window opens under Xvfb with each skin saved as the setting, and its own report of what it shows
-# (--ui-trace) must name that skin, the whole home screen and the skin's bundled font as loaded. A
-# skin that needed a font, an image or a stylesheet from the network would have nothing to fetch
-# it with. The built page is also scanned for an address outside itself.
+# (--ui-trace) must name that skin, the four destinations of the home screen, every face of the
+# skin's bundled font as loaded and none as failed. A skin that needed a font, an image or a
+# stylesheet from the network would have nothing to fetch it with. The built page is also scanned
+# for an address outside itself. This is a start-up check of one screen per skin, not of every
+# screen: the screenshot matrix (frontend/scripts/prints.sh) covers those.
 #   build/qa/offline-skins.sh <binary> [directory for a picture of each skin]
 set -eu
 bin=$1
@@ -31,18 +33,28 @@ trap 'kill $xvfb 2>/dev/null || :' EXIT
 sleep 1
 [ -z "$out" ] || mkdir -p "$out"
 failed=0
-# The bundled family each skin draws with (frontend/src/fonts/README.md). The build image has no
-# Ubuntu font, so that skin loads its bundled one too.
-font_of() {
+# The bundled faces each skin draws its home screen with, as "family weight", separated by "|"
+# (frontend/src/fonts/README.md): the regular and the heavier one, or the one variable face. The
+# build image has no Ubuntu font, so that skin loads its bundled one too.
+faces_of() {
 	case $1 in
-	xp) echo "DejaVu Sans" ;;
-	win98) echo "Liberation Sans" ;;
-	matrix) echo "JetBrains Mono" ;;
-	*) echo "Inter" ;;
+	xp) echo "DejaVu Sans 400|DejaVu Sans 700" ;;
+	win98) echo "Liberation Sans 400|Liberation Sans 700" ;;
+	matrix) echo "JetBrains Mono 400|JetBrains Mono 600" ;;
+	*) echo "Inter 100 900" ;;
 	esac
 }
+# drawn_in <report line> <faces>: every face is in the report's list of loaded fonts.
+drawn_in() {
+	rest=$2
+	while [ -n "$rest" ]; do
+		face=${rest%%|*}
+		[ "$face" = "$rest" ] && rest= || rest=${rest#*|}
+		printf '%s' "$1" | grep -qE "\"fonts\":\[[^]]*\"$face\"" || return 1
+	done
+}
 for skin in light dark xp macos ubuntu win98 matrix; do
-	font=$(font_of "$skin")
+	font=$(faces_of "$skin")
 	dir=$(mktemp -d)
 	printf 'schema = 1\n[ui]\ntheme = "%s"\n' "$skin" >"$dir/config.toml"
 	chmod 600 "$dir/config.toml"
@@ -53,11 +65,11 @@ for skin in light dark xp macos ubuntu win98 matrix; do
 	drawn=no
 	i=0
 	while [ "$i" -lt 150 ]; do
-		# The page's report: this skin drawn, its bundled font loaded, and the four tabs of the home
-		# screen in its text.
-		if grep '"page"' "$trace" 2>/dev/null | grep "\"theme\":\"$skin\"" | grep "\"skin\":\"$skin\"" |
-			grep -E "\"fonts\":\[[^]]*\"$font\"" |
-			grep 'Home' | grep 'Calls' | grep 'Contacts' | grep -q 'Keypad'; then
+		# The page's last report: this skin drawn, every face of its bundled font loaded and none
+		# failed, and the four destinations of the home screen in its text.
+		report=$(grep '"page"' "$trace" 2>/dev/null | grep "\"theme\":\"$skin\"" | grep "\"skin\":\"$skin\"" |
+			grep '"fontErrors":\[\]' | grep 'Home' | grep 'Calls' | grep 'Contacts' | grep 'Keypad' | tail -n 1 || :)
+		if [ -n "$report" ] && drawn_in "$report" "$font"; then
 			drawn=yes
 			break
 		fi
@@ -71,7 +83,7 @@ for skin in light dark xp macos ubuntu win98 matrix; do
 	kill -TERM "$pid" 2>/dev/null || :
 	wait "$pid" 2>/dev/null || :
 	if [ "$drawn" = yes ]; then
-		echo "offline-skins: $skin drawn with no network, in $font"
+		echo "offline-skins: $skin drawn with no network, in $font, no font failed"
 	else
 		echo "offline-skins: $skin NOT drawn" >&2
 		tail -n 5 "$dir/log" >&2

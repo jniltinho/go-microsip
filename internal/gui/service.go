@@ -29,6 +29,7 @@ type App struct {
 	// attention brings the window in sight (it may be hidden in the tray); nil does nothing.
 	attention func()
 
+	ending       sync.Mutex // one Shutdown at a time
 	mu           sync.Mutex
 	ready        func()
 	probed       func(string)
@@ -36,6 +37,7 @@ type App struct {
 	quitting     bool
 	stopped      bool
 	asked        time.Time // when the page was last asked to quit
+	acked        bool      // the page answered that request
 	registration domain.RegistrationChanged
 	call         *domain.CallSnapshot
 }
@@ -241,14 +243,21 @@ func (a *App) SetDnd(on bool) error {
 }
 
 // Shutdown ends the calls, unregisters and stops the engine; the application quits when it has.
+// It is taken once: while one is on its way a second request is that same shutdown, and neither
+// sends another command nor undoes the first.
 func (a *App) Shutdown() error {
+	a.ending.Lock() // a second request waits for what became of the first
+	defer a.ending.Unlock()
 	a.mu.Lock()
-	stopped := a.stopped
+	stopped, pending := a.stopped, a.quitting
 	a.quitting = true // before the command: Stopped may arrive at once
 	a.mu.Unlock()
-	if stopped {
+	switch {
+	case stopped:
 		a.quit() // the engine has already ended: there is nothing left to wait for
 		return nil
+	case pending:
+		return nil // the engine took it: the application quits when it has stopped
 	}
 	err := a.send(domain.Shutdown{})
 	if err != nil {
@@ -265,28 +274,55 @@ func (a *App) Shutdown() error {
 	return err
 }
 
-// quitGrace is how long the page has to act on a request to quit before a second request stops
-// waiting for it.
+// quitGrace is how long the page has to say it got a request to quit; after it the page is taken
+// as not answering.
 const quitGrace = 3 * time.Second
 
-// leave is the close button on a desktop without a tray, and the tray's Quit. The page runs its
-// own Quit, which asks before it ends a call. A page that is not listening is not asked, and a
-// second request within quitGrace does not wait for a page that did not answer the first.
-func (a *App) leave() {
+// leave is the close button on a desktop without a tray, and the tray's Quit: the page is asked to
+// run its own Quit, which asks before it ends a call. Asking again is never consent: a page that
+// answers is only asked again. leave reports true when the page cannot be asked, because none is
+// listening or because it did not answer the last request within quitGrace; the window then has to
+// ask by itself (see Run) before it ends anything.
+func (a *App) leave() (unanswered bool) {
 	a.mu.Lock()
-	ask := a.subscribed && !a.stopped && time.Since(a.asked) > quitGrace
-	a.asked = time.Now()
-	if ask {
-		a.emit(UIEvent{Type: "quit"})
-	}
-	a.mu.Unlock()
+	defer a.mu.Unlock()
 	switch {
-	case ask:
-	case a.phone == nil:
-		a.quit() // nothing to end first
+	case !a.subscribed || a.stopped:
+		return true
+	case !a.asked.IsZero() && !a.acked:
+		if time.Since(a.asked) > quitGrace {
+			return true
+		}
+		// The last request is still on its way: this one is the same request.
 	default:
-		_ = a.Shutdown() // refused only by a busy engine: closing again asks again
+		a.asked, a.acked = time.Now(), false
 	}
+	a.emit(UIEvent{Type: "quit"})
+	return false
+}
+
+// QuitAsked is the page's answer to a "quit" event: it is there, and its own Quit is running.
+func (a *App) QuitAsked() {
+	a.mu.Lock()
+	a.acked = true
+	a.mu.Unlock()
+}
+
+// inCall reports whether a call is in progress: ending it wants a yes from the person.
+func (a *App) inCall() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.call != nil
+}
+
+// end leaves without the page: the engine ends its calls and unregisters, then the application
+// quits; with no engine it quits at once. A busy engine refuses, and closing again asks again.
+func (a *App) end() {
+	if a.phone == nil {
+		a.quit()
+		return
+	}
+	_ = a.Shutdown()
 }
 
 // Settings returns the saved settings, never a password.

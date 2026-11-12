@@ -16,8 +16,11 @@ failed=0
 abo() { agent-browser --hide-scrollbars false "$@"; }
 ab() { abo "$@" >/dev/null; }
 whole='document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll("button, input, select, [role=status]")].every((e) => { const r = e.getBoundingClientRect(); return r.width === 0 || (r.left >= -1 && r.right <= innerWidth + 1); }) && [...document.querySelectorAll(".key, .overflow-hidden")].every((e) => e.scrollHeight <= e.clientHeight + 1 && e.clientHeight >= 24)'
+# The mock keeps the saved skin in its own key and the page a copy for its first paint: both are
+# set, and every check also requires the skin it is named for to be the one drawn.
+wear() { ab eval "localStorage.setItem('go-microsip.mock.theme', '$1'); localStorage.setItem('go-microsip.skin', '$1')"; }
 check() { # <description>
-	if [ "$(abo eval "Boolean($whole)")" = true ]; then
+	if [ "$(abo eval "Boolean($whole) && document.documentElement.dataset.theme === '$skin' && document.documentElement.dataset.skin === '$skin'")" = true ]; then
 		echo "PASS  $1"
 	else
 		echo "FAIL  $1"
@@ -29,7 +32,7 @@ ab open "$base/"
 for scale in 100 150 200; do
 	ab set viewport $((360 * scale / 100)) $((560 * scale / 100))
 	for skin in light dark xp macos ubuntu win98 matrix; do
-		ab eval "localStorage.setItem('go-microsip.skin', '$skin')"
+		wear "$skin"
 		ab open "$base/?scene=active"
 		ab wait .statusbar
 		ab eval "document.documentElement.style.zoom = '$scale%'"
@@ -57,7 +60,7 @@ for scale in 100 150 200; do
 done
 ab set viewport 320 480
 for skin in light dark xp macos ubuntu win98 matrix; do
-	ab eval "localStorage.setItem('go-microsip.skin', '$skin')"
+	wear "$skin"
 	ab open "$base/?scene=muted"
 	ab wait .statusbar
 	ab wait 300

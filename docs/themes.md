@@ -52,7 +52,7 @@ frontend/scripts/prints.sh http://127.0.0.1:5173 docs/prints/go <id>   # 28 scre
 frontend/scripts/scale-check.sh                                        # 100, 150 and 200 %
 ```
 
-`prints.sh` fails when a text is below 7:1, an edge or icon below 3:1, or a call state or error has no icon beside its label. Look at the 28 pictures: the audits do not judge whether the skin looks right.
+`prints.sh` fails when a text is below 7:1, an edge or icon below 3:1, a control that takes focus shows no ring of 2 px at 3:1, or a call state or error has no icon in sight beside its label. Its last two steps take a ring away and hide an icon, and the run fails unless the audits report both. Look at the 28 pictures: the audits do not judge whether the skin looks right.
 
 Then the built window: `make go-offline-skins` starts the binary with no network in every skin, and `make go-window-call` draws each skin in the real webview at 100 and 200 %.
 
