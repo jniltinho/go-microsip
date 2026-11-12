@@ -1,23 +1,21 @@
 vm-check: Microsoft Windows 11 Enterprise Evaluation 10.0.26200
 vm-check: WebView2 runtime 151.0.4129.59 (part of Windows; nothing was installed)
-vm-check: go-microsip 0.2.0-m1 (abc9c675ca77)
-vm-check: doctor {"build":{"version":"0.2.0-m1","commit":"abc9c675ca77","os":"windows","arch":"amd64","window":"webview2"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: go-microsip 0.2.0-m1 (0f89414d9cf9)
+vm-check: doctor {"build":{"version":"0.2.0-m1","commit":"0f89414d9cf9","os":"windows","arch":"amd64","window":"webview2"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"ignored_legacy_env":[],"fields":[]}}
 vm-check: audio: --- PASS: TestWASAPIFromAThreadWithCOMInAnotherMode (0.01s)
 vm-check: audio:     wasapi_windows_test.go:73: device "Microphone (High Definition Audio Device)" default=true
 vm-check: audio:     wasapi_windows_test.go:73: device "Speakers (High Definition Audio Device)" default=true
-vm-check: audio:     wasapi_windows_test.go:129: 20 s: capture 950 of 1000 frames (longest miss 3 ticks, gap 237 ms, 3125 samples dropped); speaker 1886 of 1997 10 ms pieces (longest silence 7 pieces, arrival gap 237 ms, 2160 samples dropped or silent)
-vm-check: audio:     wasapi_windows_test.go:131: capture: 50 of 1000 frames missing, over 0.5 %
-vm-check: audio:     wasapi_windows_test.go:131: capture: gap over 60 ms (3 ticks missed in a row, 237 ms between frames)
-vm-check: audio:     wasapi_windows_test.go:131: capture: 3125 samples dropped
-vm-check: audio:     wasapi_windows_test.go:131: playback: 111 of 1997 10 ms pieces missing on the speaker, over 0.5 %
-vm-check: audio:     wasapi_windows_test.go:131: playback: gap over 60 ms (7 silent pieces in a row, 237 ms without samples)
-vm-check: audio:     wasapi_windows_test.go:131: playback: 2160 samples dropped or silent, over 0.5 %
-vm-check: audio:     wasapi_windows_test.go:139: control: a 300 ms stall is caught: capture: 18 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 345 ms between frames); capture: 2646 samples dropped; playback: 45 of 194 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (9 silent pieces in a row, 345 ms without samples); playback: 1520 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:129: 20 s: capture 975 of 1000 frames (longest miss 2 ticks, gap 89 ms, 0 samples dropped); speaker 1926 of 1992 10 ms pieces (longest silence 2 pieces, arrival gap 109 ms, 2720 samples dropped or silent)
+vm-check: audio:     wasapi_windows_test.go:131: capture: 25 of 1000 frames missing, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: playback: 66 of 1992 10 ms pieces missing on the speaker, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: playback: gap over 60 ms (2 silent pieces in a row, 109 ms without samples)
+vm-check: audio:     wasapi_windows_test.go:131: playback: 2720 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:139: control: a 300 ms stall is caught: capture: 16 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (2 ticks missed in a row, 320 ms between frames); capture: 2450 samples dropped; playback: 38 of 191 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (7 silent pieces in a row, 320 ms without samples); playback: 1520 samples dropped or silent, over 0.5 %
 vm-check: audio:     wasapi_windows_test.go:145: NOT VERIFIED: the loss of the sound card could not be provoked on this machine: Disable-PnpDevice: exit status 1: Disable-PnpDevice : Generic failure 
-vm-check: audio: --- FAIL: TestWASAPI (28.94s)
+vm-check: audio: --- FAIL: TestWASAPI (27.15s)
 vm-check: audio: FAIL
 vm-check: audio: FAILED (exit 1); the window is still checked
 vm-check: window opened on WebView2 and the page called the backend
 vm-check: self-test: inline script and eval refused; a new window and navigation not probed (no guard on this platform); listening sockets not checked on this platform
-vm-check: listening ports: none in 30 looks at the running softphone
+vm-check: listening ports: none in 29 looks at the running softphone
 vm-check: FAIL Microsoft Windows 11 Enterprise Evaluation: audio

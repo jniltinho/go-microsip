@@ -1,20 +1,20 @@
 vm-check: Ubuntu 26.04 LTS, kernel 7.0.0-22-generic
 vm-check: libgtk-4-1 4.22.4+ds-0ubuntu0.1 (ii )
 vm-check: libwebkitgtk-6.0-4 2.52.6-0ubuntu0.26.04.1 (ii )
-go-microsip 0.2.0-m1 (0a67f98811af)
-{"build":{"version":"0.2.0-m1","commit":"0a67f98811af","os":"linux","arch":"amd64","window":"purego"},"display":false,"audio":{"available":false,"error":"noaudioserviceisreachable:noaudioserviceisreachable:dialunix/run/user/1000/pulse/native:connect:nosuchfileordirectory","inputs":0,"outputs":0},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"ignored_legacy_env":[],"fields":[]}}
+go-microsip 0.2.0-m1 (0f89414d9cf9)
+{"build":{"version":"0.2.0-m1","commit":"0f89414d9cf9","os":"linux","arch":"amd64","window":"purego"},"display":false,"audio":{"available":false,"error":"noaudioserviceisreachable:noaudioserviceisreachable:dialunix/run/user/1000/pulse/native:connect:nosuchfileordirectory","inputs":0,"outputs":0},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"ignored_legacy_env":[],"fields":[]}}
 vm-check: headless version and doctor OK
 vm-check: audio: --- PASS: TestNoService (0.00s)
 vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.6.2) 15.0.0
-vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 28 ms, 0 samples dropped); speaker 1993 of 1995 10 ms pieces (longest silence 1 pieces, arrival gap 63 ms, 54 samples dropped or silent)
-vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 320 ms between frames); capture: 2400 samples dropped; playback: 28 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (29 silent pieces in a row, 320 ms without samples); playback: 2293 samples dropped or silent, over 0.5 %
-vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 363.676µs, microphone back after 164.872229ms
-vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
-vm-check: audio: --- PASS: TestPulseLoopback (28.65s)
+vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 22 ms, 0 samples dropped); speaker 1995 of 1996 10 ms pieces (longest silence 1 pieces, arrival gap 41 ms, 11 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 320 ms between frames); capture: 2400 samples dropped; playback: 30 of 196 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 320 ms without samples); playback: 2325 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 124.886µs, microphone back after 164.903373ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 96 pieces, longest silence 0 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (28.48s)
 vm-check: audio: PASS
 vm-check: audio adapter OK on the distribution's audio service
 vm-check: desktop session: ubuntu:GNOME on wayland, GNOME Shell 50.1
 vm-check: window: AppImage: opened and the page called the backend
 vm-check: the AppImage window passed with the default start
-vm-check: system skin: followed the desktop to dark in 384 ms and back to light in 393 ms
+vm-check: system skin: followed the desktop to dark in 230 ms and back to light in 226 ms
 vm-check: PASS Ubuntu 26.04 LTS

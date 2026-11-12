@@ -1,10 +1,10 @@
-AppImage of commit 74e73d79e08a (make go-dist, not dirty); make go-appimage-call
-window_linux_test.go:588: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
-window_linux_test.go:620: 1001, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-window_linux_test.go:789: 1001: 180 ms: sent registration registered; 1043 ms: sent call dialing ; 1045 ms: sent call established ; 1252 ms: shown established; 13706 ms: sent call established ; 13751 ms: shown established; 16807 ms: sent call established ; 17002 ms: shown established; 20031 ms: sent call held ; 20252 ms: shown held; 20704 ms: sent call established ; 20751 ms: shown established; 26054 ms: sent call terminating ; 26054 ms: sent call ended normal; 28877 ms: sent call ringing ; 29001 ms: shown ringing; 29476 ms: sent call established ; 29502 ms: shown established; 30414 ms: sent call established ; 30414 ms: sent transfer pending; 30435 ms: sent call terminating ; 30435 ms: sent transfer succeeded; 30436 ms: sent call ended transferred; 30436 ms: sent transfer succeeded; 30593 ms: sent call ringing ; 30752 ms: shown ringing; 30805 ms: sent call ended rejected; 31714 ms: sent registration disabled; 31714 ms: sent stopped
-window_linux_test.go:588: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 995 of 996 10 ms pieces (longest silence 1 pieces, arrival gap 20 ms)
-window_linux_test.go:620: 1201, 3 s after the skin changed during the call: speaker 296 of 293 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
-window_linux_test.go:789: 1201: 176 ms: sent registration registered; 1031 ms: sent call dialing ; 1034 ms: sent call established ; 1252 ms: shown established; 13747 ms: sent call established ; 13751 ms: shown established; 16849 ms: sent call established ; 17002 ms: shown established; 20011 ms: sent call held ; 20252 ms: shown held; 20734 ms: sent call established ; 20751 ms: shown established; 26034 ms: sent call terminating ; 26034 ms: sent call ended normal; 28855 ms: sent call ringing ; 29002 ms: shown ringing; 29504 ms: sent call established ; 29752 ms: shown established; 30697 ms: sent call established ; 30697 ms: sent transfer pending; 30718 ms: sent call terminating ; 30718 ms: sent transfer succeeded; 30719 ms: sent call ended transferred; 30719 ms: sent transfer succeeded; 30875 ms: sent call ringing ; 31001 ms: shown ringing; 31037 ms: sent call ended rejected; 31945 ms: sent registration disabled; 31945 ms: sent stopped
+AppImage of commit 0f89414d9cf9 (layout B, seven skins); make go-appimage-call
+window_linux_test.go:591: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
+window_linux_test.go:623: 1001, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+window_linux_test.go:790: 1001: 187 ms: sent registration registered; 1040 ms: sent call dialing ; 1041 ms: sent call established ; 1251 ms: shown established; 13704 ms: sent call established ; 13752 ms: shown established; 16805 ms: sent call established ; 17001 ms: shown established; 20027 ms: sent call held ; 20251 ms: shown held; 20698 ms: sent call established ; 20751 ms: shown established; 26303 ms: sent call terminating ; 26304 ms: sent call ended normal; 29119 ms: sent call ringing ; 29252 ms: shown ringing; 29769 ms: sent call established ; 30001 ms: shown established; 30653 ms: sent call established ; 30653 ms: sent transfer pending; 30674 ms: sent call terminating ; 30674 ms: sent transfer succeeded; 30675 ms: sent call ended transferred; 30675 ms: sent transfer succeeded; 30836 ms: sent call ringing ; 31001 ms: shown ringing; 31046 ms: sent call ended rejected; 31956 ms: sent registration disabled; 31956 ms: sent stopped
+window_linux_test.go:591: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 994 of 994 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
+window_linux_test.go:623: 1201, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+window_linux_test.go:790: 1201: 176 ms: sent registration registered; 1031 ms: sent call dialing ; 1034 ms: sent call established ; 1252 ms: shown established; 13744 ms: sent call established ; 13751 ms: shown established; 16845 ms: sent call established ; 17001 ms: shown established; 20039 ms: sent call held ; 20251 ms: shown held; 20703 ms: sent call established ; 20751 ms: shown established; 26295 ms: sent call terminating ; 26296 ms: sent call ended normal; 29110 ms: sent call ringing ; 29252 ms: shown ringing; 29760 ms: sent call established ; 30002 ms: shown established; 30694 ms: sent call established ; 30694 ms: sent transfer pending; 30715 ms: sent call terminating ; 30715 ms: sent transfer succeeded; 30715 ms: sent call ended transferred; 30715 ms: sent transfer succeeded; 30874 ms: sent call ringing ; 31002 ms: shown ringing; 31084 ms: sent call ended rejected; 31945 ms: sent registration disabled; 31945 ms: sent stopped
 window_linux_test.go:437: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 window_linux_test.go:437: light at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 window_linux_test.go:437: dark at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
@@ -17,20 +17,24 @@ window_linux_test.go:437: ubuntu at 100 %: the page is 360 by 560 CSS pixels at 
 window_linux_test.go:437: ubuntu at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
 window_linux_test.go:437: win98 at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 window_linux_test.go:437: win98 at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
---- PASS: TestCallThroughTheWindow (109.85s)
---- PASS: TestCallThroughTheWindow/1001 (32.27s)
+window_linux_test.go:437: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+--- PASS: TestCallThroughTheWindow (131.62s)
+--- PASS: TestCallThroughTheWindow/1001 (32.52s)
 --- PASS: TestCallThroughTheWindow/1201 (32.45s)
 --- PASS: TestCallThroughTheWindow/wrong_password (0.35s)
---- PASS: TestCallThroughTheWindow/light_at_100 (3.01s)
---- PASS: TestCallThroughTheWindow/light_at_200 (4.42s)
---- PASS: TestCallThroughTheWindow/dark_at_100 (3.01s)
---- PASS: TestCallThroughTheWindow/dark_at_200 (4.47s)
---- PASS: TestCallThroughTheWindow/xp_at_100 (3.01s)
---- PASS: TestCallThroughTheWindow/xp_at_200 (4.47s)
---- PASS: TestCallThroughTheWindow/macos_at_100 (3.01s)
---- PASS: TestCallThroughTheWindow/macos_at_200 (4.47s)
---- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.01s)
---- PASS: TestCallThroughTheWindow/ubuntu_at_200 (4.42s)
---- PASS: TestCallThroughTheWindow/win98_at_100 (3.01s)
---- PASS: TestCallThroughTheWindow/win98_at_200 (4.47s)
+--- PASS: TestCallThroughTheWindow/light_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/light_at_200 (5.72s)
+--- PASS: TestCallThroughTheWindow/dark_at_100 (3.76s)
+--- PASS: TestCallThroughTheWindow/dark_at_200 (5.72s)
+--- PASS: TestCallThroughTheWindow/xp_at_100 (3.76s)
+--- PASS: TestCallThroughTheWindow/xp_at_200 (5.72s)
+--- PASS: TestCallThroughTheWindow/macos_at_100 (3.77s)
+--- PASS: TestCallThroughTheWindow/macos_at_200 (5.72s)
+--- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.76s)
+--- PASS: TestCallThroughTheWindow/ubuntu_at_200 (5.72s)
+--- PASS: TestCallThroughTheWindow/win98_at_100 (3.76s)
+--- PASS: TestCallThroughTheWindow/win98_at_200 (5.72s)
+--- PASS: TestCallThroughTheWindow/matrix_at_100 (3.76s)
+--- PASS: TestCallThroughTheWindow/matrix_at_200 (5.67s)
 PASS
