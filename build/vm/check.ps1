@@ -1,7 +1,7 @@
 # Run inside the Windows VM over WinRM: the milestone artifacts on a clean Windows. Prints one
 # "vm-check:" line per step. The window and the audio test run in the logged-on desktop session
 # through a scheduled task, because a WinRM session has no desktop.
-param([Parameter(Mandatory = $true)][string]$Version, [int]$Seconds = 300)
+param([Parameter(Mandatory = $true)][string]$Version, [int]$Seconds = 300, [string]$Pbx = '')
 $ErrorActionPreference = 'Stop'
 $work = 'C:\g0work'
 New-Item -ItemType Directory -Force $work | Out-Null
@@ -133,5 +133,16 @@ $code = Invoke-Desktop 'desktop' @("powershell -NoProfile -ExecutionPolicy Bypas
 Get-Content "$work\desktop.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^desktop:' } | ForEach-Object { "vm-check: $_" }
 if ($code -ne 0) { "vm-check: desktop: FAILED (exit $code)"; Get-Content "$work\desktop.log" -Tail 6 -ErrorAction SilentlyContinue; $failed = "$failed desktop" }
 else { 'vm-check: links, agent control, the second start and the tray pass on Windows; the notification reaches Windows' }
+
+# 6. The call walkthrough, when run.sh has the lab PBX up on the VMs' own network (GO_VM_LAB=1).
+if ($Pbx) {
+    if (-not (Test-Path 'C:\lab\credentials.json')) { 'vm-check: call: FAILED: the accounts of the lab are not shared with this VM (vagrant reload windows11)'; $failed = "$failed call" }
+    else {
+        $code = Invoke-Desktop 'call' @("powershell -NoProfile -ExecutionPolicy Bypass -File C:\vagrant\call.ps1 -Exe `"$work\go-microsip.exe`" -Work `"$work`" -Pbx $Pbx -Shots C:\dist\vm") 600
+        Get-Content "$work\call.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^desktop:' } | ForEach-Object { "vm-check: $_" }
+        if ($code -ne 0) { "vm-check: call: FAILED (exit $code)"; Get-Content "$work\call.log" -Tail 6 -ErrorAction SilentlyContinue; $failed = "$failed call" }
+        else { 'vm-check: the window registers, calls the lab PBX over UDP and TCP, is called by it, and hangs up, on Windows' }
+    }
+}
 if ($failed) { "vm-check: FAIL $($os.Caption): $failed"; exit 1 }
 "vm-check: PASS $($os.Caption)"

@@ -113,7 +113,7 @@ go-dist: go-appimage go-windows ## Go: Linux binary, AppImage, Windows .exe and 
 # go-dist left in dist/go; the audio adapter's test is built for the guests here.
 GO_VMS    ?= ubuntu2604 debian13 windows11
 GO_VM_OUT ?= artifacts/go-vm
-go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 debian13 windows11", SECONDS=300)
+go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 debian13 windows11", SECONDS=300, GO_VM_LAB=1 for calls from Windows to a lab PBX VM)
 	$(GO) sh -c 'mkdir -p $(GO_DIST)/g0 && CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/audio.test ./internal/platform/audio && \
 		CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/notify.test ./internal/platform/notify && \
 		CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/keyring.test ./internal/platform/keyring && \
@@ -126,7 +126,7 @@ go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 
 	mkdir -p $(GO_VM_OUT)
 	@# The Rust candidate's AppImage, when one was built here: the VMs run it beside go-microsip.
 	@cp -f $(firstword $(wildcard dist/rust-microsip-*.AppImage)) $(GO_DIST)/g0/rust-microsip.AppImage 2>/dev/null || rm -f $(GO_DIST)/g0/rust-microsip.AppImage
-	build/vm/run.sh $(GO_VERSION) "$(abspath $(GO_VM_OUT))" $(or $(SECONDS),300) $(GO_VMS)
+	LAB=$(GO_VM_LAB) build/vm/run.sh $(GO_VERSION) "$(abspath $(GO_VM_OUT))" $(or $(SECONDS),300) $(GO_VMS)
 
 go-shell: ## Go: interactive shell in the build container
 	GO_DOCKER_FLAGS=-it $(GO) bash

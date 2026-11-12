@@ -1,0 +1,22 @@
+# Opt-in: the PBX for calls from desktop VMs. It runs on the auxiliary lab VM of build/vm (never
+# on a desktop under test, never on the host), publishes only on that VM's address on the
+# isolated network, and is fenced there by build/vm/pbx.sh, which lets in the test clients' addresses
+# only. Do not combine with compose.host.yaml.
+services:
+  pbx:
+    networks: !override [vm-lab]
+    environment:
+      LAB_PROFILE: vm
+      LAB_BIND_IP: ${LAB_BIND_IP:?the auxiliary VM's address on the isolated network}
+    ports: !override
+      - ${LAB_BIND_IP}:5060:5060/udp
+      - ${LAB_BIND_IP}:5060:5060/tcp
+      - ${LAB_BIND_IP}:5061:5061/tcp
+      - ${LAB_BIND_IP}:10000-10019:10000-10019/udp
+  peer:
+    profiles: [automation-internal-only]
+  test-runner:
+    profiles: [automation-internal-only]
+networks:
+  vm-lab:
+    internal: false

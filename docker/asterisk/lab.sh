@@ -8,6 +8,7 @@ test ! -L artifacts
 image=rust-microsip-asterisk:22.11.0-lab.1
 compose() { docker compose -f docker/asterisk/compose.yaml "$@"; }
 host_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.host.yaml "$@"; }
+vm_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.vm-lab.yaml "$@"; }
 rust_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.rust-g0.yaml "$@"; }
 calls_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.calls-g0.yaml "$@"; }
 controls_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.controls-g0.yaml "$@"; }
@@ -106,8 +107,14 @@ case "${1:-}" in
     down) compose down --volumes --remove-orphans ;;
     host-up) host_compose up --no-build -d --wait pbx ;;
     host-down) host_compose down --volumes --remove-orphans ;;
+    # On the auxiliary lab VM only (build/vm/pbx.sh): LAB_BIND_IP is its isolated address.
+    vm-up)
+        vm_compose config --format json | python3 docker/asterisk/verify_compose.py vm
+        vm_compose up --no-build -d --wait pbx ;;
+    vm-down) LAB_BIND_IP="${LAB_BIND_IP:-192.0.2.1}" vm_compose down --volumes --remove-orphans ;;
     config-check)
         compose config --format json | python3 docker/asterisk/verify_compose.py internal
-        host_compose config --format json | python3 docker/asterisk/verify_compose.py host ;;
-    *) printf '%s\n' 'Usage: lab.sh build|calls-build|controls-build|hold-build|transfer-build|init|unit-test|config-check|test|rust-test|calls-test|controls-test|hold-test|transfer-test|up|down|host-up|host-down' >&2; exit 2 ;;
+        host_compose config --format json | python3 docker/asterisk/verify_compose.py host
+        LAB_BIND_IP=192.168.77.10 vm_compose config --format json | python3 docker/asterisk/verify_compose.py vm ;;
+    *) printf '%s\n' 'Usage: lab.sh build|calls-build|controls-build|hold-build|transfer-build|init|unit-test|config-check|test|rust-test|calls-test|controls-test|hold-test|transfer-test|up|down|host-up|host-down|vm-up|vm-down' >&2; exit 2 ;;
 esac

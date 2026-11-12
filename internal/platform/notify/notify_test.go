@@ -64,7 +64,10 @@ func TestAToastNamesTheRunAndTheCallInItsButtons(t *testing.T) {
 		t.Errorf("a second button decided the call again: %+v", got)
 	}
 	now.xml(12, "Caio")
-	now.closed(12)
+	// A call that stops ringing has a toast to take away; one whose button was pressed has not.
+	if !now.closed(12) || now.closed(12) || now.closed(7) {
+		t.Error("which calls still have a toast on screen is not told")
+	}
 	if got, ok := now.pressed("reject:" + run + ":12"); ok {
 		t.Errorf("a button decided a call that no longer rings: %+v", got)
 	}

@@ -8,52 +8,8 @@
 param([Parameter(Mandatory = $true)][string]$Exe, [Parameter(Mandatory = $true)][string]$Work,
     [string]$ControlTest = '', [string]$NotifyTest = '', [string]$Shots = '')
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class Shell {
-    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
-    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
-}
-"@
-$script:failed = 0
-function Fail([string]$what) { "desktop: FAILED: $what"; $script:failed++ }
-# The softphone's command line, with its output: a window program has no console of its own.
-function Run([string]$Arguments, [int]$Timeout = 30) {
-    $out = "$Work\run.out"
-    Remove-Item $out -ErrorAction SilentlyContinue
-    $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"`"$Exe`" $Arguments > `"$out`" 2>&1`"" -PassThru -WindowStyle Hidden
-    if (-not $p.WaitForExit($Timeout * 1000)) { $p.Kill(); return @{ Code = -1; Out = 'did not end' } }
-    return @{ Code = $p.ExitCode; Out = ((Get-Content $out -ErrorAction SilentlyContinue) -join "`n") }
-}
 $trace = "$Work\desktop.jsonl"
-# What the page shows now: the text of its last report.
-function Page() {
-    $last = @(Get-Content $trace -ErrorAction SilentlyContinue | Where-Object { $_ -match '"page"' }) | Select-Object -Last 1
-    if ($last) { return $last } else { return '' }
-}
-function Shows([string]$Pattern, [int]$Seconds) {
-    $deadline = (Get-Date).AddSeconds($Seconds)
-    while ((Get-Date) -lt $deadline) {
-        if ((Page) -match $Pattern) { return $true }
-        Start-Sleep -Milliseconds 400
-    }
-    return $false
-}
-function Window() { Get-Process go-microsip -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1 }
-# A key for the window, as a person at the keyboard.
-function Key([string]$Keys) {
-    $w = Window
-    if ($w) {
-        [Shell]::ShowWindow($w.MainWindowHandle, 9) | Out-Null
-        [Shell]::SetForegroundWindow($w.MainWindowHandle) | Out-Null
-        Start-Sleep -Milliseconds 500
-    }
-    [System.Windows.Forms.SendKeys]::SendWait($Keys)
-}
+. "$PSScriptRoot\window.ps1"
 
 Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force
 Remove-Item $trace -ErrorAction SilentlyContinue

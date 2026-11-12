@@ -141,11 +141,13 @@ func TestWASAPI(t *testing.T) {
 
 	// Disable the sound card, as unplugging it does: both streams report the loss, capture hands
 	// out no audio, and nothing crashes. (A VM has one sound card, so the speaker goes with it.)
+	// Enabled again whatever comes of it: Windows can refuse to disable the card now and still
+	// leave it disabled at the next start, which left a VM without sound.
+	t.Cleanup(func() { _ = card("Enable") })
 	if err := card("Disable"); err != nil {
 		t.Logf("NOT VERIFIED: the loss of the sound card could not be provoked on this machine: %v", err)
 		return
 	}
-	t.Cleanup(func() { _ = card("Enable") })
 	time.Sleep(lostAfter + time.Second)
 	m, _ = run(time.Second, 0)
 	if !s.CaptureLost() || m.captured > 5 {

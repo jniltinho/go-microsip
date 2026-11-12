@@ -80,11 +80,14 @@ func (t *toasts) xml(call uint64, caller string) string {
 		`<action content="Reject" arguments="reject:%[1]s:%[2]d" activationType="background"/></actions></toast>`, t.run, call, caller)
 }
 
-// closed ends what the call's notification can decide.
-func (t *toasts) closed(call uint64) {
+// closed ends what the call's notification can decide, and reports whether the call had one
+// that no button of was pressed: that one is still shown.
+func (t *toasts) closed(call uint64) bool {
 	t.mu.Lock()
+	defer t.mu.Unlock()
+	shown := t.ringing[call]
 	delete(t.ringing, call)
-	t.mu.Unlock()
+	return shown
 }
 
 // pressed reads the arguments of a pressed button back into the call and the decision, once per

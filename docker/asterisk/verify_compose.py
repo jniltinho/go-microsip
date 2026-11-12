@@ -1,4 +1,5 @@
 """Check actual normalized Compose output, without printing secrets or paths."""
+import ipaddress
 import json
 import re
 from pathlib import Path
@@ -11,11 +12,11 @@ def require(condition):
 
 
 def verify(config, profile):
-    if profile not in ("internal", "host", "calls", "controls", "hold", "transfer"):
+    if profile not in ("internal", "host", "vm", "calls", "controls", "hold", "transfer"):
         raise ValueError("unknown profile")
     secret_root = Path("artifacts/asterisk-lab").resolve()
     services = config["services"]
-    if profile == "host":
+    if profile in ("host", "vm"):
         require(set(services) == {"pbx"})
     if profile in ("internal", "calls", "controls", "hold", "transfer"):
         require(set(services) == ({"pbx", "peer", "test-runner"} if profile == "internal" else {"pbx", "test-runner"}))
@@ -39,7 +40,8 @@ def verify(config, profile):
         expected = secret_root / ("pbx" if name == "pbx" else "clients")
         require(Path(mount["source"]) == expected)
         require(mount["target"] == "/lab" and mount["read_only"])
-        require(not mount["bind"]["create_host_path"])
+        # Compose 2.26 (Debian 13, the lab VM) leaves a false value out; a true one is always there.
+        require(not mount["bind"].get("create_host_path", False))
         if profile in ("internal", "calls", "controls", "hold", "transfer"):
             require(not service.get("ports") and set(service["networks"]) == {"isolated"})
     if profile == "host":
@@ -55,10 +57,25 @@ def verify(config, profile):
         require(ports == expected)
 
 
+    if profile == "vm":
+        pbx = services["pbx"]
+        require(set(pbx["networks"]) == {"vm-lab"})
+        require(not config["networks"]["vm-lab"].get("internal", False))
+        require(pbx["environment"]["LAB_PROFILE"] == "vm")
+        # One private address, never a wildcard, loopback or public one: the auxiliary VM's.
+        bind = ipaddress.IPv4Address(pbx["environment"]["LAB_BIND_IP"])
+        require(bind.is_private and not (bind.is_loopback or bind.is_unspecified or bind.is_link_local))
+        ports = {(p["host_ip"], str(p["published"]), str(p["target"]), p["protocol"]) for p in pbx["ports"]}
+        expected = {(str(bind), "5060", "5060", p) for p in ("tcp", "udp")}
+        expected.add((str(bind), "5061", "5061", "tcp"))
+        expected.update((str(bind), str(p), str(p), "udp") for p in range(10000, 10020))
+        require(ports == expected)
+
+
 if __name__ == "__main__":
     try:
         verify(json.load(sys.stdin), sys.argv[1])
-    except (AssertionError, ValueError, KeyError, IndexError):
+    except (AssertionError, ValueError, KeyError, IndexError, TypeError):
         print("Compose safety contract rejected", file=sys.stderr)
         sys.exit(1)
     print("Compose safety contract OK (not media/VM ACL proof)")
