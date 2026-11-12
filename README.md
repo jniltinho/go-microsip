@@ -32,7 +32,7 @@ affiliated with or endorsed by MicroSIP.
 
 | Area | What you get |
 |---|---|
-| **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, DND; RFC 4733 DTMF; early media, so messages the PBX plays before the answer are heard; local ringback tone |
+| **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, DND; RFC 4733 DTMF; a ringback tone while the other side rings |
 | **Security** | TLS with system or custom CA; SDES-SRTP/SRTCP, optional or mandatory, with downgrade refusal; the password never goes in arguments, logs or the database |
 | **Interface** | MicroSIP-like window: keypad, Logs-style call history (double-click to call back), contacts with favorites and CSV import, status bar with an Online icon; dark and light themes |
 | **Desktop** | Tray icon whose menu redials your last calls; closing the window keeps it in the tray; incoming-call notifications with Answer/Reject; `sip:`/`tel:` link handler; single instance |
@@ -202,6 +202,10 @@ Limits of this version, known and accepted for it:
   progress keeps the ones it began with; the settings' audio test uses it at once: a tone on the chosen speaker and the level of the
   chosen microphone, for ten seconds or until it is stopped, and never during a call. The ring and the ringback are tones the softphone makes itself, on the speaker
   chosen for calls: there is no ringtone file to choose and no speaker of its own for ringing.
+- **Audio before the answer.** What a PBX plays before a call is answered (early media: an
+  operator's own ringing tone, or a message such as "this number is unavailable") is not
+  played yet: the softphone's ringback tone sounds until the answer. The Rust application
+  plays it.
 - **A transfer that the PBX accepts and then fails.** FreePBX takes the other party away
   before it reports the failure: go-microsip says the transfer failed and stays in a call
   with nobody in it until you hang up.

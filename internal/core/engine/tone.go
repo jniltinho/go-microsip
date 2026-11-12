@@ -155,18 +155,15 @@ func (c *call) quiet() {
 	}
 }
 
-// progress is what an outgoing call does with a provisional answer: 180 is a phone ringing at the
-// other end, which the softphone makes audible; with 183 the other side sends audio of its own
-// and the ringback stops.
-func (a *actor) progress(c *call, status int) {
+// progress is what an outgoing call does with a provisional answer (180 Ringing, 183 Session
+// Progress): the call is on its way, which the softphone makes audible until it is answered.
+//
+// shortcut: the audio a PBX sends before the answer (early media, usual with 183) is not played,
+// so the ringback goes on through it; play that audio instead once the endpoint hands it over.
+func (a *actor) progress(c *call, _ int) {
 	a.move(c, domain.CallPhase{Kind: domain.Ringing})
 	if c.snap.Phase.Kind != domain.Ringing {
 		return // hung up meanwhile, or answered
 	}
-	switch status {
-	case 180:
-		a.sound(c, ringback)
-	case 183:
-		c.quiet()
-	}
+	a.sound(c, ringback)
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/engine"
 	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 )
 
@@ -185,4 +186,31 @@ func TestDevicesChosenBetweenCallsAreTheNextCalls(t *testing.T) {
 	if out := sound.OutputStreams()[0].Output; out != speaker {
 		t.Errorf("the ringback opened %q, want the chosen %q", out, speaker)
 	}
+}
+
+// A PBX that answers 183 Session Progress, as a trunk does for a mobile number, is a call on its
+// way like one that answers 180: the ringback sounds, and goes on until the call ends.
+func TestTheRingbackSoundsThroughSessionProgress(t *testing.T) {
+	o, _ := options(t, lab(t, 183))
+	sound := &memory.Audio{Tone: 1000}
+	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	target, _ := domain.ParseDialTarget("1002")
+	if err := p.Send(domain.Dial{Target: target}); err != nil {
+		t.Fatal(err)
+	}
+	soon(t, "ringback", func() bool { return len(sound.OutputStreams()) == 1 })
+	back := sound.OutputStreams()[0]
+	soon(t, "a second of the ringback", func() bool { frames, _ := back.Heard(); return frames >= 50 })
+	if _, share := back.Heard(engine.RingbackHz); share[engine.RingbackHz] < 0.5 || back.Closed() {
+		t.Errorf("after 183 the speaker got the ringback in %.0f %% of its first second, closed: %v", 100*share[engine.RingbackHz], back.Closed())
+	}
+	if err := p.Send(domain.Hangup{Call: 1}); err != nil {
+		t.Fatal(err)
+	}
+	soon(t, "the ringback's end", back.Closed)
 }
