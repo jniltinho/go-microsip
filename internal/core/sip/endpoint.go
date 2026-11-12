@@ -81,6 +81,8 @@ type Endpoint struct {
 	ua    *sipgo.UserAgent
 	// product is what the User-Agent header of a request says.
 	product string
+	// local is the address the endpoint is bound to, or "0.0.0.0".
+	local string
 	dg      *diago.Diago
 	cancel  context.CancelFunc
 	log     *slog.Logger
@@ -119,6 +121,31 @@ func bindHost(peers []net.IP, port int) string {
 	})
 }
 
+// ErrAddressGone means the address the endpoint was bound to is no longer one of this machine's:
+// the network it belonged to went away (a VPN that dropped, a cable pulled).
+var ErrAddressGone = errors.New("the network address the registration used is gone")
+
+// AddressGone reports whether the address the endpoint is bound to left this machine. An
+// endpoint bound to every interface never says so.
+func (e *Endpoint) AddressGone() bool {
+	addrs, err := net.InterfaceAddrs()
+	return err == nil && !assigned(e.local, addrs)
+}
+
+// assigned reports whether local is among the machine's addresses; "0.0.0.0" always is.
+func assigned(local string, addrs []net.Addr) bool {
+	ip := net.ParseIP(local)
+	if ip == nil || ip.IsUnspecified() {
+		return true
+	}
+	for _, a := range addrs {
+		if n, ok := a.(*net.IPNet); ok && n.IP.Equal(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // localFor is the one address every IPv4 address of the registrar is reached from, or "0.0.0.0"
 // (every interface, the kernel choosing per packet) when there is no such address: the registrar's
 // addresses are reached from different ones (requests follow the name, so any of them may be
@@ -155,9 +182,10 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve registrar: %w", err)
 	}
+	local := bindHost(peers, int(s.Port))
 	tran := diago.Transport{
 		Transport:    s.Transport.String(),
-		BindHost:     bindHost(peers, int(s.Port)),
+		BindHost:     local,
 		BindPort:     0,
 		TLSURINoSIPS: true,
 	}
@@ -194,7 +222,7 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Endpoint{Account: a, ua: ua, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, product: name}
+	e := &Endpoint{Account: a, ua: ua, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, product: name, local: local}
 	e.dg = diago.NewDiago(ua,
 		diago.WithLogger(log),
 		diago.WithServerRequestMiddleware(e.registrarOnly),

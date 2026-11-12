@@ -141,3 +141,19 @@ func TestTheEndpointBindsWhereTheRegistrarIsReachedFrom(t *testing.T) {
 		t.Errorf("a registrar on the loopback binds %s, want every interface", got)
 	}
 }
+
+// An endpoint's address is gone when no interface of the machine has it any more; an endpoint
+// bound to every interface is never said to have lost its address.
+func TestAnAddressThatLeftTheMachineIsGone(t *testing.T) {
+	_, lan, _ := net.ParseCIDR("192.0.2.7/24")
+	lan.IP = net.ParseIP("192.0.2.7")
+	have := []net.Addr{&net.IPNet{IP: net.IPv4(127, 0, 0, 1), Mask: net.CIDRMask(8, 32)}, lan}
+	for local, want := range map[string]bool{"192.0.2.7": true, "127.0.0.1": true, "0.0.0.0": true, "": true, "198.51.100.9": false} {
+		if got := assigned(local, have); got != want {
+			t.Errorf("%q assigned: %v, want %v", local, got, want)
+		}
+	}
+	if assigned("192.0.2.7", nil) {
+		t.Error("an address is assigned on a machine that has none")
+	}
+}

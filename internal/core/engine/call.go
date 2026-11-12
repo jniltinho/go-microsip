@@ -107,6 +107,8 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 		mic := microphone{audio: audio}
 		payload := make([]byte, media.FrameSamples)
 		lost := false
+		quiet := 0 // ticks in a row with nothing to send
+		var silence [media.FrameSamples]int16
 		for ctx.Err() == nil {
 			select {
 			case key := <-c.keys:
@@ -119,10 +121,22 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 			}
 			out, fed := mic.next(c.privacy.Load)
 			if out == nil {
-				// On hold nothing is sent: the library would keep the stream going.
+				// On hold, and before the answer, nothing of the microphone is sent: the library
+				// would keep the stream going.
 				time.Sleep(20 * time.Millisecond)
+				// One frame of silence a second says that this side is still there. A firewall
+				// or a VPN gateway on the way closes a path that only carries the other side's
+				// audio (music on hold, an operator's ringing tone) for some seconds.
+				if quiet++; quiet%keepaliveTicks == 0 {
+					codec.Encode(payload, &silence)
+					if _, err := writer.Write(payload); err != nil {
+						ended("send", err)
+						return
+					}
+				}
 				continue
 			}
+			quiet = 0
 			if !fed {
 				c.unfed.Add(1)
 				if !lost && audio.CaptureLost() {
@@ -230,6 +244,10 @@ func (m *microphone) next(privacy func() uint64) (out *[media.FrameSamples]int16
 	}
 	return &m.frame, true
 }
+
+// keepaliveTicks is how many 20 ms ticks pass between two frames of silence while a call sends
+// nothing of its own: one a second.
+const keepaliveTicks = 50
 
 // The privacy word: hold, mute, a call that is not answered yet, and above them the count of
 // changes. Before the answer a call may hear what the other side plays (early media) and sends

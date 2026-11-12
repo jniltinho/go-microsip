@@ -259,8 +259,35 @@ func (a *actor) connect() {
 			a.setRegistration(domain.RegistrationState{Status: domain.Registered})
 			go a.incoming(ctx, ep, gen)
 			go a.keepRegistered(ctx, ep, gen)
+			go a.watchAddress(ctx, ep, gen)
 		})
 	}()
+}
+
+// addressCheck is how often a registered endpoint's local address is looked for.
+const addressCheck = 3 * time.Second
+
+// watchAddress tells the actor when the address the endpoint is bound to leaves this machine (a
+// VPN that dropped, a cable pulled): the registrar cannot be reached from it any more, whatever
+// the registration's lifetime says, and the account registers again when the network is back.
+func (a *actor) watchAddress(ctx context.Context, ep *sip.Endpoint, gen int) {
+	tick := time.NewTicker(addressCheck)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+		if ep.AddressGone() {
+			a.e.post(func() {
+				if gen == a.generation && a.reg.Status == domain.Registered {
+					a.registrationFailed(sip.ErrAddressGone)
+				}
+			})
+			return
+		}
+	}
 }
 
 // keepRegistered renews the binding; when the registrar stops accepting it, the actor is told.

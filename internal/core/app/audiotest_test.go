@@ -291,9 +291,9 @@ func TestTheSoftphoneNamesItsExtensionInContactAndItsProductInUserAgent(t *testi
 
 // earlyLab is a PBX that plays audio of its own before it answers, as a trunk does while a mobile
 // number rings: 183 Session Progress with a description of its audio, a 1 kHz tone sent to the
-// softphone for a second and a half, then the answer. It counts what the softphone sends to its
-// audio port.
-func earlyLab(t *testing.T) (port int, sentBack *atomic.Int64, answered chan struct{}) {
+// softphone for two and a half seconds, then the answer. It counts what the softphone sends to
+// its audio port, and how much of that is anything but silence.
+func earlyLab(t *testing.T) (port int, sentBack, loud *atomic.Int64, answered chan struct{}) {
 	t.Helper()
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -307,14 +307,18 @@ func earlyLab(t *testing.T) (port int, sentBack *atomic.Int64, answered chan str
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { rtp.Close() })
-	sentBack, answered = new(atomic.Int64), make(chan struct{})
+	sentBack, loud, answered = new(atomic.Int64), new(atomic.Int64), make(chan struct{})
 	go func() {
 		buf := make([]byte, 2048)
 		for {
-			if _, _, err := rtp.ReadFromUDP(buf); err != nil {
+			n, _, err := rtp.ReadFromUDP(buf)
+			if err != nil {
 				return
 			}
 			sentBack.Add(1)
+			if n > 12 && strings.Trim(string(buf[12:n]), "\xff") != "" { // PCMU silence is 0xff
+				loud.Add(1)
+			}
 		}
 	}()
 	ua, err := sipgo.NewUA()
@@ -367,7 +371,7 @@ func earlyLab(t *testing.T) (port int, sentBack *atomic.Int64, answered chan str
 				<-tick.C
 			}
 		}()
-		time.Sleep(1500 * time.Millisecond)
+		time.Sleep(2500 * time.Millisecond)
 		close(answered)
 		_ = tx.Respond(with(200, "OK"))
 	})
@@ -389,14 +393,16 @@ func earlyLab(t *testing.T) (port int, sentBack *atomic.Int64, answered chan str
 	case <-time.After(5 * time.Second):
 		t.Fatal("the PBX did not start")
 	}
-	return port, sentBack, answered
+	return port, sentBack, loud, answered
 }
 
 // What a PBX plays before it answers (early media) is heard: the speaker plays it in place of
-// the ringback while the call still rings, nothing is sent to the PBX before the answer, and
-// from the answer on the same audio goes both ways.
-func TestAudioBeforeTheAnswerIsPlayedAndNothingIsSent(t *testing.T) {
-	port, sentBack, answered := earlyLab(t)
+// the ringback while the call still rings. Nothing of the microphone is sent before the answer:
+// only a frame of silence a second, which keeps a path open that would otherwise carry the
+// PBX's audio alone (a VPN gateway was seen to close such a path after twelve seconds). From the
+// answer on the same audio goes both ways.
+func TestAudioBeforeTheAnswerIsPlayedAndOnlySilenceIsSent(t *testing.T) {
+	port, sentBack, loud, answered := earlyLab(t)
 	o, _ := options(t, port)
 	sound := &memory.Audio{Tone: 440}
 	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
@@ -424,8 +430,14 @@ func TestAudioBeforeTheAnswerIsPlayedAndNothingIsSent(t *testing.T) {
 	if _, share := call.Heard(1000); share[1000] < 0.9 {
 		t.Errorf("before the answer the speaker got the PBX's tone in %.0f %% of its frames", 100*share[1000])
 	}
-	if n := sentBack.Load(); n != 0 {
-		t.Errorf("%d packets were sent to the PBX's audio before it answered", n)
+	soon(t, "a frame of silence for the PBX while the call rings", func() bool { return sentBack.Load() >= 1 })
+	select {
+	case <-answered:
+		t.Fatal("the PBX answered before the softphone had sent its silence: the test proved nothing")
+	default:
+	}
+	if n, heard := sentBack.Load(), loud.Load(); n > 3 || heard != 0 {
+		t.Errorf("before the answer %d packets went to the PBX's audio, %d of them not silence; want one of silence a second", n, heard)
 	}
 	for _, back := range sound.OutputStreams() {
 		if !back.Closed() {
@@ -436,7 +448,7 @@ func TestAudioBeforeTheAnswerIsPlayedAndNothingIsSent(t *testing.T) {
 		c, ok := ev.(domain.CallChanged)
 		return ok && c.Call.Phase.Kind == domain.Established
 	})
-	soon(t, "the microphone's audio at the PBX after the answer", func() bool { return sentBack.Load() >= 25 })
+	soon(t, "the microphone's audio at the PBX after the answer", func() bool { return loud.Load() >= 25 })
 	if sound.CallStreams() != 1 || call.Closed() {
 		t.Errorf("after the answer the call has %d streams, its first one closed: %v", sound.CallStreams(), call.Closed())
 	}
