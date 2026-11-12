@@ -1,7 +1,7 @@
-light: drawn as "light", 27 requests, 0 outside the page's own origin
-dark: drawn as "dark", 27 requests, 0 outside the page's own origin
-xp: drawn as "xp", 27 requests, 0 outside the page's own origin
-macos: drawn as "macos", 27 requests, 0 outside the page's own origin
-ubuntu: drawn as "ubuntu", 27 requests, 0 outside the page's own origin
-win98: drawn as "win98", 27 requests, 0 outside the page's own origin
-matrix: drawn as "matrix", 27 requests, 0 outside the page's own origin
+light: 28 requests, 0 outside the page's own origin; font files requested: fonts/InterVariable.ttf ; loaded: "Inter"
+dark: 28 requests, 0 outside the page's own origin; font files requested: fonts/InterVariable.ttf ; loaded: "Inter"
+xp: 29 requests, 0 outside the page's own origin; font files requested: fonts/DejaVuSans-Bold.ttf fonts/DejaVuSans.ttf ; loaded: "DejaVu Sans"
+macos: 28 requests, 0 outside the page's own origin; font files requested: fonts/InterVariable.ttf ; loaded: "Inter"
+ubuntu: 27 requests, 0 outside the page's own origin; font files requested: none; loaded: ""
+win98: 29 requests, 0 outside the page's own origin; font files requested: fonts/LiberationSans-Bold.ttf fonts/LiberationSans-Regular.ttf ; loaded: "Liberation Sans"
+matrix: 29 requests, 0 outside the page's own origin; font files requested: fonts/JetBrainsMono-Regular.ttf fonts/JetBrainsMono-SemiBold.ttf ; loaded: "JetBrains Mono"

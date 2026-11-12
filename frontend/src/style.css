@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts/fonts.css";
 @import "./themes/index.css";
 
 /* Tailwind's own palette, radii and shadows are removed: color utilities exist only for the skin
@@ -52,6 +53,7 @@
     animation: var(--backdrop-motion);
     color: var(--text);
     font-family: var(--font-ui);
+    text-rendering: optimizeLegibility; /* kerning and ligatures at every size */
     line-height: 1.35;
     cursor: default;
     user-select: none;

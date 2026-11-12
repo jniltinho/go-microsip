@@ -93,7 +93,7 @@
   --scroll-size: 9px;
   --scroll-radius: 999px;
   --font-ui:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Inter", "Noto Sans",
+    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Noto Sans",
     sans-serif;
   --font-size: 13px;
   --radius: 6px;

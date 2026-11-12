@@ -88,7 +88,7 @@
   --scroll-thumb-bevel: none;
   --scroll-size: 10px;
   --scroll-radius: 999px;
-  --font-ui: system-ui, "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-ui: "Inter", system-ui, "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
   --font-size: 13px;
   --radius: 14px;
   --radius-pill: 999px;

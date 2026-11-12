@@ -109,7 +109,7 @@
     inset 2px 2px 0 #dfdfdf;
   --scroll-size: 16px;
   --scroll-radius: 0;
-  --font-ui: "Microsoft Sans Serif", "DejaVu Sans", Tahoma, "Noto Sans", sans-serif;
+  --font-ui: "Liberation Sans", "Microsoft Sans Serif", Tahoma, "Noto Sans", sans-serif;
   --font-size: 12px;
   --radius: 0;
   --radius-pill: 0;

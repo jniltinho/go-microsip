@@ -325,3 +325,42 @@ test("the focus ring is solid and at least 2 px wide in every skin", () => {
     expect(parseFloat(tokens(id).get("--focus-width") ?? ""), id).toBeGreaterThanOrEqual(2);
   }
 });
+
+// Bundled fonts (task 5.4): every face is a file of this bundle with a recorded licence, and every
+// skin names a bundled family, so no skin depends on what a system happens to have.
+const fontSheet = import.meta.glob<string>("../fonts/fonts.css", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+})["../fonts/fonts.css"];
+const fontFiles = Object.keys(import.meta.glob("../fonts/*.ttf", { query: "?url" }));
+const fontLicences = Object.keys(import.meta.glob("../fonts/licenses/*.txt", { query: "?raw" }));
+
+test("bundled fonts are local files with a licence, and every skin names one", () => {
+  const faces = [...fontSheet.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => ({
+    family: /font-family:\s*"([^"]+)"/.exec(m[1])?.[1] ?? "",
+    url: /url\("([^"]+)"\)/.exec(m[1])?.[1] ?? "",
+  }));
+  expect(faces.length).toBeGreaterThan(0);
+  for (const { family, url } of faces) {
+    expect(url, family).toMatch(/^\.\/[\w-]+\.ttf$/);
+    expect(fontFiles, url).toContain(`../fonts/${url.slice(2)}`);
+    expect(
+      fontLicences.some((f) => f.startsWith(`../fonts/licenses/${family} `)),
+      `a licence file for ${family}`,
+    ).toBe(true);
+  }
+  // Every font file is declared: none is shipped unused.
+  expect(fontFiles.sort()).toEqual(faces.map((f) => `../fonts/${f.url.slice(2)}`).sort());
+  const families = new Set(faces.map((f) => f.family));
+  for (const { id } of SKINS) {
+    const stack = (tokens(id).get("--font-ui") ?? "")
+      .split(",")
+      .map((f) => f.trim().replace(/"/g, ""));
+    expect(
+      stack.some((f) => families.has(f)),
+      `${id} names a bundled family: ${stack.join(", ")}`,
+    ).toBe(true);
+    expect(stack.at(-1), `${id} ends in a generic family`).toMatch(/^(sans-serif|monospace)$/);
+  }
+});

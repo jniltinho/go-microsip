@@ -1,7 +1,7 @@
 #!/bin/sh
 # Write the third-party notices of the Go binary and the embedded frontend (run inside the build
-# container): every Go module linked into the Linux or Windows binary and every npm package of the
-# production bundle, each with its version and license text.
+# container): every Go module linked into the Linux or Windows binary, every npm package of the
+# production bundle and every bundled font, each with its version and license text.
 #   scripts/go-licenses.sh <output file>
 set -eu
 out=$1
@@ -44,5 +44,12 @@ license_of() {
 			echo "--- $(node -p "const p=require('$dir/package.json'); p.name+' '+p.version+' ('+(p.license||'see package')+')'")"
 			license_of "$dir" || echo "(no license file in the package; license as declared above)"
 		done
+	echo
+	echo "## Fonts (embedded frontend, unmodified; see frontend/src/fonts/README.md)"
+	for f in frontend/src/fonts/licenses/*.txt; do
+		echo
+		echo "--- font $(basename "$f" .txt)"
+		cat "$f"
+	done
 } >"$out"
 echo "licenses: $(grep -c '^--- ' "$out") components in $out"

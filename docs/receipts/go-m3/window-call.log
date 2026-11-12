@@ -1,6 +1,6 @@
 GO_IMAGE=go-microsip-build:13 scripts/go-docker.sh sh -c 'cd frontend && npm ci --no-audit --no-fund && npm run build'
 
-added 118 packages in 810ms
+added 118 packages in 825ms
 
 > build
 > vp build
@@ -9,12 +9,19 @@ transforming...
 ✓ 72 modules transformed.
 rendering chunks...
 computing gzip size...
-../internal/gui/dist/index.html                   0.39 kB │ gzip:  0.26 kB
-../internal/gui/dist/assets/index-h1WZ733P.css   40.64 kB │ gzip:  9.20 kB
-../internal/gui/dist/assets/dist-BoNFr8oB.js     54.52 kB │ gzip: 16.93 kB
-../internal/gui/dist/assets/index-IU8HHkcj.js   126.86 kB │ gzip: 44.12 kB
+../internal/gui/dist/index.html                                    0.39 kB │ gzip:  0.26 kB
+../internal/gui/dist/assets/JetBrainsMono-Regular-CLxBbm7c.ttf   264.88 kB
+../internal/gui/dist/assets/JetBrainsMono-SemiBold-Ct3wvqB5.ttf  268.02 kB
+../internal/gui/dist/assets/LiberationSans-Regular-BrSUJeAa.ttf  410.82 kB
+../internal/gui/dist/assets/LiberationSans-Bold-DyfNtbQO.ttf     414.56 kB
+../internal/gui/dist/assets/DejaVuSans-Bold-BvvcW4uy.ttf         708.92 kB
+../internal/gui/dist/assets/DejaVuSans-CmhfEOKb.ttf              759.72 kB
+../internal/gui/dist/assets/InterVariable-DEKF4JyX.ttf           879.70 kB
+../internal/gui/dist/assets/index-Qkc_LS0w.css                    41.77 kB │ gzip:  9.43 kB
+../internal/gui/dist/assets/dist-C7c5VyuE.js                      54.52 kB │ gzip: 16.93 kB
+../internal/gui/dist/assets/index-CDpLhQHS.js                    126.86 kB │ gzip: 44.12 kB
 
-✓ built in 139ms
+✓ built in 156ms
 sh docker/asterisk/go-call.sh 10 window
  Network rust-microsip-lab_isolated Creating 
  Network rust-microsip-lab_isolated Creating 
@@ -26,17 +33,17 @@ sh docker/asterisk/go-call.sh 10 window
  Container rust-microsip-lab-pbx-1 Started 
  Container rust-microsip-lab-pbx-1 Waiting 
  Container rust-microsip-lab-pbx-1 Healthy 
- Container rust-microsip-lab-test-runner-run-afa1ed0b930c Creating 
- Container rust-microsip-lab-test-runner-run-afa1ed0b930c Created 
+ Container rust-microsip-lab-test-runner-run-8cca696d238e Creating 
+ Container rust-microsip-lab-test-runner-run-8cca696d238e Created 
 === RUN   TestCallThroughTheWindow
 === RUN   TestCallThroughTheWindow/1001
-    window_linux_test.go:591: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 21 ms)
-    window_linux_test.go:623: 1001, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:813: 1001: 189 ms: sent registration registered; 1038 ms: sent call dialing ; 1039 ms: sent call established ; 1252 ms: shown established; 13701 ms: sent call established ; 13751 ms: shown established; 16805 ms: sent call established ; 17001 ms: shown established; 20029 ms: sent call held ; 20251 ms: shown held; 20742 ms: sent call established ; 20751 ms: shown established; 27124 ms: sent call terminating ; 27124 ms: sent call ended normal; 29822 ms: sent call ringing ; 30001 ms: shown ringing; 30492 ms: sent call established ; 30501 ms: shown established; 31176 ms: sent call established ; 31176 ms: sent transfer pending; 31197 ms: sent call terminating ; 31197 ms: sent transfer succeeded; 31198 ms: sent call ended transferred; 31198 ms: sent transfer succeeded; 31342 ms: sent call ringing ; 31501 ms: shown ringing; 31572 ms: sent call ended rejected; 32483 ms: sent registration disabled; 32483 ms: sent stopped
+    window_linux_test.go:591: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:623: 1001, 3 s after the skin changed during the call: speaker 296 of 296 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:813: 1001: 174 ms: sent registration registered; 1043 ms: sent call dialing ; 1044 ms: sent call established ; 1251 ms: shown established; 13700 ms: sent call established ; 13751 ms: shown established; 16801 ms: sent call established ; 17002 ms: shown established; 20044 ms: sent call held ; 20251 ms: shown held; 20709 ms: sent call established ; 20751 ms: shown established; 27093 ms: sent call terminating ; 27094 ms: sent call ended normal; 29855 ms: sent call ringing ; 30002 ms: shown ringing; 30523 ms: sent call established ; 30751 ms: shown established; 31406 ms: sent call established ; 31406 ms: sent transfer pending; 31427 ms: sent call terminating ; 31427 ms: sent transfer succeeded; 31428 ms: sent call ended transferred; 31428 ms: sent transfer succeeded; 31584 ms: sent call ringing ; 31752 ms: shown ringing; 31797 ms: sent call ended rejected; 32708 ms: sent registration disabled; 32708 ms: sent stopped
 === RUN   TestCallThroughTheWindow/1201
     window_linux_test.go:591: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:623: 1201, 3 s after the skin changed during the call: speaker 296 of 296 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:813: 1201: 173 ms: sent registration registered; 1042 ms: sent call dialing ; 1046 ms: sent call established ; 1251 ms: shown established; 13707 ms: sent call established ; 13752 ms: shown established; 16808 ms: sent call established ; 17001 ms: shown established; 20031 ms: sent call held ; 20252 ms: shown held; 20701 ms: sent call established ; 20751 ms: shown established; 27101 ms: sent call terminating ; 27101 ms: sent call ended normal; 29842 ms: sent call ringing ; 30002 ms: shown ringing; 30481 ms: sent call established ; 30501 ms: shown established; 31161 ms: sent call established ; 31161 ms: sent transfer pending; 31182 ms: sent call terminating ; 31182 ms: sent transfer succeeded; 31182 ms: sent call ended transferred; 31182 ms: sent transfer succeeded; 31335 ms: sent call ringing ; 31501 ms: shown ringing; 31560 ms: sent call ended rejected; 32471 ms: sent registration disabled; 32471 ms: sent stopped
+    window_linux_test.go:623: 1201, 3 s after the skin changed during the call: speaker 296 of 293 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
+    window_linux_test.go:813: 1201: 193 ms: sent registration registered; 1041 ms: sent call dialing ; 1044 ms: sent call established ; 1252 ms: shown established; 13706 ms: sent call established ; 13752 ms: shown established; 16806 ms: sent call established ; 17002 ms: shown established; 20030 ms: sent call held ; 20251 ms: shown held; 20701 ms: sent call established ; 20751 ms: shown established; 27099 ms: sent call terminating ; 27100 ms: sent call ended normal; 29820 ms: sent call ringing ; 30002 ms: shown ringing; 30484 ms: sent call established ; 30501 ms: shown established; 31168 ms: sent call established ; 31168 ms: sent transfer pending; 31189 ms: sent call terminating ; 31189 ms: sent transfer succeeded; 31190 ms: sent call ended transferred; 31190 ms: sent transfer succeeded; 31348 ms: sent call ringing ; 31501 ms: shown ringing; 31560 ms: sent call ended rejected; 32468 ms: sent registration disabled; 32468 ms: sent stopped
 === RUN   TestCallThroughTheWindow/wrong_password
 === RUN   TestCallThroughTheWindow/light_at_100
     window_linux_test.go:437: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
@@ -66,11 +73,11 @@ sh docker/asterisk/go-call.sh 10 window
     window_linux_test.go:437: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/matrix_at_200
     window_linux_test.go:437: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
---- PASS: TestCallThroughTheWindow (132.38s)
-    --- PASS: TestCallThroughTheWindow/1001 (33.15s)
+--- PASS: TestCallThroughTheWindow (132.66s)
+    --- PASS: TestCallThroughTheWindow/1001 (33.42s)
     --- PASS: TestCallThroughTheWindow/1201 (33.18s)
     --- PASS: TestCallThroughTheWindow/wrong_password (0.35s)
-    --- PASS: TestCallThroughTheWindow/light_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/light_at_100 (3.72s)
     --- PASS: TestCallThroughTheWindow/light_at_200 (5.67s)
     --- PASS: TestCallThroughTheWindow/dark_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/dark_at_200 (5.67s)
@@ -78,12 +85,12 @@ sh docker/asterisk/go-call.sh 10 window
     --- PASS: TestCallThroughTheWindow/xp_at_200 (5.67s)
     --- PASS: TestCallThroughTheWindow/macos_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/macos_at_200 (5.67s)
-    --- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.72s)
     --- PASS: TestCallThroughTheWindow/ubuntu_at_200 (5.67s)
-    --- PASS: TestCallThroughTheWindow/win98_at_100 (3.71s)
+    --- PASS: TestCallThroughTheWindow/win98_at_100 (3.72s)
     --- PASS: TestCallThroughTheWindow/win98_at_200 (5.67s)
     --- PASS: TestCallThroughTheWindow/matrix_at_100 (3.71s)
     --- PASS: TestCallThroughTheWindow/matrix_at_200 (5.67s)
 PASS
-run directory: artifacts/go-call/20261112T021052Z
+run directory: artifacts/go-call/20261112T023027Z
 exit 0

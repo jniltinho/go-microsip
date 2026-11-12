@@ -91,7 +91,7 @@
   --scroll-thumb-bevel: none;
   --scroll-size: 8px;
   --scroll-radius: 999px;
-  --font-ui: Ubuntu, "Ubuntu Sans", Cantarell, "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-ui: Ubuntu, "Ubuntu Sans", "Inter", Cantarell, "Noto Sans", sans-serif;
   --font-size: 13px;
   --radius: 6px;
   --radius-pill: 999px;
