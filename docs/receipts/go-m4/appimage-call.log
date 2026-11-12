@@ -9,17 +9,17 @@ sh docker/asterisk/go-call.sh 10 window dist/go/go-microsip-0.3.0-m3-x86_64.AppI
  Container rust-microsip-lab-pbx-1 Started 
  Container rust-microsip-lab-pbx-1 Waiting 
  Container rust-microsip-lab-pbx-1 Healthy 
- Container rust-microsip-lab-test-runner-run-a451abedb6e6 Creating 
- Container rust-microsip-lab-test-runner-run-a451abedb6e6 Created 
+ Container rust-microsip-lab-test-runner-run-3ce1b34cee11 Creating 
+ Container rust-microsip-lab-test-runner-run-3ce1b34cee11 Created 
 === RUN   TestCallThroughTheWindow
 === RUN   TestCallThroughTheWindow/1001
-    window_linux_test.go:1373: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:1405: 1001, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:1630: 1001: 172 ms: sent registration registered; 1032 ms: sent call dialing ; 1034 ms: sent call established ; 1252 ms: shown established; 13748 ms: sent call established ; 13752 ms: shown established; 16847 ms: sent call established ; 17001 ms: shown established; 20051 ms: sent call held ; 20251 ms: shown held; 20719 ms: sent call established ; 20752 ms: shown established; 27116 ms: sent call terminating ; 27117 ms: sent call ended normal; 29855 ms: sent call ringing ; 30001 ms: shown ringing; 30502 ms: sent call established ; 30751 ms: shown established; 31438 ms: sent call established ; 31438 ms: sent transfer pending; 31459 ms: sent call terminating ; 31459 ms: sent transfer succeeded; 31460 ms: sent call ended transferred; 31460 ms: sent transfer succeeded; 31625 ms: sent call ringing ; 31751 ms: shown ringing; 31799 ms: sent call ended rejected; 32740 ms: sent registration disabled; 32740 ms: sent stopped
+    window_linux_test.go:1373: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1405: 1001, 3 s after the skin changed during the call: speaker 296 of 296 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1630: 1001: 201 ms: sent registration registered; 1029 ms: sent call dialing ; 1031 ms: sent call established ; 1252 ms: shown established; 13744 ms: sent call established ; 13751 ms: shown established; 16844 ms: sent call established ; 17002 ms: shown established; 20035 ms: sent call held ; 20252 ms: shown held; 20698 ms: sent call established ; 20751 ms: shown established; 27080 ms: sent call terminating ; 27080 ms: sent call ended normal; 29855 ms: sent call ringing ; 30001 ms: shown ringing; 30501 ms: sent call established ; 30751 ms: shown established; 31437 ms: sent call established ; 31437 ms: sent transfer pending; 31458 ms: sent call terminating ; 31458 ms: sent transfer succeeded; 31458 ms: sent call ended transferred; 31458 ms: sent transfer succeeded; 31623 ms: sent call ringing ; 31752 ms: shown ringing; 31794 ms: sent call ended rejected; 32736 ms: sent registration disabled; 32736 ms: sent stopped
 === RUN   TestCallThroughTheWindow/1201
-    window_linux_test.go:1373: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+    window_linux_test.go:1373: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 994 of 994 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
     window_linux_test.go:1405: 1201, 3 s after the skin changed during the call: speaker 296 of 296 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-    window_linux_test.go:1630: 1201: 190 ms: sent registration registered; 1027 ms: sent call dialing ; 1030 ms: sent call established ; 1252 ms: shown established; 13745 ms: sent call established ; 13751 ms: shown established; 16846 ms: sent call established ; 17002 ms: shown established; 20036 ms: sent call held ; 20252 ms: shown held; 20697 ms: sent call established ; 20752 ms: shown established; 27082 ms: sent call terminating ; 27082 ms: sent call ended normal; 29871 ms: sent call ringing ; 30002 ms: shown ringing; 30515 ms: sent call established ; 30751 ms: shown established; 31451 ms: sent call established ; 31451 ms: sent transfer pending; 31472 ms: sent call terminating ; 31472 ms: sent transfer succeeded; 31472 ms: sent call ended transferred; 31472 ms: sent transfer succeeded; 31588 ms: sent call ringing ; 31752 ms: shown ringing; 31758 ms: sent call ended rejected; 32694 ms: sent registration disabled; 32694 ms: sent stopped
+    window_linux_test.go:1630: 1201: 186 ms: sent registration registered; 1028 ms: sent call dialing ; 1031 ms: sent call established ; 1252 ms: shown established; 13742 ms: sent call established ; 13751 ms: shown established; 16842 ms: sent call established ; 17002 ms: shown established; 20034 ms: sent call held ; 20252 ms: shown held; 20699 ms: sent call established ; 20751 ms: shown established; 27082 ms: sent call terminating ; 27083 ms: sent call ended normal; 29867 ms: sent call ringing ; 30002 ms: shown ringing; 30510 ms: sent call established ; 30751 ms: shown established; 31445 ms: sent call established ; 31445 ms: sent transfer pending; 31466 ms: sent call terminating ; 31466 ms: sent transfer succeeded; 31467 ms: sent call ended transferred; 31467 ms: sent transfer succeeded; 31636 ms: sent call ringing ; 31752 ms: shown ringing; 31806 ms: sent call ended rejected; 32698 ms: sent registration disabled; 32698 ms: sent stopped
 === RUN   TestCallThroughTheWindow/wrong_password
 === RUN   TestCallThroughTheWindow/every_skin
 === RUN   TestCallThroughTheWindow/links
@@ -36,7 +36,7 @@ sh docker/asterisk/go-call.sh 10 window dist/go/go-microsip-0.3.0-m3-x86_64.AppI
 === RUN   TestCallThroughTheWindow/the_command_line_and_MCP
     window_linux_test.go:2046: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
 === RUN   TestCallThroughTheWindow/the_headless_service
-    window_linux_test.go:2261: the audit trail: grant bootstrap issued 4 scopes, 10 min; dnd_set granted enabled=true by grant grant-1-fb3dc5f42144204aa21fcade; dnd_set succeeded -; call_dial granted destination ***00 by grant grant-1-fb3dc5f42144204aa21fcade; call_dial succeeded -; call_hangup granted - by grant grant-1-fb3dc5f42144204aa21fcade; call_hangup succeeded -
+    window_linux_test.go:2261: the audit trail: grant bootstrap issued 4 scopes, 10 min; dnd_set granted enabled=true by grant grant-1-42d881dc13e4dad8adcec1ab; dnd_set succeeded -; call_dial granted destination ***00 by grant grant-1-42d881dc13e4dad8adcec1ab; call_dial succeeded -; call_hangup granted - by grant grant-1-42d881dc13e4dad8adcec1ab; call_hangup succeeded -
 === RUN   TestCallThroughTheWindow/light_at_100
     window_linux_test.go:1219: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/light_at_200
@@ -65,20 +65,20 @@ sh docker/asterisk/go-call.sh 10 window dist/go/go-microsip-0.3.0-m3-x86_64.AppI
     window_linux_test.go:1219: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/matrix_at_200
     window_linux_test.go:1219: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
---- PASS: TestCallThroughTheWindow (190.88s)
-    --- PASS: TestCallThroughTheWindow/1001 (33.82s)
+--- PASS: TestCallThroughTheWindow (190.36s)
+    --- PASS: TestCallThroughTheWindow/1001 (33.83s)
     --- PASS: TestCallThroughTheWindow/1201 (33.71s)
     --- PASS: TestCallThroughTheWindow/wrong_password (0.35s)
-    --- PASS: TestCallThroughTheWindow/every_skin (19.24s)
+    --- PASS: TestCallThroughTheWindow/every_skin (18.98s)
     --- PASS: TestCallThroughTheWindow/links (7.97s)
     --- PASS: TestCallThroughTheWindow/quit_during_a_call (1.51s)
     --- PASS: TestCallThroughTheWindow/a_termination_signal_during_a_call (1.21s)
     --- PASS: TestCallThroughTheWindow/the_password_is_remembered (2.41s)
-    --- PASS: TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering (5.13s)
+    --- PASS: TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering (4.87s)
     --- PASS: TestCallThroughTheWindow/the_tray (3.06s)
     --- PASS: TestCallThroughTheWindow/agent_control (8.28s)
-    --- PASS: TestCallThroughTheWindow/the_command_line_and_MCP (6.50s)
-    --- PASS: TestCallThroughTheWindow/the_headless_service (1.29s)
+    --- PASS: TestCallThroughTheWindow/the_command_line_and_MCP (6.51s)
+    --- PASS: TestCallThroughTheWindow/the_headless_service (1.32s)
     --- PASS: TestCallThroughTheWindow/light_at_100 (3.76s)
     --- PASS: TestCallThroughTheWindow/light_at_200 (5.72s)
     --- PASS: TestCallThroughTheWindow/dark_at_100 (3.76s)
@@ -92,6 +92,6 @@ sh docker/asterisk/go-call.sh 10 window dist/go/go-microsip-0.3.0-m3-x86_64.AppI
     --- PASS: TestCallThroughTheWindow/win98_at_100 (3.76s)
     --- PASS: TestCallThroughTheWindow/win98_at_200 (5.72s)
     --- PASS: TestCallThroughTheWindow/matrix_at_100 (3.76s)
-    --- PASS: TestCallThroughTheWindow/matrix_at_200 (5.72s)
+    --- PASS: TestCallThroughTheWindow/matrix_at_200 (5.67s)
 PASS
-run directory: artifacts/go-call/20261112T140429Z
+run directory: artifacts/go-call/20261112T143920Z
