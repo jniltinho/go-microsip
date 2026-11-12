@@ -7,6 +7,7 @@ import (
 	"github.com/jniltinho/go-microsip/internal/platform/audio"
 	"github.com/jniltinho/go-microsip/internal/platform/files"
 	"github.com/jniltinho/go-microsip/internal/platform/lock"
+	"github.com/jniltinho/go-microsip/internal/platform/notify"
 	"github.com/jniltinho/go-microsip/internal/platform/secrets"
 )
 
@@ -21,6 +22,6 @@ var (
 func main() {
 	cmd.Execute(cmd.Platform{
 		Files: files.Access{}, Audio: &audio.Devices{}, Locks: lock.Files{},
-		Secrets: secrets.Keyring{}, LegacySecrets: secrets.Legacy{},
+		Secrets: secrets.Keyring{}, LegacySecrets: secrets.Legacy{}, Notice: notify.New(),
 	}, version, commit)
 }

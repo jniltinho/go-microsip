@@ -88,3 +88,24 @@ type Secrets interface {
 	// Delete removes the entry; removing one that does not exist is not an error.
 	Delete(ref string) error
 }
+
+// CallNotice is the desktop's notification of a call that rings: where the desktop offers
+// buttons, it can be answered or refused from there. It is optional: without a notification
+// service nothing is shown and the window remains the way to answer.
+type CallNotice interface {
+	// Incoming shows the notification of the ringing call. The caller is text the other party
+	// controls: it is shown as plain text. It never blocks.
+	Incoming(call uint64, caller string)
+	// Close takes the call's notification away: the call was answered, refused or is over. It
+	// never blocks.
+	Close(call uint64)
+	// Actions delivers the buttons pressed on notifications.
+	Actions() <-chan CallNoticeAction
+}
+
+// CallNoticeAction is a button pressed on a call's notification.
+type CallNoticeAction struct {
+	Call uint64
+	// Answer is true for "Answer" and false for "Reject".
+	Answer bool
+}

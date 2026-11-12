@@ -72,6 +72,8 @@ type Options struct {
 	Core app.Options
 	// Audio opens the sound devices; nil when this build has no sound service.
 	Audio ports.AudioDevices
+	// Notice shows the desktop's notification of a ringing call; nil shows none.
+	Notice ports.CallNotice
 	// UserAgent is the product name sent to the PBX.
 	UserAgent string
 }
@@ -230,6 +232,10 @@ func Run(o Options) error {
 			svc.unavailable = err.Error() // the window says so
 		} else {
 			svc.phone = phone
+			if o.Notice != nil { // before anything forwards events
+				svc.notice = o.Notice
+				go svc.decide(o.Notice.Actions())
+			}
 			if svc.recentChanged != nil {
 				svc.recentChanged() // the history of earlier sessions
 			}

@@ -8,6 +8,7 @@ import (
 	"github.com/jniltinho/go-microsip/internal/buildinfo"
 	"github.com/jniltinho/go-microsip/internal/core/app"
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 )
 
 // EventName is the one event the page listens to; its data is a UIEvent.
@@ -28,6 +29,10 @@ type App struct {
 	dark func() bool
 	// attention brings the window in sight (it may be hidden in the tray); nil does nothing.
 	attention func()
+	// notice is the desktop's notification of a ringing call; nil shows none. notified is the
+	// call that has one now (0: none); only forward touches it.
+	notice   ports.CallNotice
+	notified domain.CallID
 	// recentChanged is told when the latest calls or their names may have changed (the tray's
 	// menu lists them); nil does nothing.
 	recentChanged func()
@@ -116,6 +121,17 @@ func (a *App) forward() {
 			ringing = ev.Call.Direction == domain.Incoming && ev.Call.Phase.Kind == domain.Ringing &&
 				(a.call == nil || a.call.ID != ev.Call.ID)
 			finished = ev.Call.Phase.IsFinal() // it is in the history by now
+			if a.notice != nil {
+				switch {
+				case ringing:
+					a.notice.Incoming(uint64(ev.Call.ID), ev.Call.Remote)
+					a.notified = ev.Call.ID
+				case a.notified == ev.Call.ID && ev.Call.Phase.Kind != domain.Ringing:
+					// Answered, refused or over: nothing is left to decide from a notification.
+					a.notice.Close(uint64(ev.Call.ID))
+					a.notified = 0
+				}
+			}
 			a.call = nil
 			if !ev.Call.Phase.IsFinal() {
 				a.call = &ev.Call
@@ -359,6 +375,21 @@ func (a *App) leave() int {
 	}
 	a.emit(UIEvent{Type: "quit"})
 	return pageAsked
+}
+
+// decide follows the buttons of call notifications until the channel closes: Answer answers the
+// call and brings the window in sight, where the call is then controlled; Reject refuses it. The
+// engine ignores a button pressed for a call that no longer rings.
+func (a *App) decide(actions <-chan ports.CallNoticeAction) {
+	for act := range actions {
+		if act.Answer {
+			if a.Answer(act.Call) == nil && a.attention != nil {
+				a.attention()
+			}
+			continue
+		}
+		_ = a.Reject(act.Call)
+	}
 }
 
 // recents are the latest calls for the tray's menu; none without a phone or its database.

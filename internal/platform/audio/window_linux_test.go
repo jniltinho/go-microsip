@@ -13,9 +13,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/godbus/dbus/v5"
 )
 
 // traceLine is one line of the file --ui-trace writes: an event sent to the page, or what the page
@@ -184,6 +187,89 @@ func (w *window) until(d time.Duration, what string, cond func() bool) {
 			w.t.Fatalf("no %s within %v\nthe page shows:\n%s\nwhat happened:\n  %s", what, d, w.page.Text, strings.Join(w.story, "\n  "))
 		}
 	}
+}
+
+// notifications stands in for the desktop's notification service on the lab's session bus: the
+// softphone asks it to show a call that rings, and the test presses its buttons.
+type notifications struct {
+	conn  *dbus.Conn
+	mu    sync.Mutex
+	next  uint32
+	shown []notice
+}
+
+type notice struct {
+	id            uint32
+	summary, body string
+	actions       []string
+}
+
+const (
+	notifyName = "org.freedesktop.Notifications"
+	notifyPath = "/org/freedesktop/Notifications"
+)
+
+func serveNotifications(t *testing.T) *notifications {
+	t.Helper()
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	n := &notifications{conn: conn}
+	if err := conn.Export(n, notifyPath, notifyName); err != nil {
+		t.Fatal(err)
+	}
+	if reply, err := conn.RequestName(notifyName, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("the test could not be the notification service of the lab's session: %v %v", reply, err)
+	}
+	return n
+}
+
+// GetCapabilities, Notify and CloseNotification are the service's methods.
+func (n *notifications) GetCapabilities() ([]string, *dbus.Error) {
+	return []string{"actions", "body"}, nil
+}
+
+func (n *notifications) Notify(app string, replaces uint32, icon, summary, body string, actions []string, hints map[string]dbus.Variant, expire int32) (uint32, *dbus.Error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	id := replaces
+	if id == 0 {
+		n.next++
+		id = n.next
+	}
+	n.shown = append(n.shown, notice{id: id, summary: summary, body: body, actions: actions})
+	return id, nil
+}
+
+func (n *notifications) CloseNotification(uint32) *dbus.Error { return nil }
+
+// last is the id of the newest notification asked for.
+func (n *notifications) last() uint32 {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.next
+}
+
+func (n *notifications) wait(t *testing.T, what string, is func(notice) bool) notice {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		n.mu.Lock()
+		for _, shown := range n.shown {
+			if is(shown) {
+				n.mu.Unlock()
+				return shown
+			}
+		}
+		n.mu.Unlock()
+	}
+	t.Fatalf("no %s", what)
+	return notice{}
+}
+
+func (n *notifications) press(id uint32, key string) {
+	_ = n.conn.Emit(notifyPath, notifyName+".ActionInvoked", id, key)
 }
 
 // watch reads everything the window reports for d and tells whether cond held at any moment of it.
@@ -376,6 +462,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 	if err := json.Unmarshal(raw, &passwords); err != nil {
 		t.Fatal(err)
 	}
+	desk := serveNotifications(t)
 	for _, account := range []struct {
 		user, settings string
 		secure         bool
@@ -384,7 +471,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 		{"1201", fmt.Sprintf("port = 5061\ntransport = \"tls\"\nmedia = \"srtp\"\nca_file = %q\n", filepath.Join(lab, "ca.crt")), true},
 	} {
 		t.Run(account.user, func(t *testing.T) {
-			callThroughTheWindow(t, bin, server, account.user, account.settings, account.secure, passwords)
+			callThroughTheWindow(t, bin, server, account.user, account.settings, account.secure, passwords, desk)
 		})
 	}
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
@@ -839,7 +926,7 @@ func wrongPasswordInTheWindow(t *testing.T, bin, server string) {
 	}
 }
 
-func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secure bool, passwords map[string]string) {
+func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secure bool, passwords map[string]string, desk *notifications) {
 	password := passwords[user]
 	sound := soundCards(t, user)
 	dir := t.TempDir()
@@ -1055,6 +1142,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
 		return slices.Contains(strings.Fields(string(out)), w.id)
 	}
+	before := desk.last()
 	w.xdotool("windowminimize", "--sync", w.id)
 	if inSight() {
 		t.Error("the window is still in sight after it was minimized: the next check would prove nothing")
@@ -1064,7 +1152,13 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		return w.call.Phase == "ringing" && w.call.Direction == "incoming" && w.shows("Incoming call")
 	})
 	w.until(5*time.Second, "the window back in sight for the incoming call", inSight)
-	w.keys("Escape")
+	// The desktop was asked to notify the call, with the caller as the network named it and two
+	// buttons; Reject, pressed there, refuses the call.
+	notice := desk.wait(t, "the notification of the second incoming call", func(n notice) bool { return n.id > before })
+	if notice.summary != "Incoming call" || notice.body != peer || !slices.Equal(notice.actions, []string{"answer", "Answer", "reject", "Reject"}) {
+		t.Errorf("the notification of the incoming call: %+v, want the caller %s and the two buttons", notice, peer)
+	}
+	desk.press(notice.id, "reject")
 	w.until(15*time.Second, "the refused call ended", func() bool { return w.call.Phase == "ended" && shownPhase(w.page.Text) == "" })
 	if w.call.EndReason != "rejected" {
 		t.Errorf("the refused call ended as %q", w.call.EndReason)

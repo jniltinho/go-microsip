@@ -1,0 +1,29 @@
+package notify
+
+import (
+	"strings"
+	"testing"
+)
+
+// The caller's text is the other party's: what would reorder or hide text is removed, what a
+// notification server reads as markup is escaped, and the length is bounded.
+func TestCallerTextIsPlain(t *testing.T) {
+	for caller, want := range map[string]string{
+		"1002":                               "1002",
+		"Ana Lima":                           "Ana Lima",
+		`<img src=x onerror=alert(1)><b>Ana`: "&lt;img src=x onerror=alert(1)&gt;&lt;b&gt;Ana",
+		"Tom & Jerry":                        "Tom &amp; Jerry",
+		"line\nbreak\ttab\x00":               "linebreaktab",
+		"safe‮evil⁦x‏":                       "safeevilx",
+		"":                                   "Unknown caller",
+		" \t\n":                              "Unknown caller",
+		"‮‏":                                 "Unknown caller",
+	} {
+		if got := callerText(caller); got != want {
+			t.Errorf("%q: %q, want %q", caller, got, want)
+		}
+	}
+	if long := callerText(strings.Repeat("é", 200)); len([]rune(long)) != maxCallerChars {
+		t.Errorf("a long caller is %d characters, want %d", len([]rune(long)), maxCallerChars)
+	}
+}

@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/jniltinho/go-microsip/internal/core/app"
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 )
 
 // own is a ports.FileAccess that owns every file.
@@ -487,6 +489,83 @@ func TestAnUnaskedQuitIsTheEnginesToDecide(t *testing.T) {
 	case <-quits:
 	case <-time.After(time.Second):
 		t.Fatal("the application did not quit after the confirmed shutdown")
+	}
+}
+
+// noticeBoard is a ports.CallNotice that records what it is asked.
+type noticeBoard struct {
+	mu      sync.Mutex
+	asked   []string
+	actions chan ports.CallNoticeAction
+}
+
+func (n *noticeBoard) Incoming(call uint64, caller string) {
+	n.mu.Lock()
+	n.asked = append(n.asked, fmt.Sprintf("incoming %d %s", call, caller))
+	n.mu.Unlock()
+}
+
+func (n *noticeBoard) Close(call uint64) {
+	n.mu.Lock()
+	n.asked = append(n.asked, fmt.Sprintf("close %d", call))
+	n.mu.Unlock()
+}
+
+func (n *noticeBoard) Actions() <-chan ports.CallNoticeAction { return n.actions }
+
+func (n *noticeBoard) all() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]string(nil), n.asked...)
+}
+
+// A call that rings here gets a notification, which goes when the call is answered, refused or
+// over; its buttons answer and refuse that call. A call placed from here gets none.
+func TestARingingCallIsNotifiedAndItsButtonsDecide(t *testing.T) {
+	board := &noticeBoard{actions: make(chan ports.CallNoticeAction)}
+	stream := make(chan domain.Event)
+	var mu sync.Mutex
+	var sent []domain.Command
+	shown := 0
+	svc := &App{
+		emit: func(UIEvent) {}, quit: func() {}, stream: stream, notice: board,
+		attention: func() { mu.Lock(); shown++; mu.Unlock() },
+		sending: func(c domain.Command) error {
+			mu.Lock()
+			sent = append(sent, c)
+			mu.Unlock()
+			return nil
+		},
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); svc.forward() }()
+	go svc.decide(board.actions)
+	call := func(id domain.CallID, direction domain.Direction, phase domain.PhaseKind, version uint64) {
+		stream <- domain.CallChanged{Call: domain.CallSnapshot{ID: id, Direction: direction, Remote: "1002", Phase: domain.CallPhase{Kind: phase}, Version: version}}
+	}
+	call(1, domain.Outgoing, domain.Ringing, 1) // placed from here: nothing to notify
+	call(1, domain.Outgoing, domain.Ended, 2)
+	call(2, domain.Incoming, domain.Ringing, 1)
+	call(2, domain.Incoming, domain.Ringing, 2) // the same call again: one notification
+	board.actions <- ports.CallNoticeAction{Call: 2, Answer: true}
+	call(2, domain.Incoming, domain.Established, 3)
+	call(2, domain.Incoming, domain.Ended, 4)
+	call(3, domain.Incoming, domain.Ringing, 1)
+	board.actions <- ports.CallNoticeAction{Call: 3}
+	call(3, domain.Incoming, domain.Ended, 2)
+	close(stream)
+	<-done
+	close(board.actions)
+	if got, want := board.all(), []string{"incoming 2 1002", "close 2", "incoming 3 1002", "close 3"}; !slices.Equal(got, want) {
+		t.Errorf("the notifications asked for: %v, want %v", got, want)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(sent) != 2 || sent[0] != (domain.Answer{Call: 2}) || sent[1] != (domain.Reject{Call: 3}) {
+		t.Errorf("the buttons sent %+v, want Answer of call 2 and Reject of call 3", sent)
+	}
+	if shown < 2 { // once for each call that rang; the answered one again
+		t.Errorf("the window was brought in sight %d times", shown)
 	}
 }
 

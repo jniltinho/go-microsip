@@ -25,6 +25,8 @@ type Platform struct {
 	Audio ports.AudioDevices
 	// Locks takes instance locks; nil when this build cannot.
 	Locks ports.Locker
+	// Notice shows the desktop's notification of a ringing call; nil when this build shows none.
+	Notice ports.CallNotice
 	// Secrets is the user's keyring; nil when this build has none.
 	Secrets ports.Secrets
 	// LegacySecrets reads the password the Rust application kept; nil when it cannot be read.

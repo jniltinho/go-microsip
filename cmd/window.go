@@ -14,7 +14,7 @@ func init() {
 	runWindow = func(_ *cobra.Command, s *session, dial string) error {
 		return gui.Run(gui.Options{
 			SafeGPU: safeGPU, SelfTest: selfTest, Trace: uiTrace, Dial: dial,
-			Core: s.options(), Audio: s.platform.Audio, UserAgent: "go-microsip/" + s.version,
+			Core: s.options(), Audio: s.platform.Audio, Notice: s.platform.Notice, UserAgent: "go-microsip/" + s.version,
 		})
 	}
 }

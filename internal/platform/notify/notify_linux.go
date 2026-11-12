@@ -1,0 +1,117 @@
+package notify
+
+import (
+	"context"
+	"time"
+
+	"github.com/godbus/dbus/v5"
+
+	"github.com/jniltinho/go-microsip/internal/core/ports"
+)
+
+const (
+	dest = "org.freedesktop.Notifications"
+	path = "/org/freedesktop/Notifications"
+	// callTimeout bounds one call to the notification service.
+	callTimeout = 5 * time.Second
+	// expireMS is how long the notification stays; it is also closed when the call stops ringing.
+	expireMS = 60_000
+)
+
+// serve talks to the notification service for the life of the process. It owns the map from
+// calls to notifications; nothing else touches it.
+func (d *Desktop) serve() {
+	var (
+		conn    *dbus.Conn
+		buttons bool
+		signals chan *dbus.Signal
+		shown   = map[uint64]uint32{} // call -> notification
+	)
+	connect := func() bool {
+		if conn != nil {
+			return true
+		}
+		c, err := dbus.SessionBus()
+		if err != nil {
+			return false
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		var capabilities []string
+		if err := c.Object(dest, path).CallWithContext(ctx, dest+".GetCapabilities", 0).Store(&capabilities); err != nil {
+			return false // no notification service: asked again at the next call
+		}
+		for _, capability := range capabilities {
+			buttons = buttons || capability == "actions"
+		}
+		if err := c.AddMatchSignal(dbus.WithMatchObjectPath(path), dbus.WithMatchInterface(dest)); err != nil {
+			return false
+		}
+		signals = make(chan *dbus.Signal, 2*queue)
+		c.Signal(signals)
+		conn = c
+		return true
+	}
+	callOf := func(id uint32) (uint64, bool) {
+		for call, shownID := range shown {
+			if shownID == id {
+				return call, true
+			}
+		}
+		return 0, false
+	}
+	for {
+		select {
+		case r := <-d.requests:
+			if !connect() {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+			service := conn.Object(dest, path)
+			switch id, known := shown[r.call]; {
+			case r.show:
+				var actions []string
+				if buttons {
+					actions = []string{"answer", "Answer", "reject", "Reject"}
+				}
+				hints := map[string]dbus.Variant{
+					"urgency":       dbus.MakeVariant(byte(2)),
+					"category":      dbus.MakeVariant("call.incoming"),
+					"desktop-entry": dbus.MakeVariant("go-microsip"),
+				}
+				var fresh uint32
+				err := service.CallWithContext(ctx, dest+".Notify", 0, "go-microsip", id, "go-microsip",
+					"Incoming call", r.caller, actions, hints, int32(expireMS)).Store(&fresh)
+				if err == nil {
+					shown[r.call] = fresh
+				}
+			case known:
+				_ = service.CallWithContext(ctx, dest+".CloseNotification", 0, id).Err
+				delete(shown, r.call)
+			}
+			cancel()
+		case s := <-signals:
+			if s == nil || len(s.Body) < 2 {
+				continue
+			}
+			id, _ := s.Body[0].(uint32)
+			call, known := callOf(id)
+			if !known {
+				continue // someone else's notification
+			}
+			switch s.Name {
+			case dest + ".ActionInvoked":
+				key, _ := s.Body[1].(string)
+				if key != "answer" && key != "reject" {
+					continue
+				}
+				select {
+				case d.actions <- ports.CallNoticeAction{Call: call, Answer: key == "answer"}:
+				default:
+				}
+			case dest + ".NotificationClosed":
+				delete(shown, call)
+			}
+		}
+	}
+}
