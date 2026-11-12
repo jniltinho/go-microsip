@@ -57,6 +57,8 @@ export async function start() {
       if (event.type === "desktop") setDesktopDark(event.dark);
       // The close button or the tray: the same Quit as the menu's, which asks during a call.
       else if (event.type === "quit") void ui.dispatch({ type: "quit" });
+      // A link from a browser or the desktop: asked about, never dialed by itself.
+      else if (event.type === "link") void ui.dispatch({ type: "askDial", number: event.number });
       else ui.applyEvent(event);
     });
     ui.contactsRevision++;

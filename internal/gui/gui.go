@@ -48,6 +48,9 @@ var icon []byte
 // window's icon, and the single-instance lock is named after it.
 const appID = "io.github.jniltinho.go-microsip"
 
+// handedLink names, in what a second instance hands to the running one, the number of its link.
+const handedLink = "dial"
+
 // windowIconName is the name of the application's icon in the icon theme.
 const windowIconName = "go-microsip"
 
@@ -62,6 +65,9 @@ type Options struct {
 	// Trace is a file that receives every event sent to the page and what the page shows
 	// (--ui-trace, for tests of the built window); empty writes none.
 	Trace string
+	// Dial is the user part of a sip: or tel: link the application was started with, already
+	// checked; the window asks before it calls it. A running instance gets it instead.
+	Dial string
 	// Core are the core's options: where the configuration and the database are.
 	Core app.Options
 	// Audio opens the sound devices; nil when this build has no sound service.
@@ -124,21 +130,34 @@ func Run(o Options) error {
 	}
 	if !o.SelfTest {
 		opts.SingleInstance = &application.SingleInstanceOptions{
-			UniqueID:               appID,
-			OnSecondInstanceLaunch: func(application.SecondInstanceData) { reveal() },
+			UniqueID: appID,
+			// A second start shows this window; one with a link hands its number over for the
+			// page to ask about. It comes from another process of the user and is checked again.
+			OnSecondInstanceLaunch: func(second application.SecondInstanceData) {
+				reveal()
+				if number := second.AdditionalData[handedLink]; number != "" {
+					svc.link(number)
+				}
+			},
 		}
+	}
+	if !o.SelfTest && o.Dial != "" {
+		opts.SingleInstance.AdditionalData = map[string]string{handedLink: o.Dial}
+		svc.link(o.Dial) // no instance was running: this one asks, once its page listens
 	}
 	ui := application.New(opts) // a second instance ends here, after waking the first one
 	svc.emit = func(ev UIEvent) { ui.Event.Emit(EventName, ev) }
 	// Once the application is leaving, the close button no longer hides the window or asks the page.
 	var leaving atomic.Bool
-	quit := func() { leaving.Store(true); ui.Quit() }
+	quit := sync.OnceFunc(func() { leaving.Store(true); ui.Quit() }) // asked for more than once
 	svc.quit = quit
 	svc.attention = reveal
 	// The System skin follows the desktop. WebKitGTK in a plain GTK window does not pass the
 	// desktop's dark preference on to the page, so the page is told, at once and on every change.
 	svc.dark = ui.Env.IsDarkMode
 	ui.Event.OnApplicationEvent(events.Common.ThemeChanged, func(*application.ApplicationEvent) { svc.desktopChanged() })
+	// The window exists before anything that may want it in sight (an incoming call) starts.
+	main = ui.Window.NewWithOptions(win)
 	if !o.SelfTest {
 		// The phone holds the instance lock of the database until the window is gone: calls are
 		// ended and the account unregistered, within the engine's bound, before Run returns.
@@ -156,24 +175,25 @@ func Run(o Options) error {
 			defer func() { phone.Close(); <-forwarded }()
 		}
 	}
-	main = ui.Window.NewWithOptions(win)
 	// leave quits through the page's own Quit, which asks before it ends a call. A page that is
-	// not there or does not answer cannot ask: the window asks then, in a dialog of its own, and
-	// only a yes ends a call.
+	// not there or does not answer cannot ask: the window asks then, in a dialog of its own,
+	// whenever an engine is running. What this side knows of a call comes after the fact, so it
+	// does not judge whether there is one: only a yes ends the engine.
 	var asking atomic.Bool
 	leave := func() {
-		if !svc.leave() {
+		switch svc.leave() {
+		case pageAsked:
 			return
-		}
-		if !svc.inCall() {
+		case nothingToEnd:
 			svc.end()
 			return
 		}
 		if !asking.CompareAndSwap(false, true) {
 			return // the question is already on the screen
 		}
-		question := ui.Dialog.Question().SetTitle("go-microsip").SetMessage("The window is not answering. Hang up and quit?")
-		yes := question.AddButton("Hang up and quit")
+		question := ui.Dialog.Question().SetTitle("go-microsip").
+			SetMessage("The window is not answering. Quit go-microsip? A call in progress will be ended.")
+		yes := question.AddButton("Quit")
 		yes.OnClick(func() { asking.Store(false); svc.end() })
 		no := question.AddButton("Cancel")
 		no.OnClick(func() { asking.Store(false) })

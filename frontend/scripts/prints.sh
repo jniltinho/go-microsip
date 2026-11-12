@@ -5,8 +5,9 @@
 # an icon in sight beside the state's label (a state is never told by color alone), and the main
 # screens of each skin for the ring of every control that takes the keyboard's focus (focus.js).
 # The results go to <output directory>/contrast.txt, states.txt and focus.txt, and any failure
-# makes the run fail. The run ends with two controls: a ring taken away and an icon hidden must
-# each be reported, or the audits prove nothing. Run from the repository root with the dev server up (see
+# makes the run fail. The run ends with seven controls (a ring taken away on a call and in the menu,
+# a ring on a transparent control, an audit pointed at another screen, an icon hidden, an icon and
+# a text in a transparent badge): each must be reported, or the audits prove nothing. Run from the repository root with the dev server up (see
 # docs/ui/go-frontend.md):
 #   frontend/scripts/prints.sh [base URL] [output directory] [skins...]
 set -eu
@@ -43,7 +44,7 @@ state() {
 	screen=$1
 	shift
 	for label in "$@"; do
-		found=$(abo eval "[...document.querySelectorAll('svg')].some((s) => { const b = s.getBoundingClientRect(), c = getComputedStyle(s); return b.width > 0 && b.height > 0 && c.visibility !== 'hidden' && Number(c.opacity) > 0 && !!s.querySelector('path, circle, rect, line') && s.parentElement.innerText.trim().startsWith('$label'); })")
+		found=$(abo eval "[...document.querySelectorAll('svg')].some((s) => { const b = s.getBoundingClientRect(), c = getComputedStyle(s); let a = 1; for (let e = s; e; e = e.parentElement) a *= Number(getComputedStyle(e).opacity); return b.width > 0 && b.height > 0 && c.visibility !== 'hidden' && a > 0 && !!s.querySelector('path, circle, rect, line') && s.parentElement.innerText.trim().startsWith('$label'); })")
 		if [ "$found" = true ]; then
 			echo "$skin/$screen: icon and label \"$label\"" >>"$out/states.txt"
 		else
@@ -51,19 +52,25 @@ state() {
 		fi
 	done
 }
-# rings audits the focus ring of every control of the screen in sight, after a key press that tells
-# the browser a person is at the keyboard. Used where the press changes nothing that follows.
+# rings <name> <selector>: the focus ring of every control of the screen in sight. The selector is
+# what tells the screen apart: it must be there before and after, or the audit looked at another
+# screen and is reported as a failure. Shift is pressed first: it tells the browser a person is at
+# the keyboard, so focus is shown as the keyboard shows it, and it changes nothing on the page (a
+# Tab would close the menu).
 rings() {
 	abo eval "$audit" >/dev/null
 	ab press Shift
-	ab press Tab
+	there=$(abo eval "!!document.querySelector('$2')")
 	ring=$(abo eval "$focus")
+	still=$(abo eval "!!document.querySelector('$2')")
 	ring=${ring#\"}
 	ring=${ring%\"}
 	count=${ring%% *}
 	wrong=${ring#* }
 	[ "$wrong" != "$ring" ] || wrong=
-	if [ "${count:-0}" -gt 0 ] && [ -z "$wrong" ]; then
+	if [ "$there" != true ] || [ "$still" != true ]; then
+		echo "$skin/$1: RING not the screen it names ($2)" | tee -a "$out/focus.txt"
+	elif [ "${count:-0}" -gt 0 ] && [ -z "$wrong" ]; then
 		echo "$skin/$1: $count controls show a ring" >>"$out/focus.txt"
 	else
 		echo "$skin/$1: RING $count controls; $wrong" | tee -a "$out/focus.txt"
@@ -175,46 +182,77 @@ for skin in $skins; do
 
 	# The ring of every control that takes focus, on the screens that hold the controls.
 	scene ""
-	rings home
+	rings home 'section[aria-label="Home"]'
 	keys Control+l
-	rings keypad
+	rings keypad 'section[aria-label="Keypad"]'
 	scene active
-	rings call
+	rings call '[aria-label="Call controls"]'
 	click '[aria-label="Call controls"] button:nth-child(3)'
-	rings call-keypad
+	rings call-keypad '[aria-label="Current call"] .key'
 	scene incoming
-	rings incoming
+	rings incoming 'dialog[open] .btn-call'
 	scene ""
 	ab focus '.tab[aria-selected="true"]'
 	keys ArrowRight
-	rings calls
+	rings calls 'section[aria-label="Calls"]'
 	keys ArrowRight
-	rings contacts
+	rings contacts 'section[aria-label="Contacts"]'
 	ab eval "[...document.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Add').click()"
-	rings contact-edit
+	rings contact-edit 'form[aria-label="New contact"]'
 	scene ""
 	ab focus 'button[aria-haspopup="menu"]'
 	keys Enter
-	rings menu
+	rings menu '[role="menu"]'
 	keys Enter
-	rings settings
+	rings settings 'section[aria-label="Settings"]'
 	scene approval
-	rings approval
+	rings approval 'dialog[open]'
 done
 
-# Controls: the audits must report a ring that is taken away and an icon that is hidden.
+# Controls: each audit must report the fault it is there for, or it proves nothing. Every control
+# starts from a fresh page, with one rule added to it.
 skin=control
-ab open "$base/?scene=muted"
-ab wait .statusbar
-ab wait 400
-ab eval "{ const s = document.createElement('style'); s.textContent = '.ctl:focus-visible, .btn:focus-visible { outline: none }'; document.head.append(s); }"
-rings ring-taken-away
-ab eval "{ const s = document.createElement('style'); s.textContent = '.badge svg { display: none }'; document.head.append(s); }"
-state icon-hidden "Muted"
+fault() { # <scene> <css>
+	ab open "$base/?scene=$1"
+	ab wait .statusbar
+	ab wait 400
+	ab eval "{ const s = document.createElement('style'); s.textContent = '$2'; document.head.append(s); }"
+}
 controls=0
-grep -q '^control/ring-taken-away: RING' "$out/focus.txt" && controls=$((controls + 1)) || echo "prints: CONTROL FAILED: a ring taken away was not reported"
-grep -q '^control/icon-hidden: NO ICON' "$out/states.txt" && controls=$((controls + 1)) || echo "prints: CONTROL FAILED: a hidden icon was not reported"
-ab set media light
-echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label, $(grep -c 'controls show a ring' "$out/focus.txt") screens show a ring on every control, $controls of 2 controls caught)"
-[ "$controls" -eq 2 ] && ! grep -q BELOW "$out/contrast.txt" && ! grep -v '^control/' "$out/states.txt" | grep -q "NO ICON" &&
+caught() { # <what> <file> <pattern>
+	if grep -q "$3" "$2"; then
+		controls=$((controls + 1))
+	else
+		echo "prints: CONTROL FAILED: $1 was not reported"
+	fi
+}
+fault muted '.ctl:focus-visible, .btn:focus-visible { outline: none }'
+rings ring-taken-away '[aria-label="Call controls"]'
+caught "a ring taken away" "$out/focus.txt" '^control/ring-taken-away: RING [0-9]* controls; no ring'
+fault muted '.ctl { opacity: 0 }'
+rings ring-transparent '[aria-label="Call controls"]'
+caught "a ring on a transparent control" "$out/focus.txt" '^control/ring-transparent: RING [0-9]* controls; [0-9.]* ring'
+fault "" '.menuitem:focus-visible { outline: none !important }'
+ab focus 'button[aria-haspopup="menu"]'
+keys Enter
+rings menu-ring-taken-away '[role="menu"]'
+caught "a ring taken away in the menu" "$out/focus.txt" '^control/menu-ring-taken-away: RING [0-9]* controls; no ring'
+ab focus 'button[aria-haspopup="menu"]'
+rings not-the-menu '[role="menu-that-is-not-there"]'
+caught "an audit of another screen" "$out/focus.txt" '^control/not-the-menu: RING not the screen'
+fault muted '.badge svg { display: none }'
+state icon-hidden "Muted"
+caught "a hidden icon" "$out/states.txt" '^control/icon-hidden: NO ICON'
+fault muted '.badge { opacity: 0 }'
+state icon-in-a-transparent-badge "Muted"
+caught "an icon in a transparent badge" "$out/states.txt" '^control/icon-in-a-transparent-badge: NO ICON'
+low=$(abo eval "$audit")
+if [ "$low" != '""' ]; then
+	controls=$((controls + 1))
+	echo "control/text-in-a-transparent-badge: BELOW AAA $low" >>"$out/contrast.txt"
+else
+	echo "prints: CONTROL FAILED: text in a transparent badge was not reported"
+fi
+echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label, $(grep -c 'controls show a ring' "$out/focus.txt") screens show a ring on every control, $controls of 7 controls caught)"
+[ "$controls" -eq 7 ] && ! grep -v '^control/' "$out/contrast.txt" | grep -q BELOW && ! grep -v '^control/' "$out/states.txt" | grep -q "NO ICON" &&
 	! grep -v '^control/' "$out/focus.txt" | grep -q "RING"

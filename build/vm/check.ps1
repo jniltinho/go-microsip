@@ -7,6 +7,7 @@ $work = 'C:\g0work'
 New-Item -ItemType Directory -Force $work | Out-Null
 Copy-Item "C:\dist\go-microsip-$Version-windows-amd64.exe" "$work\go-microsip.exe" -Force
 Copy-Item 'C:\dist\g0\audio.test.exe' "$work\audio.test.exe" -Force
+Copy-Item 'C:\dist\g0\lock.test.exe' "$work\lock.test.exe" -Force
 
 $os = Get-CimInstance Win32_OperatingSystem
 "vm-check: $($os.Caption) $($os.Version)"
@@ -20,6 +21,13 @@ cmd /c "`"$work\go-microsip.exe`" doctor --json > `"$work\doctor.txt`" 2>&1"
 if ($LASTEXITCODE -ne 0) { "vm-check: FAIL doctor exit $LASTEXITCODE"; exit 1 }
 "vm-check: $((Get-Content "$work\version.txt") -join ' ')"
 "vm-check: doctor $((Get-Content "$work\doctor.txt") -join '' -replace '\s', '')"
+
+# The instance lock, which the database of settings, contacts and history is opened under.
+cmd /c "`"$work\lock.test.exe`" -test.v > `"$work\lock.txt`" 2>&1"
+$lock = $LASTEXITCODE
+Get-Content "$work\lock.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^(--- |PASS|FAIL|ok|panic)' } | ForEach-Object { "vm-check: lock: $_" }
+if ($lock -ne 0) { "vm-check: FAIL the instance lock (exit $lock)"; exit 1 }
+'vm-check: the instance lock is exclusive and released on Windows'
 
 # Run a command line in the desktop session, elevated, and return its exit code.
 function Invoke-Desktop([string]$Name, [string[]]$Lines, [int]$Timeout) {

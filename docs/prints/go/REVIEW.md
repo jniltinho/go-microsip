@@ -10,7 +10,7 @@ What the owner asked for while looking at the window, what changed, and where th
 | 2026-11-12 | the built AppImage on the owner's desktop | The close button should send the window to the tray, as in the Rust application | Tray icon with Show and Quit; the close button hides the window where there is a tray | [receipt](../../receipts/go-tray-and-route-2026-11-12.md) |
 | 2026-11-12 | the built AppImage on the owner's desktop, Dark | Buttons do not change color under the pointer | A key at rest and under the pointer had the same color; `--btn-hover` of Dark is now lighter than a key and a button at rest | [`compare/dark-key-hover.png`](compare/dark-key-hover.png): before on the left, after on the right, the pointer on the 5 |
 
-| 2026-11-12 | the same | Bundle the fonts; good-looking ones, with a lot of definition | Inter (Light, Dark, macOS, Ubuntu's fallback), DejaVu Sans (Windows XP), Liberation Sans (Windows 98) and JetBrains Mono (Matrix) are embedded, unmodified, with their licences; kerning and ligatures on at every size | the skin folders here and [`offline/`](offline/), regenerated with the fonts |
+| 2026-11-12 | the same | Bundle the fonts; good-looking ones, with a lot of definition | Inter (Light, Dark, macOS, Ubuntu), DejaVu Sans (Windows XP), Liberation Sans (Windows 98) and JetBrains Mono (Matrix) are embedded, unmodified, with their licences; kerning and ligatures on at every size | the skin folders here and [`offline/`](offline/), regenerated with the fonts |
 
 ## Focus order and proportions
 

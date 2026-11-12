@@ -127,9 +127,15 @@ export type UiEvent =
 
 /**
  * What a subscriber receives: the engine's events, the desktop's light or dark preference, and
- * "quit" when the window's close button (without a tray) or the tray's Quit asks the page to leave.
+ * "quit" when the window's close button (without a tray) or the tray's Quit asks the page to leave,
+ * and "link" when a sip: or tel: link asks for a call.
  */
-export type BackendEvent = UiEvent | { type: "desktop"; dark: boolean } | { type: "quit" };
+export type BackendEvent =
+  | UiEvent
+  | { type: "desktop"; dark: boolean }
+  | { type: "quit" }
+  /** A sip: or tel: link was handed to the application: the page asks before calling `number`. */
+  | { type: "link"; number: string };
 
 /** A request to the engine (B1.1-B1.13). */
 export type Command =

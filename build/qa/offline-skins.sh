@@ -18,11 +18,24 @@ fi
 # Nothing in the built page is loaded from outside it: no remote url() (a font's included), script,
 # sheet or image, and no imported sheet. (An address in a licence comment loads nothing.)
 dist=$(dirname "$0")/../../internal/gui/dist
-if grep -rnoE "url\([\"']?(https?:)?//[^)]*|(src|href)=[\"'](https?:)?//[^\"']*|@import[^;]*" \
-	"$dist" --include='*.css' --include='*.html' >&2; then
-	echo "offline-skins: the built page names something outside itself" >&2
+if ! [ -f "$dist/index.html" ] || ! ls "$dist"/assets/*.css >/dev/null 2>&1; then
+	echo "offline-skins: the built page is not in $dist (run make go-frontend): nothing to scan" >&2
 	exit 1
 fi
+scan=0
+grep -rnoE "url\([\"']?(https?:)?//[^)]*|(src|href)=[\"'](https?:)?//[^\"']*|@import[^;]*" \
+	"$dist" --include='*.css' --include='*.html' >&2 || scan=$?
+case $scan in
+1) ;; # nothing found
+0)
+	echo "offline-skins: the built page names something outside itself" >&2
+	exit 1
+	;;
+*)
+	echo "offline-skins: the built page could not be scanned (grep exit $scan)" >&2
+	exit 1
+	;;
+esac
 HOME=$(mktemp -d)
 XDG_RUNTIME_DIR=$(mktemp -d)
 DISPLAY=:58

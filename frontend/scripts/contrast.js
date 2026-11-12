@@ -2,7 +2,8 @@
 // screen: each visible text, field value and placeholder against the nearest painted background
 // (every stop of a gradient) at 7:1; each icon, and the edge of each button, key, call control,
 // field, check box and radio (its border, an opaque line of its bevel or its face) against what it
-// stands on, at 3:1. Returns what
+// stands on, at 3:1, each as it ends up drawn: at the opacity of the element and of everything it
+// is inside of. Returns what
 // is below. Inactive controls are exempt (WCAG 1.4.6, 1.4.11), and so is what lies behind an open
 // modal dialog, which is inert.
 (() => {
@@ -32,8 +33,21 @@
     }
     return [{ r: 255, g: 255, b: 255, a: 1 }];
   };
-  // For focus.js, which audits the ring of each focused control with the same arithmetic.
-  window.__aaa = { parse, ratio, backgrounds };
+  // What is drawn is what the element's color becomes over its background at the opacity the
+  // element ends up with: its own and that of everything it is inside of.
+  const alpha = (el) => {
+    let a = 1;
+    for (let e = el; e; e = e.parentElement) a *= Number(getComputedStyle(e).opacity);
+    return a;
+  };
+  const over = (fg, bg, a) => ({
+    r: fg.r * a + bg.r * (1 - a),
+    g: fg.g * a + bg.g * (1 - a),
+    b: fg.b * a + bg.b * (1 - a),
+    a: 1,
+  });
+  // For focus.js and the state check, which use the same arithmetic.
+  window.__aaa = { parse, ratio, backgrounds, alpha, over };
   const modal = document.querySelector("dialog[open]");
   const failures = new Set();
   const shown = (el) => {
@@ -41,10 +55,10 @@
     const box = el.getBoundingClientRect();
     return box.width > 0 && box.height > 0;
   };
-  const worst = (fg, bgs) => Math.min(...bgs.map((bg) => ratio(fg, bg)));
+  const worst = (fg, bgs, a = 1) => Math.min(...bgs.map((bg) => ratio(over(fg, bg, a), bg)));
   const audit = (el, color, text) => {
     if (!text || !shown(el)) return;
-    const low = worst(parse(color), backgrounds(el));
+    const low = worst(parse(color), backgrounds(el), alpha(el));
     if (low < 7) failures.add(`${low.toFixed(2)} "${text.slice(0, 30)}"`);
   };
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -61,7 +75,7 @@
   }
   for (const el of document.querySelectorAll("svg")) {
     if (!shown(el)) continue;
-    const low = worst(parse(getComputedStyle(el).stroke), backgrounds(el));
+    const low = worst(parse(getComputedStyle(el).stroke), backgrounds(el), alpha(el));
     if (low < 3)
       failures.add(`${low.toFixed(2)} icon in "${el.parentElement.innerText.trim().slice(0, 20)}"`);
   }
@@ -73,9 +87,10 @@
     const around = backgrounds(el.parentElement);
     const lines = (style.boxShadow.match(/rgba?\([^)]+\)/g) ?? []).map(parse);
     if (parseFloat(style.borderTopWidth) > 0) lines.push(parse(style.borderTopColor));
+    const a = alpha(el);
     const edge = Math.max(
-      Math.min(...backgrounds(el).map((face) => worst(face, around))),
-      ...lines.filter((c) => c && c.a === 1).map((c) => worst(c, around)),
+      Math.min(...backgrounds(el).map((face) => worst(face, around, a))),
+      ...lines.filter((c) => c && c.a === 1).map((c) => worst(c, around, a)),
     );
     if (edge < 3)
       failures.add(

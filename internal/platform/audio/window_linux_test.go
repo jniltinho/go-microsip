@@ -3,6 +3,7 @@ package audio
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,6 +33,7 @@ type traceLine struct {
 }
 
 type tracedCall struct {
+	ID        uint64 `json:"id"`
 	Direction string `json:"direction"`
 	Remote    string `json:"remote"`
 	Phase     string `json:"phase"`
@@ -370,6 +372,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 	}
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
 	t.Run("every skin", func(t *testing.T) { skinsInTheWindow(t, bin, server, passwords["1002"]) })
+	t.Run("links", func(t *testing.T) { linksInTheWindow(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
 	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
@@ -384,6 +387,109 @@ func TestCallThroughTheWindow(t *testing.T) {
 				windowAtScale(t, bin, server, passwords["1002"], skin, desktop.name, append(desktop.env, "GO_MICROSIP_UI_THEME="+skin))
 			})
 		}
+	}
+}
+
+// sip: and tel: links: the window started with one asks before it calls; a second start with one
+// wakes the running window, which asks, and no second window stays; a link that is not one starts
+// nothing and reaches no window.
+func linksInTheWindow(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace, "tel:6-0-0")
+	w := &window{t: t, lines: follow(t, trace)}
+	defer func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		select {
+		case <-exited:
+		case <-time.After(15 * time.Second):
+			t.Error("the window did not exit after the termination signal")
+		}
+		if !w.unregistered(15 * time.Second) {
+			t.Error("the window did not unregister after the termination signal")
+		}
+	}()
+	const question = "A link asks to call 600. Call it?"
+	windows := func() int {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		return len(strings.Fields(string(out)))
+	}
+	// Started with a link: it registers and asks; nothing is dialed until the answer.
+	w.until(60*time.Second, "the link's question at the start", func() bool {
+		return w.registered == "registered" && w.shows(question)
+	})
+	if w.call.Phase != "" {
+		t.Fatalf("a call (%s) before the question was answered", w.call.Phase)
+	}
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	w.shot("link-1-question")
+	w.click("Call")
+	w.until(30*time.Second, "the link's call connected after the yes", func() bool {
+		return w.call.Phase == "established" && w.shows("Connected", "600")
+	})
+	w.keys("Escape")
+	w.until(10*time.Second, "the link's call ended", func() bool { return w.call.Phase == "ended" && shownPhase(w.page.Text) == "" })
+
+	// A second start with a link: it ends by itself, the running window asks, no second window.
+	second := func(link string) (code int) {
+		t.Helper()
+		again, gone := softphone(t, bin, dir, password, "--config", file, link)
+		select {
+		case err := <-gone:
+			var exit *exec.ExitError
+			if errors.As(err, &exit) {
+				return exit.ExitCode()
+			}
+			return 0
+		case <-time.After(20 * time.Second):
+			_ = syscall.Kill(-again.Process.Pid, syscall.SIGKILL)
+			t.Fatalf("a second start with %q stayed open", link)
+			return -1
+		}
+	}
+	ended := w.call.ID
+	if code := second("sip:600@other.invalid:5070"); code != 0 {
+		t.Errorf("the second start with a link ended with %d, want 0", code)
+	}
+	w.until(15*time.Second, "the second link's question in the running window", func() bool { return w.shows(question) })
+	if n := windows(); n != 1 {
+		t.Errorf("%d windows on the display after the second start, want 1", n)
+	}
+	w.click("Cancel")
+	w.until(10*time.Second, "the question gone after Cancel", func() bool { return !w.shows(question) })
+	time.Sleep(time.Second)
+	if w.call.ID != ended {
+		t.Errorf("a call was placed after Cancel: %+v", w.call)
+	}
+
+	// What is not a link is refused before anything starts, as a usage error.
+	seen := w.pageAt
+	if code := second("tel:600;phone-context=x"); code != 2 {
+		t.Errorf("a link with parameters ended with %d, want the usage error 2", code)
+	}
+	time.Sleep(2 * time.Second)
+	for drained := false; !drained; { // what the window reported meanwhile
+		select {
+		case line := <-w.lines:
+			w.take(line)
+		default:
+			drained = true
+		}
+	}
+	if w.shows("A link asks") {
+		t.Errorf("a refused link reached the window (page reports since %d)", seen)
 	}
 }
 

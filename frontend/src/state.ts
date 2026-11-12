@@ -35,20 +35,24 @@ export const TABS: readonly { id: Tab; label: string }[] = [
 /** Which content replaces the tab body. */
 export type View = "main" | "settings" | "contactEdit";
 
-/** A destructive action waiting for confirmation. */
+/** An action waiting for confirmation: a destructive one, or a call a link asked for. */
 export type Confirm =
   | { kind: "deleteCall"; id: number }
   | { kind: "clearHistory" }
   | { kind: "deleteContact"; id: number }
-  | { kind: "quit" };
+  | { kind: "quit" }
+  | { kind: "dial"; number: string };
 export const confirmQuestion = (c: Confirm) =>
-  ({
-    deleteCall: "Delete this history entry?",
-    clearHistory: "Delete the whole call history?",
-    deleteContact: "Delete this contact?",
-    quit: "Hang up and quit?",
-  })[c.kind];
-export const confirmButton = (c: Confirm) => (c.kind === "quit" ? "Hang up and quit" : "Delete");
+  c.kind === "dial"
+    ? `A link asks to call ${c.number}. Call it?`
+    : {
+        deleteCall: "Delete this history entry?",
+        clearHistory: "Delete the whole call history?",
+        deleteContact: "Delete this contact?",
+        quit: "Hang up and quit?",
+      }[c.kind];
+export const confirmButton = (c: Confirm) =>
+  c.kind === "quit" ? "Hang up and quit" : c.kind === "dial" ? "Call" : "Delete";
 
 /** The current call plus UI-side timing. */
 export interface ActiveCall {
@@ -78,6 +82,8 @@ export type Action =
   /** Put a number into the entry and show the dialpad (no dialing). */
   | { type: "fillNumber"; number: string }
   | { type: "dialNumber"; number: string }
+  /** A link asks for a call: nothing is dialed before the confirmation. */
+  | { type: "askDial"; number: string }
   | { type: "deleteCall"; id: number }
   | { type: "clearHistory" }
   | { type: "deleteContact"; id: number }
@@ -315,6 +321,14 @@ export class UiState {
         if (this.call) return this.setNotice("A call is already active", now);
         await this.dispatch({ type: "fillNumber", number: action.number }, now);
         return this.dispatch({ type: "call" }, now);
+      case "askDial": {
+        // The number is shown as text and dialed only through the same checks as a typed one.
+        const asked = parseDialTarget(action.number);
+        if (!asked.ok) return this.setNotice("The link is not valid", now);
+        this.closeView();
+        this.confirm = { kind: "dial", number: asked.value };
+        return;
+      }
       case "deleteCall":
       case "deleteContact":
         this.confirm = { kind: action.type, id: action.id };
@@ -420,6 +434,8 @@ export class UiState {
       switch (confirm.kind) {
         case "quit":
           return await this.quitNow(now);
+        case "dial":
+          return await this.dispatch({ type: "dialNumber", number: confirm.number }, now);
         case "deleteCall":
           await this.engine.deleteCall(confirm.id);
           break;

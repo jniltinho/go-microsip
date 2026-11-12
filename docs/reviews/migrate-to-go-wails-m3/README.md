@@ -7,6 +7,7 @@ The scope is wider than the skins: the tray, the close button and the local addr
 | Round | Commit | Verdict | Report |
 | --- | --- | --- | --- |
 | 1 | `5502e87` | UNSOUND: 6 major, 4 minor | [codex-round1.md](codex-round1.md) |
+| 2 | `fa9e3bd` | UNSOUND: of the ten, 4 resolved and 6 partially; 5 new major, 5 new minor | [codex-round2.md](codex-round2.md) |
 
 ## What was done about round 1
 
@@ -24,3 +25,20 @@ The scope is wider than the skins: the tray, the close button and the local addr
 | 10 | The window test's "unregistered" saw only the engine's `Stopped`, not the PBX | Fixed for the close button: the same extension is registered again by a third start, which the lab PBX refuses while a contact remains (`max_contacts=1`, `remove_existing=no`). The comment on `unregistered` says what it does not see. An exit when the PBX does not answer belongs to task 6.1. |
 
 Also noted by the report and kept as it is: the skin walkthrough dials and hangs up in each skin without measuring the sound in each (the sound is measured in the two account runs, one of which changes the skin during the call).
+
+## What was done about round 2
+
+| # | Finding | Response |
+| --- | --- | --- |
+| N1 | A quit was still lost when the engine had already ended and its `Stopped` had not arrived: the refused command cleared the wish to quit | Fixed. A command refused because the engine has ended keeps the wish to quit, and the application quits when the engine's events are through, with or without a last `Stopped` (the closed stream is the end). Only a full queue is a refusal. `TestAQuitOutlivesALateStopped` holds the events back: `Stopped` after the request, a stream that closes without it, and a full queue followed by a stop that must not quit. |
+| N2 | The window's own question was skipped when its cached state showed no call, which lags behind the engine | Fixed. The window no longer judges whether there is a call: whenever an engine is running and the page cannot be asked, the native dialog asks ("Quit go-microsip? A call in progress will be ended.", Cancel by default) and only a yes ends the engine. Without an engine, or after it stopped, there is nothing to end. `inCall` is gone. |
+| N3 | The agreement of the registrar's addresses holds for one DNS answer; a later lookup may give another address | Not changed; recorded as a limit in the receipt. Requests follow the registrar's name, as the PBX expects in the request line; pinning them to the address looked up would need the library to separate the destination from the name. A registrar whose successive DNS answers are reached through different interfaces is bound to the first answer's address. |
+| N4 | The focus audit pressed Tab, which closes the menu: "menu" and "settings" audited the home screen | Fixed, and the finding was right (three identical counts of 12). The audit presses Shift, which makes the browser show keyboard focus and changes nothing, names a selector that must be on the screen before and after, and with a dialog or the menu open audits that layer. The menu now counts its 14 items and the settings 26 controls. Two controls were added: a ring taken away in the menu, and an audit pointed at a screen that is not there. |
+| N5 | Opacity of what an element is inside of was ignored: a transparent badge or control passed | Fixed. Contrast, ring and state checks use the opacity the element ends up with (its own times that of everything around it) and compare the color as it is drawn over its background. Three controls were added: an icon and a text in a transparent badge, and a ring on a transparent control. The run now has seven controls and fails unless each is reported. |
+| N6 | A named color in an SVG attribute, or a declaration over several lines, passed the literal-color test | Fixed. Presentation attributes (plain or bound) are covered, and each file is also scanned as a whole; fixtures for both. |
+| N7 | The event forwarder started before the window existed and read it without synchronization | Fixed. The window is created before the phone is opened and before anything forwards events. |
+| N8 | The offline check took a failed scan of the built page for a clean one | Fixed. The built page must be there, and a scan that fails is a failure. |
+| N9 | The scale check looked at controls horizontally only | Fixed in part. A control outside a scrolling list must also be within the window's height and not under something else (what is at its centre is the control). The receipt describes the check as what it measures; it is not a visual review. |
+| N10 | The Ubuntu skin named the system's Ubuntu font before the bundled one, against the requirement of bundled assets only | Fixed. Every skin, Ubuntu included, draws first with a bundled family, and the font test requires it. Using the system's Ubuntu font first would need the requirement changed, which is the owner's decision. |
+
+Claims the report found too strong, corrected in the receipts: the focus audit's coverage (it is what `focus.txt` of the corrected run records), the literal-color test's reach, "only a yes ends a call" (true of the engine's end as a whole since N2), and the packaged run, which is now named with the commit of the artifact it drove.

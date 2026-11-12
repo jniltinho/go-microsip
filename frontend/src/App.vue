@@ -244,7 +244,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
         <button class="btn" autofocus @click="ui.dispatch({ type: 'cancelConfirm' })">
           Cancel
         </button>
-        <button class="btn btn-hangup" @click="ui.dispatch({ type: 'confirm' })">
+        <button
+          class="btn"
+          :class="ui.confirm.kind === 'dial' ? 'btn-call' : 'btn-hangup'"
+          @click="ui.dispatch({ type: 'confirm' })"
+        >
           {{ confirmButton(ui.confirm) }}
         </button>
       </div>

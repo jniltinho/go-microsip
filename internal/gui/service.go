@@ -28,6 +28,9 @@ type App struct {
 	dark func() bool
 	// attention brings the window in sight (it may be hidden in the tray); nil does nothing.
 	attention func()
+	// sending and stream stand in for the phone's commands and events in tests; nil uses the phone.
+	sending func(domain.Command) error
+	stream  <-chan domain.Event
 
 	ending       sync.Mutex // one Shutdown at a time
 	mu           sync.Mutex
@@ -38,6 +41,7 @@ type App struct {
 	stopped      bool
 	asked        time.Time // when the page was last asked to quit
 	acked        bool      // the page answered that request
+	linked       string    // the number of a link that waits for a page to ask about it
 	registration domain.RegistrationChanged
 	call         *domain.CallSnapshot
 }
@@ -81,6 +85,9 @@ func (a *App) engine() (*app.Phone, error) {
 var invalid = app.Refused(domain.NoticeInvalidState)
 
 func (a *App) send(c domain.Command) error {
+	if a.sending != nil {
+		return a.sending(c)
+	}
 	p, err := a.engine()
 	if err != nil {
 		return err
@@ -91,7 +98,11 @@ func (a *App) send(c domain.Command) error {
 // forward delivers the engine's events to the page, in order, and keeps what a page that
 // subscribes later needs to catch up. It returns when the engine has stopped.
 func (a *App) forward() {
-	for ev := range a.phone.Events() {
+	stream := a.stream
+	if stream == nil {
+		stream = a.phone.Events()
+	}
+	for ev := range stream {
 		ringing := false
 		a.mu.Lock()
 		switch ev := ev.(type) {
@@ -120,6 +131,14 @@ func (a *App) forward() {
 			a.quit() // the page asked for the end, and the engine has ended
 		}
 	}
+	// The stream is closed: the engine has ended, whether or not its last word got through.
+	a.mu.Lock()
+	a.stopped = true
+	quit := a.quitting
+	a.mu.Unlock()
+	if quit {
+		a.quit()
+	}
 }
 
 // Subscribe starts event delivery to the page: the registration, the call in progress and the
@@ -138,6 +157,10 @@ func (a *App) Subscribe() error {
 	a.emitDesktop()
 	if a.stopped {
 		a.emit(UIEvent{Type: "stopped"})
+	}
+	if a.linked != "" { // a link the application was started with
+		a.emit(UIEvent{Type: "link", Number: a.linked})
+		a.linked = ""
 	}
 	a.subscribed = true
 	return nil
@@ -260,16 +283,16 @@ func (a *App) Shutdown() error {
 		return nil // the engine took it: the application quits when it has stopped
 	}
 	err := a.send(domain.Shutdown{})
+	if err == app.Refused(domain.NoticeEngineFailed) {
+		// The engine has ended and its last events are still on their way here: the wish to quit
+		// stands, and forward quits when they are through.
+		return nil
+	}
 	if err != nil {
 		// Not taken (the queue was full): the page may ask again, and nothing quits meanwhile.
 		a.mu.Lock()
 		a.quitting = false
-		stopped = a.stopped
 		a.mu.Unlock()
-		if stopped { // it ended on its own while this was refused
-			a.quit()
-			return nil
-		}
 	}
 	return err
 }
@@ -278,27 +301,38 @@ func (a *App) Shutdown() error {
 // as not answering.
 const quitGrace = 3 * time.Second
 
+// What leave found.
+const (
+	// pageAsked: the page was asked to run its own Quit.
+	pageAsked = iota
+	// pageSilent: no page is listening, or it did not answer the last request within quitGrace;
+	// the window has to ask by itself before it ends the engine.
+	pageSilent
+	// nothingToEnd: there is no engine, or it has stopped.
+	nothingToEnd
+)
+
 // leave is the close button on a desktop without a tray, and the tray's Quit: the page is asked to
 // run its own Quit, which asks before it ends a call. Asking again is never consent: a page that
-// answers is only asked again. leave reports true when the page cannot be asked, because none is
-// listening or because it did not answer the last request within quitGrace; the window then has to
-// ask by itself (see Run) before it ends anything.
-func (a *App) leave() (unanswered bool) {
+// answers is only asked again.
+func (a *App) leave() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	switch {
-	case !a.subscribed || a.stopped:
-		return true
+	case !a.running() || a.stopped:
+		return nothingToEnd
+	case !a.subscribed:
+		return pageSilent
 	case !a.asked.IsZero() && !a.acked:
 		if time.Since(a.asked) > quitGrace {
-			return true
+			return pageSilent
 		}
 		// The last request is still on its way: this one is the same request.
 	default:
 		a.asked, a.acked = time.Now(), false
 	}
 	a.emit(UIEvent{Type: "quit"})
-	return false
+	return pageAsked
 }
 
 // QuitAsked is the page's answer to a "quit" event: it is there, and its own Quit is running.
@@ -308,21 +342,34 @@ func (a *App) QuitAsked() {
 	a.mu.Unlock()
 }
 
-// inCall reports whether a call is in progress: ending it wants a yes from the person.
-func (a *App) inCall() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.call != nil
-}
+// running reports whether there is an engine to end.
+func (a *App) running() bool { return a.phone != nil || a.sending != nil }
 
 // end leaves without the page: the engine ends its calls and unregisters, then the application
 // quits; with no engine it quits at once. A busy engine refuses, and closing again asks again.
 func (a *App) end() {
-	if a.phone == nil {
+	if !a.running() {
 		a.quit()
 		return
 	}
 	_ = a.Shutdown()
+}
+
+// link hands the number of a sip: or tel: link to the page, which asks before it calls: nothing is
+// dialed here. The number is checked again, wherever it comes from; one that is not a dial target
+// is dropped. Without a page yet, the last link waits for one.
+func (a *App) link(number string) {
+	target, err := domain.ParseDialTarget(number)
+	if err != nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.subscribed {
+		a.emit(UIEvent{Type: "link", Number: target.Value()})
+		return
+	}
+	a.linked = target.Value()
 }
 
 // Settings returns the saved settings, never a password.
@@ -606,6 +653,8 @@ type UIEvent struct {
 	Approvals    *[]Approval   `json:"approvals,omitempty"`
 	// Dark, of the "desktop" event: the desktop prefers a dark appearance.
 	Dark *bool `json:"dark,omitempty"`
+	// Number, of the "link" event: the number a sip: or tel: link asks to call.
+	Number string `json:"number,omitempty"`
 }
 
 // uiEvent is an engine event as the page receives it.

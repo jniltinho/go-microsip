@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -302,8 +303,8 @@ func TestWithoutAPhoneEveryMethodSaysWhy(t *testing.T) {
 // not there, or that did not answer the last request in time, leaves the question to the window.
 func TestLeavingAsksThePageThatListens(t *testing.T) {
 	none := &App{unavailable: "no phone", emit: func(ev UIEvent) { t.Errorf("sent to no page: %+v", ev) }}
-	if !none.leave() {
-		t.Fatal("without a page the window was not told to ask by itself")
+	if got := none.leave(); got != nothingToEnd {
+		t.Fatalf("without an engine leaving found %d, want nothing to end", got)
 	}
 	quits := 0
 	none.quit = func() { quits++ }
@@ -324,8 +325,9 @@ func TestLeavingAsksThePageThatListens(t *testing.T) {
 	var once sync.Once
 	svc := &App{phone: phone, emit: seen.receive, quit: func() { once.Do(func() { close(quit) }) }}
 	go svc.forward()
-	if svc.inCall() {
-		t.Fatal("a call before any was placed")
+	// An engine and no page yet: the window has to ask by itself.
+	if got := svc.leave(); got != pageSilent {
+		t.Fatalf("before a page listened leaving found %d, want a silent page", got)
 	}
 	if err := svc.Subscribe(); err != nil {
 		t.Fatal(err)
@@ -341,8 +343,8 @@ func TestLeavingAsksThePageThatListens(t *testing.T) {
 	// The page answers, the person cancels, and the window is closed again at once, several
 	// times: the page is asked each time and nothing quits.
 	for n := 1; n <= 4; n++ {
-		if svc.leave() {
-			t.Fatalf("request %d: the page that answers was taken as not answering", n)
+		if got := svc.leave(); got != pageAsked {
+			t.Fatalf("request %d: the page that answers was not asked (%d)", n, got)
 		}
 		if got := asked(); got != n {
 			t.Fatalf("request %d: the page was asked %d times", n, got)
@@ -351,14 +353,14 @@ func TestLeavingAsksThePageThatListens(t *testing.T) {
 	}
 	// A request the page has not answered yet is the same request, asked once more, until the
 	// time it has to answer is over; then the window has to ask by itself.
-	if svc.leave() || svc.leave() {
+	if svc.leave() != pageAsked || svc.leave() != pageAsked {
 		t.Fatal("a page was taken as not answering before it had the time to")
 	}
 	svc.mu.Lock()
 	svc.asked = time.Now().Add(-2 * quitGrace)
 	svc.mu.Unlock()
-	if !svc.leave() {
-		t.Fatal("a page that did not answer in time was asked again instead of the window asking")
+	if got := svc.leave(); got != pageSilent {
+		t.Fatalf("a page that did not answer in time: leaving found %d, want a silent page", got)
 	}
 	select {
 	case <-quit:
@@ -379,6 +381,107 @@ func TestLeavingAsksThePageThatListens(t *testing.T) {
 	}
 	if err := svc.Shutdown(); err != nil { // the engine has stopped: quitting again is quitting
 		t.Fatalf("a shutdown after the engine stopped: %v", err)
+	}
+	if got := svc.leave(); got != nothingToEnd {
+		t.Fatalf("after the engine stopped leaving found %d, want nothing to end", got)
+	}
+}
+
+// A wish to quit is never lost to the order things arrive in. The engine's events reach the window
+// after the fact: here the engine has already ended when the quit is asked, and its last events
+// come later, or never.
+func TestAQuitOutlivesALateStopped(t *testing.T) {
+	ended := app.Refused(domain.NoticeEngineFailed)
+	for _, c := range []struct {
+		name    string
+		last    []domain.Event // what still arrives before the stream closes
+		refusal error
+		quits   bool
+	}{
+		{"Stopped arrives after the quit was asked", []domain.Event{domain.Stopped{}}, ended, true},
+		{"the stream closes without Stopped", nil, ended, true},
+		{"a full queue is a refusal, and a later stop is not a quit", []domain.Event{domain.Stopped{}}, app.Refused(domain.NoticeOverloaded), false},
+	} {
+		stream := make(chan domain.Event)
+		quit := make(chan struct{})
+		var once sync.Once
+		svc := &App{
+			emit: func(UIEvent) {}, quit: func() { once.Do(func() { close(quit) }) },
+			sending: func(domain.Command) error { return c.refusal }, stream: stream,
+		}
+		done := make(chan struct{})
+		go func() { defer close(done); svc.forward() }()
+		err := svc.Shutdown()
+		if c.quits && err != nil {
+			t.Errorf("%s: the quit was refused: %v", c.name, err)
+		}
+		if !c.quits && err == nil {
+			t.Errorf("%s: the refusal was not reported", c.name)
+		}
+		select {
+		case <-quit:
+			t.Errorf("%s: the application quit before the engine's last events were through", c.name)
+		case <-time.After(100 * time.Millisecond):
+		}
+		for _, ev := range c.last {
+			stream <- ev
+		}
+		close(stream)
+		<-done
+		select {
+		case <-quit:
+			if !c.quits {
+				t.Errorf("%s: the application quit although the quit had been refused", c.name)
+			}
+		case <-time.After(time.Second):
+			if c.quits {
+				t.Errorf("%s: the application did not quit", c.name)
+			}
+		}
+	}
+}
+
+// A sip: or tel: link reaches the page as a question: the number, checked again, waits for a page
+// that listens, and nothing is dialed by the window.
+func TestALinkIsHandedToThePageToAsk(t *testing.T) {
+	dir := t.TempDir()
+	core := app.Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	phone, err := app.OpenPhone(core, app.PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer phone.Close()
+	var seen page
+	svc := &App{phone: phone, emit: seen.receive, quit: func() {}}
+	go svc.forward()
+	links := func() (numbers []string) {
+		for _, ev := range seen.all() {
+			if ev.Type == "link" {
+				numbers = append(numbers, ev.Number)
+			}
+			if ev.Type == "call" {
+				t.Errorf("a link placed a call by itself: %+v", ev.Call)
+			}
+		}
+		return numbers
+	}
+	svc.link("1001")
+	svc.link("1002;rm") // not a dial target: dropped
+	svc.link("1002")    // the last one before a page listens is the one asked
+	if got := links(); len(got) != 0 {
+		t.Fatalf("links sent before a page listened: %v", got)
+	}
+	if err := svc.Subscribe(); err != nil {
+		t.Fatal(err)
+	}
+	svc.link("$(reboot)")
+	svc.link(" 1003 ")
+	time.Sleep(200 * time.Millisecond) // a call placed by mistake would have shown by now
+	if got := links(); !slices.Equal(got, []string{"1002", "1003"}) {
+		t.Fatalf("links the page was asked about: %v, want 1002 then 1003", got)
+	}
+	if raw, _ := json.Marshal(UIEvent{Type: "link", Number: "1003"}); string(raw) != `{"type":"link","number":"1003"}` {
+		t.Errorf("the link event is %s", raw)
 	}
 }
 

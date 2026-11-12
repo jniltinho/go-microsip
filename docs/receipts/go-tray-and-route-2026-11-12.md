@@ -17,6 +17,7 @@ Limits, recorded after the review:
 - The address bound is also the one offered for audio, as softphones without ICE do. Where the audio's other end is reached by another route than the registrar, the call can register and have no sound; ICE or STUN is not part of this change.
 - The route is looked up with UDP also for TCP and TLS accounts: a host that routes by protocol is not covered.
 - IPv6 registrars are not supported, as before.
+- The addresses compared are those of one DNS answer, and requests follow the registrar's name: a registrar whose later answers are reached through another interface stays bound to the first answer's address.
 
 ## Tray icon and close button
 
@@ -24,15 +25,16 @@ Limits, recorded after the review:
 - The close button hides the window where the desktop shows tray icons (a `org.kde.StatusNotifierWatcher` owner on the session bus, asked at the moment of closing; always on Windows). Calls go on.
 - An incoming call that starts ringing brings the window back in sight, wherever it is.
 - Without a tray the close button quits through the page's own Quit, which asks before ending a call ("Hang up and quit?"). The same for the tray's Quit, after showing the window. Asking again is never consent: a page that answers is only asked again.
-- When no page is listening, or the page did not answer the last request within three seconds, the window asks by itself in a native dialog (Cancel by default) and only a yes ends a call; without a call it quits at once.
-- A shutdown is taken once: a second request while the first is on its way is that same shutdown.
+- When no page is listening, or the page did not answer the last request within three seconds, the window asks by itself in a native dialog (Cancel by default) whenever an engine is running, and only a yes ends it. The window does not judge whether there is a call: what it knows of calls comes after the fact. Without an engine, or once it has stopped, it quits at once.
+- A shutdown is taken once: a second request while the first is on its way is that same shutdown. A wish to quit is kept when the engine has already ended and its last events have not arrived, and the application quits when they are through.
 - `--self-test` creates no tray and keeps the toolkit's close.
 
 Evidence:
 
 - `TestLeavingAsksThePageThatListens` (`internal/gui`), in `make go-test`: four requests in a row over a page that answers quit nothing; an unanswered request is asked again until its time is over and is then left to the window; three shutdown requests are one shutdown.
+- `TestAQuitOutlivesALateStopped`: the engine's last events held back until after the quit was asked, a stream that closes without `Stopped`, and a full queue, which is a refusal.
 - `make go-window-call` ([log](go-m3/window-call.log), after the review): on the lab desktop, which has a session bus and no tray host, Alt+F4 during an established call shows the question and Cancel keeps the call; Alt+F4 without a call ends the process, and the same extension then registers again, which the lab PBX refuses while a contact remains (`max_contacts=1`, `remove_existing=no`); a minimized window is back in sight when a call comes in.
-- `make go-appimage-call`: the same through the AppImage of `make go-dist`, and `make go-self-test` on that build ([first run](go-tray/appimage-call.log) at commit `a24194c`).
+- `make go-appimage-call`: the first version of the close button through the AppImage of commit `a24194c` ([log](go-tray/appimage-call.log)). The run of the reviewed behavior (the minimized window, the third registration) through an AppImage is the one named in [the M3 receipt](go-m3-skins-2026-11-12.md), with its commit.
 - `make go-check`, `make go-frontend-test`.
 
 **Not verified**: the icon, its menu and hiding to the tray on a desktop that has a tray host (KDE, GNOME with the AppIndicator extension) and on Windows, beyond the owner's report below; the native dialog of a page that does not answer (no test drives it). The lab cannot show a tray; it is for the owner's desktop and for tasks 6.2 and 6.3. Recent calls in the tray menu, which the Rust candidate has, are not built.

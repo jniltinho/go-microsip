@@ -13,6 +13,7 @@ import (
 
 	"github.com/jniltinho/go-microsip/internal/buildinfo"
 	"github.com/jniltinho/go-microsip/internal/core/app"
+	"github.com/jniltinho/go-microsip/internal/core/domain"
 	"github.com/jniltinho/go-microsip/internal/core/ports"
 )
 
@@ -35,7 +36,7 @@ var (
 
 // runWindow opens the desktop window. It is replaced by the build that links the GUI; a build
 // without it (CGO_ENABLED=0 on Linux, for instance) still provides every other command.
-var runWindow = func(c *cobra.Command, _ *session) error {
+var runWindow = func(c *cobra.Command, _ *session, _ string) error {
 	return fmt.Errorf("this build has no desktop window; see `%s --help` for the commands", c.CommandPath())
 }
 
@@ -87,13 +88,24 @@ func (s *session) root() *cobra.Command {
 		Short: "Compact SIP softphone: desktop window, command line and MCP server",
 		Long: `Compact SIP softphone: desktop window, command line and MCP server.
 
-Without a command it opens the window. Passwords are never accepted as arguments: use
+Without a command it opens the window; with a sip: or tel: link it opens the window, or wakes
+the one that is running, and asks before calling. Passwords are never accepted as arguments: use
 account.password_env, a private account.password_file, or the prompt of the window.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Args:          cobra.NoArgs,
-		RunE: func(c *cobra.Command, _ []string) error {
-			if err := runWindow(c, s); err != nil {
+		// One argument at most: a sip: or tel: link, as a browser or the desktop hands it over.
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			dial := ""
+			if len(args) == 1 {
+				// A link is data and is checked before anything starts; the refusal never repeats it.
+				target, err := domain.ParseDialLink(args[0])
+				if err != nil {
+					return &failure{message: "go-microsip: " + err.Error(), code: 2}
+				}
+				dial = target.Value()
+			}
+			if err := runWindow(c, s, dial); err != nil {
 				return failed(err)
 			}
 			return nil

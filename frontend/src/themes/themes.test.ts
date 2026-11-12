@@ -145,9 +145,15 @@ const LITERALS = [
   // A Tailwind palette utility, and an arbitrary value that is a color name.
   new RegExp(`\\b(${COLOR_UTILITY})-(${PALETTE})(-\\d+)?\\b`),
   new RegExp(`\\b(${COLOR_UTILITY})-\\[(${NAMED})\\]`),
-  // A declaration (a stylesheet, a style attribute, a style object) whose value names a color.
+  // A declaration (a stylesheet, a style attribute, a style object) whose value names a color,
+  // on one line or over several.
   new RegExp(
     `(color|background|border|outline|fill|stroke|shadow|caret|accent|decoration)[\\w-]*["']?\\s*:[^;{}]*?(?<![\\w-])(${NAMED})(?![\\w-])`,
+    "i",
+  ),
+  // A presentation attribute of an SVG shape, plain or bound.
+  new RegExp(
+    `(fill|stroke|color|stop-color|flood-color|lighting-color)\\s*=\\s*["'{][\\s"'{]*(${NAMED})\\b`,
     "i",
   ),
 ];
@@ -161,6 +167,9 @@ test("no color literal outside src/themes", () => {
     'class="text-[navy]"',
     'style="color: navy"',
     "border-bottom-color: rebeccapurple;",
+    "color:\n    navy;",
+    '<path d="M0 0" fill="navy" />',
+    `<circle :stroke="'tomato'" />`,
     "background: linear-gradient(white, var(--panel));",
     "boxShadow: '0 0 2px black'",
   ])
@@ -175,16 +184,20 @@ test("no color literal outside src/themes", () => {
     "border-color: transparent;",
     "outline: var(--focus-width) var(--focus-style) var(--focus);",
     "color: inherit;",
+    '<svg fill="none" stroke="currentColor">',
   ])
     expect(
       LITERALS.some((l) => l.test(good)),
       `caught by mistake: ${good}`,
     ).toBe(false);
   expect(Object.keys(sources).length).toBeGreaterThan(5);
-  for (const [file, text] of Object.entries(sources))
+  for (const [file, text] of Object.entries(sources)) {
     text.split("\n").forEach((line, i) => {
       for (const literal of LITERALS) expect(line, `${file}:${i + 1}`).not.toMatch(literal);
     });
+    // And the file as a whole: a declaration may be written over several lines.
+    for (const literal of LITERALS) expect(literal.exec(text)?.[0], file).toBeUndefined();
+  }
 });
 
 test("no source renders dynamic text as HTML", () => {
@@ -365,7 +378,8 @@ test("the focus ring is solid and at least 2 px wide in every skin", () => {
 });
 
 // Bundled fonts (task 5.4): every face is a file of this bundle with a recorded licence, and every
-// skin names a bundled family, so no skin depends on what a system happens to have.
+// skin draws first with a bundled family, so no skin depends on what a system happens to have.
+// (A font's validity is not judged here: the window reports each face it loaded or failed to.)
 const fontSheet = import.meta.glob<string>("../fonts/fonts.css", {
   query: "?raw",
   import: "default",
@@ -396,8 +410,8 @@ test("bundled fonts are local files with a licence, and every skin names one", (
       .split(",")
       .map((f) => f.trim().replace(/"/g, ""));
     expect(
-      stack.some((f) => families.has(f)),
-      `${id} names a bundled family: ${stack.join(", ")}`,
+      families.has(stack[0]),
+      `${id} draws first with a bundled family: ${stack.join(", ")}`,
     ).toBe(true);
     expect(stack.at(-1), `${id} ends in a generic family`).toMatch(/^(sans-serif|monospace)$/);
   }

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/jniltinho/go-microsip/internal/core/ports/memory"
 )
 
@@ -281,5 +283,38 @@ func TestRunRefusesWhatItCannotStart(t *testing.T) {
 	code := execute(&session{platform: Platform{Files: me{}}, env: data, stdout: &out, stderr: &out}, []string{"run"})
 	if code != 1 || !strings.Contains(out.String(), "single-instance protection is off") {
 		t.Errorf("no lock in this build: %d %q", code, out.String())
+	}
+}
+
+// A sip: or tel: link is the one argument the window takes: checked before anything starts, handed
+// on as a number alone, and refused as a usage error that never repeats it.
+func TestALinkArgumentIsCheckedBeforeTheWindow(t *testing.T) {
+	old := runWindow
+	defer func() { runWindow = old }()
+	var got []string
+	runWindow = func(_ *cobra.Command, _ *session, dial string) error {
+		got = append(got, dial)
+		return nil
+	}
+	for link, want := range map[string]string{"tel:+1-555-(010).0199": "+15550100199", "sip:1002@pbx.invalid": "1002", "SIP:%2A97": "*97"} {
+		got = nil
+		if code, out := cli(nil, link); code != 0 || len(got) != 1 || got[0] != want {
+			t.Errorf("%s: exit %d, the window got %q, want %q: %s", link, code, got, want, out)
+		}
+	}
+	got = nil
+	if code, _ := cli(nil); code != 0 || len(got) != 1 || got[0] != "" {
+		t.Errorf("no argument: the window got %q", got)
+	}
+	for _, bad := range []string{"sip:1002;transport=tcp", "http://example.invalid/x", "tel:$(reboot)", "1002", "sip:a@b@c"} {
+		got = nil
+		code, out := cli(nil, bad)
+		if code != 2 || len(got) != 0 || strings.Contains(out, bad) || strings.Contains(out, "reboot") {
+			t.Errorf("%q: exit %d, window started %v, output %q", bad, code, len(got) != 0, out)
+		}
+	}
+	// Two arguments are not a link and a command.
+	if code, _ := cli(nil, "tel:600", "tel:601"); code != 2 {
+		t.Errorf("two links: exit %d, want 2", code)
 	}
 }

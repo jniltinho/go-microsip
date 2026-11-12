@@ -32,7 +32,8 @@ foreach ($skin in 'light', 'dark', 'xp', 'macos', 'ubuntu', 'win98', 'matrix') {
     while (-not $drawn -and (Get-Date) -lt $deadline) {
         Start-Sleep -Milliseconds 500
         foreach ($line in @(Get-Content $trace -ErrorAction SilentlyContinue)) {
-            if ($line -match '"page"' -and $line -match "`"theme`":`"$skin`"" -and $line -match '"fontErrors":\[\]' -and $line -match 'Keypad') {
+            # The home screen with its storage: settings, contacts and history need the database.
+            if ($line -match '"page"' -and $line -match "`"theme`":`"$skin`"" -and $line -match '"fontErrors":\[\]' -and $line -match 'Keypad' -and $line -notmatch 'database is not available') {
                 $all = $true
                 foreach ($face in $fonts[$skin]) { if ($line -notmatch "`"fonts`":\[[^\]]*`"$face`"") { $all = $false } }
                 if ($all) { $drawn = $true; break }

@@ -23,6 +23,7 @@ import {
   UiState,
   validateAccount,
   validationText,
+  confirmQuestion,
 } from "./state";
 
 class Fake {
@@ -390,6 +391,27 @@ test("settings validate, save and register", async () => {
   // Re-saving without retyping reuses the password the backend holds.
   await run(st, ["openSettings", save(tls, null), "register"]);
   expect(b.take()).toHaveLength(2);
+});
+
+test("a link asks before it calls", async () => {
+  let [st, b] = fresh();
+  await run(st, [{ type: "askDial", number: "1002" }]);
+  expect(st.confirm).toEqual({ kind: "dial", number: "1002" });
+  expect(confirmQuestion(st.confirm!)).toBe("A link asks to call 1002. Call it?");
+  expect(b.take(), "nothing is dialed before the answer").toEqual([]);
+  await run(st, ["cancelConfirm"]);
+  expect([st.confirm, st.call, b.take()]).toEqual([null, null, []]);
+  await run(st, [{ type: "askDial", number: "1002" }, "confirm"]);
+  expect(b.take()).toEqual(["dial(1002)"]);
+  // A number that is not a dial target is refused with a notice and never shown as a question.
+  [st, b] = fresh();
+  await run(st, [{ type: "askDial", number: "1002;rm" }]);
+  expect([st.confirm, b.take(), st.notice(0)]).toEqual([null, [], "The link is not valid"]);
+  // During a call the question is asked, and a yes dials nothing.
+  [st, b] = fresh();
+  call(st, snap(1, "outgoing", "established", 1));
+  await run(st, [{ type: "askDial", number: "1003" }, "confirm"]);
+  expect([b.take(), st.notice(0)]).toEqual([[], "A call is already active"]);
 });
 
 test("dial targets are bounded", () => {
