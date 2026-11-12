@@ -297,6 +297,46 @@ func TestWithoutAPhoneEveryMethodSaysWhy(t *testing.T) {
 	svc.Probed("{}")
 }
 
+// The close button without a tray, and the tray's Quit: the page that listens is asked, and quits
+// for itself (it asks first during a call). No page, or no answer, is not waited for.
+func TestLeavingAsksThePageThatListens(t *testing.T) {
+	quits := 0
+	none := &App{unavailable: "no phone", emit: func(ev UIEvent) { t.Errorf("sent to no page: %+v", ev) }, quit: func() { quits++ }}
+	none.leave()
+	if quits != 1 {
+		t.Fatalf("without a phone leaving quit %d times, want at once", quits)
+	}
+
+	dir := t.TempDir()
+	core := app.Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	phone, err := app.OpenPhone(core, app.PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer phone.Close()
+	var seen page
+	quit := make(chan struct{})
+	var once sync.Once
+	svc := &App{phone: phone, emit: seen.receive, quit: func() { once.Do(func() { close(quit) }) }}
+	go svc.forward()
+	if err := svc.Subscribe(); err != nil {
+		t.Fatal(err)
+	}
+	svc.leave()
+	seen.wait(t, 0, "quit")
+	select {
+	case <-quit:
+		t.Fatal("the application quit without waiting for the page it had just asked")
+	case <-time.After(300 * time.Millisecond):
+	}
+	svc.leave() // the page did not answer
+	select {
+	case <-quit:
+	case <-time.After(15 * time.Second):
+		t.Fatal("a second request did not quit")
+	}
+}
+
 // Every asset is served with the content security policy: nothing inline, nothing remote, no eval.
 func TestAssetsCarryTheContentSecurityPolicy(t *testing.T) {
 	served := confine(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) }))

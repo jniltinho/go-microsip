@@ -629,6 +629,18 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		return w.call.Phase == "established" && w.shows("Connected", "600") && w.page.Theme == "xp"
 	})
 
+	// The close button during a call, on a desktop without a tray: the window asks first, and
+	// keeping the call keeps it.
+	w.keys("alt+F4")
+	w.until(10*time.Second, "the question before quitting", func() bool {
+		return w.shows("Hang up and quit?") && w.call.Phase == "established"
+	})
+	w.shot(user + "-5-close-button-during-the-call")
+	w.click("Cancel")
+	w.until(10*time.Second, "the call kept", func() bool {
+		return !w.shows("Hang up and quit?") && w.shows("Connected") && w.call.Phase == "established"
+	})
+
 	// Escape hangs up; the window goes back to the dialpad and lists the call in its history.
 	w.keys("Escape")
 	w.until(10*time.Second, "the end shown", func() bool {
@@ -778,14 +790,25 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	next.until(60*time.Second, "the saved skin at the next start", func() bool {
 		return next.registered == "registered" && next.page.Skin == "xp" && next.page.Theme == "xp"
 	})
-	_ = syscall.Kill(-restarted.Process.Pid, syscall.SIGTERM) // unregisters: the extension is free again
+	// The close button without a call and without a tray quits: the account unregisters (the
+	// extension is free again) and the process ends.
+	for deadline := time.Now().Add(10 * time.Second); next.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			next.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the restarted window was not found on the display")
+		}
+	}
+	next.keys("alt+F4")
 	select {
 	case <-gone:
 	case <-time.After(15 * time.Second):
-		t.Error("the restarted window did not exit after the termination signal")
+		_ = syscall.Kill(-restarted.Process.Pid, syscall.SIGTERM)
+		t.Error("the restarted window did not exit after its close button")
 	}
 	if !next.unregistered(15 * time.Second) {
-		t.Error("the restarted window did not unregister after the termination signal")
+		t.Error("the restarted window did not unregister after its close button")
 	}
 	t.Logf("%s: %s", user, strings.Join(w.story, "; "))
 }

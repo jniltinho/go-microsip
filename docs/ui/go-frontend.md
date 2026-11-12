@@ -175,6 +175,7 @@ One Wails event, `go-microsip:event`, whose data is one `UiEvent`:
 | `stopped` | | B2.4 |
 | `approvals` | `approvals: [{id, requester, description, deadline}]`, the complete pending list, oldest first; `deadline` in Unix milliseconds | agent control |
 | `desktop` | `dark`: the desktop prefers a dark appearance. Sent when the page subscribes and at every change; the System skin is dark when this or the webview's own `prefers-color-scheme` says so. Added in M2: WebKitGTK in a plain GTK window does not pass the desktop's preference on. | the desktop |
+| `quit` | The window's close button on a desktop without a tray, or the tray's Quit: the page runs its own Quit, which asks before it ends a call. A second request within three seconds is not left waiting for the page. | the window |
 
 Rules the page relies on:
 
@@ -214,6 +215,6 @@ Where two layouts were reasonable, the one closest to MicroSIP was taken:
 - **No component rendering tests.** The hostile-name case is covered by the source scan (no raw HTML rendering) and by `keyboard-check.sh` in a real browser, not by a unit test; a DOM test environment would be a new dependency.
 - **Bundled fonts** (task 5.4): none are bundled, so the third-party notices gain nothing. The skins depend on system fonts: `xp` and `win98` draw in DejaVu Sans on Linux, `matrix` in the first monospace face the system has (DejaVu Sans Mono on the Linux targets).
 - **Scaling**: checked by layout (no clipping at the default and minimum sizes). The 150 % and 200 % runs of task 4.3 need the built application on a scaled desktop.
-- **Not built** because the contract does not carry them: audio test, volume, CSV contact import, agent grant management, About/licences view, `sip:`/`tel:` link confirmation, tray. They belong to M2 to M4.
+- **Not built** because the contract does not carry them: audio test, volume, CSV contact import, agent grant management, About/licences view, `sip:`/`tel:` link confirmation. They belong to M2 to M4. The tray needs nothing from the page but the `quit` event: the Go side owns the icon, its menu (Show, Quit) and the close button, which hides the window where the desktop shows tray icons and quits where it does not.
 - **`docs/themes.md`** (task 5.7) is not written; `frontend/src/themes/index.ts` explains adding a skin in its header.
 - **Checks not in CI**: `keyboard-check.sh` and `prints.sh` need `agent-browser` and a running development server; only `vp check` and `vp test` are self-contained.

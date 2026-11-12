@@ -125,8 +125,11 @@ export type UiEvent =
   /** The complete list of pending agent requests, oldest first. */
   | { type: "approvals"; approvals: Approval[] };
 
-/** What a subscriber receives: the engine's events and the desktop's light or dark preference. */
-export type BackendEvent = UiEvent | { type: "desktop"; dark: boolean };
+/**
+ * What a subscriber receives: the engine's events, the desktop's light or dark preference, and
+ * "quit" when the window's close button (without a tray) or the tray's Quit asks the page to leave.
+ */
+export type BackendEvent = UiEvent | { type: "desktop"; dark: boolean } | { type: "quit" };
 
 /** A request to the engine (B1.1-B1.13). */
 export type Command =

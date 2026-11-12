@@ -97,7 +97,7 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 | A83 | create-native-rust-linux-release | contacts-history | Search and privacy | (requirement) | partial | `TestHistoryRoundTripDedupFiltersSearchAndRetention`, `TestContactsCRUDFavoritesAndLiteralSearch` |
 | A84 | create-native-rust-linux-release | contacts-history | Search and privacy | CH-04 search and retention | partial | same as A83 |
 | A85 | create-native-rust-linux-release | linux-integration | Optional notifications and tray | (requirement) |  |  |
-| A86 | create-native-rust-linux-release | linux-integration | Optional notifications and tray | LIN-01 desktop without tray |  |  |
+| A86 | create-native-rust-linux-release | linux-integration | Optional notifications and tray | LIN-01 desktop without tray | partial | `make go-window-call`, [tray receipt](../receipts/go-tray-and-route-2026-11-12.md): without a tray host the close button quits and unregisters, asking first during a call; notifications are not built |
 | A87 | create-native-rust-linux-release | linux-integration | Confirmed external URI | (requirement) |  |  |
 | A88 | create-native-rust-linux-release | linux-integration | Confirmed external URI | LIN-02 legitimate and malicious links |  |  |
 | A89 | create-native-rust-linux-release | linux-integration | Local single instance | (requirement) | partial | `TestRunIsASingleInstance`, `internal/platform/lock`; forwarding a link to the running window is M4 |

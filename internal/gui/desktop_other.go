@@ -26,3 +26,6 @@ func navigationsBlocked() int64 { return 0 }
 
 // listeningSockets is not implemented on this platform.
 func listeningSockets() ([]string, error) { return nil, errors.ErrUnsupported }
+
+// trayHost: the notification area is always there on this platform.
+func trayHost() bool { return true }

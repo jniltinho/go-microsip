@@ -3,6 +3,7 @@ package gui
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/jniltinho/go-microsip/internal/buildinfo"
 	"github.com/jniltinho/go-microsip/internal/core/app"
@@ -32,6 +33,7 @@ type App struct {
 	subscribed   bool
 	quitting     bool
 	stopped      bool
+	asked        time.Time // when the page was last asked to quit
 	registration domain.RegistrationChanged
 	call         *domain.CallSnapshot
 }
@@ -252,6 +254,30 @@ func (a *App) Shutdown() error {
 		}
 	}
 	return err
+}
+
+// quitGrace is how long the page has to act on a request to quit before a second request stops
+// waiting for it.
+const quitGrace = 3 * time.Second
+
+// leave is the close button on a desktop without a tray, and the tray's Quit. The page runs its
+// own Quit, which asks before it ends a call. A page that is not listening is not asked, and a
+// second request within quitGrace does not wait for a page that did not answer the first.
+func (a *App) leave() {
+	a.mu.Lock()
+	ask := a.subscribed && !a.stopped && time.Since(a.asked) > quitGrace
+	a.asked = time.Now()
+	if ask {
+		a.emit(UIEvent{Type: "quit"})
+	}
+	a.mu.Unlock()
+	switch {
+	case ask:
+	case a.phone == nil:
+		a.quit() // nothing to end first
+	default:
+		_ = a.Shutdown() // refused only by a busy engine: closing again asks again
+	}
 }
 
 // Settings returns the saved settings, never a password.

@@ -7,7 +7,11 @@
 // (internal/core/app); the engine's events reach the page as one Wails event. The page is confined
 // (confine.go): a content security policy on every asset, no navigation away from the embedded
 // page, no listener for the interface. --self-test proves the window, the call into Go and the
-// confinement. The tray arrives with milestone M4.
+// confinement.
+//
+// Where the desktop shows tray icons, the close button hides the window to the tray (its icon and
+// its menu bring the window back or quit); elsewhere it quits, and the page asks first during a
+// call.
 package gui
 
 import (
@@ -110,20 +114,26 @@ func Run(o Options) error {
 		safeGraphics(&win)
 	}
 	var main *application.WebviewWindow
+	// reveal brings the window back from the tray, the taskbar or behind other windows.
+	reveal := func() {
+		if main != nil {
+			main.Show()
+			main.Restore()
+			main.Focus()
+		}
+	}
 	if !o.SelfTest {
 		opts.SingleInstance = &application.SingleInstanceOptions{
-			UniqueID: appID,
-			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
-				if main != nil {
-					main.Restore()
-					main.Focus()
-				}
-			},
+			UniqueID:               appID,
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) { reveal() },
 		}
 	}
 	ui := application.New(opts) // a second instance ends here, after waking the first one
 	svc.emit = func(ev UIEvent) { ui.Event.Emit(EventName, ev) }
-	svc.quit = ui.Quit
+	// Once the application is leaving, the close button no longer hides the window or asks the page.
+	var leaving atomic.Bool
+	quit := func() { leaving.Store(true); ui.Quit() }
+	svc.quit = quit
 	// The System skin follows the desktop. WebKitGTK in a plain GTK window does not pass the
 	// desktop's dark preference on to the page, so the page is told, at once and on every change.
 	svc.dark = ui.Env.IsDarkMode
@@ -143,6 +153,29 @@ func Run(o Options) error {
 		}
 	}
 	main = ui.Window.NewWithOptions(win)
+	if !o.SelfTest { // a self-test shows no tray icon and closes like any window
+		tray := ui.SystemTray.New()
+		tray.SetIcon(icon)
+		tray.SetTooltip("go-microsip")
+		menu := application.NewMenu()
+		menu.Add("Show go-microsip").OnClick(func(*application.Context) { reveal() })
+		menu.AddSeparator()
+		// The page's own Quit, in sight: it asks before it ends a call.
+		menu.Add("Quit").OnClick(func(*application.Context) { reveal(); svc.leave() })
+		tray.SetMenu(menu)
+		tray.OnClick(reveal)
+		main.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+			if leaving.Load() {
+				return
+			}
+			e.Cancel() // the toolkit's own listener would destroy the window
+			if trayHost() {
+				main.Hide() // calls go on; the tray icon brings the window back
+				return
+			}
+			svc.leave() // no tray to come back from: closing is quitting
+		})
+	}
 	pageGone := func(UIEvent) {} // where events go once the window has closed
 	if o.Trace != "" && !o.SelfTest {
 		record, err := openTrace(o.Trace)
@@ -179,7 +212,7 @@ func Run(o Options) error {
 					unguarded.Store(true)
 					slog.Error(errUnguarded.Error())
 					ui.Dialog.Error().SetTitle("go-microsip").SetMessage(errUnguarded.Error() + ".").Show()
-					ui.Quit()
+					quit()
 				case !guardExpected:
 					slog.Warn("no navigation guard on this platform: the content security policy alone confines the page")
 				}

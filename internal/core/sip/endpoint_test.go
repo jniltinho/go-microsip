@@ -82,3 +82,13 @@ func TestRegistrationFailure(t *testing.T) {
 		}
 	}
 }
+
+// The local address is the one the routing table gives for the registrar, not the first interface.
+func TestTheEndpointBindsWhereTheRegistrarIsReachedFrom(t *testing.T) {
+	if got := bindHost([]net.IP{net.ParseIP("::1"), net.ParseIP("127.0.0.1")}, 5060); got != "127.0.0.1" {
+		t.Errorf("a registrar on the loopback is reached from %s, want 127.0.0.1", got)
+	}
+	if got := bindHost([]net.IP{net.ParseIP("2001:db8::1")}, 5060); got != "0.0.0.0" {
+		t.Errorf("without an IPv4 registrar the bind is %s, want every interface", got)
+	}
+}

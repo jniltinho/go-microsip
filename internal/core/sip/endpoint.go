@@ -100,15 +100,37 @@ func (e *Endpoint) stopRenewal() {
 
 func (e *Endpoint) secure() bool { return e.Account.Settings.Media == domain.SRTP }
 
+// bindHost is the local address this host reaches the registrar from, by the kernel's routing
+// table. Signalling and audio are sent from it and name it: on a host with a VPN or a second
+// network card the first interface is not where the registrar's answers come back to.
+func bindHost(peers []net.IP, port int) string {
+	for _, peer := range peers {
+		if peer.To4() == nil {
+			continue // shortcut: IPv4 only, like the 0.0.0.0 it replaces; upgrade with IPv6 registrars
+		}
+		c, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: peer, Port: port}) // a route lookup: nothing is sent
+		if err != nil {
+			continue
+		}
+		defer c.Close()
+		return c.LocalAddr().(*net.UDPAddr).IP.String()
+	}
+	return "0.0.0.0" // no route yet: every interface, as before
+}
+
 // NewEndpoint creates the user agent of a validated account. Nothing is sent until Register or Dial.
 func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	s := a.Settings
 	if err := s.Validate(); err != nil {
 		return nil, err
 	}
+	peers, err := net.LookupIP(s.Server)
+	if err != nil {
+		return nil, fmt.Errorf("resolve registrar: %w", err)
+	}
 	tran := diago.Transport{
 		Transport:    s.Transport.String(),
-		BindHost:     "0.0.0.0",
+		BindHost:     bindHost(peers, int(s.Port)),
 		BindPort:     0,
 		TLSURINoSIPS: true,
 	}
@@ -138,10 +160,6 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	}
 	wire = append(wire, dmedia.CodecTelephoneEvent8000)
 
-	peers, err := net.LookupIP(s.Server)
-	if err != nil {
-		return nil, fmt.Errorf("resolve registrar: %w", err)
-	}
 	ua, err := sipgo.NewUA(uaOpts...)
 	if err != nil {
 		return nil, err

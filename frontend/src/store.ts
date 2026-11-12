@@ -53,9 +53,12 @@ export async function start() {
   try {
     about.value = await api.version();
     await loadSettings();
-    await api.subscribe((event) =>
-      event.type === "desktop" ? setDesktopDark(event.dark) : ui.applyEvent(event),
-    );
+    await api.subscribe((event) => {
+      if (event.type === "desktop") setDesktopDark(event.dark);
+      // The close button or the tray: the same Quit as the menu's, which asks during a call.
+      else if (event.type === "quit") void ui.dispatch({ type: "quit" });
+      else ui.applyEvent(event);
+    });
     ui.contactsRevision++;
   } catch (e) {
     unavailable.value = String(e);
