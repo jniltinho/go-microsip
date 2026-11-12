@@ -23,6 +23,7 @@ Evidence:
 
 - `TestLeavingAsksThePageThatListens` (`internal/gui`), in `make go-test`.
 - `make go-window-call` ([log](go-tray/window-call.log)): on the lab desktop, which has a session bus and no tray host, Alt+F4 during an established call shows the question and Cancel keeps the call; Alt+F4 without a call ends the process and unregisters the extension.
+- `make go-appimage-call` ([log](go-tray/appimage-call.log)): the same through the AppImage of `make go-dist` at commit `a24194c` (version `0.2.0-m2`, `dirty false`), and `make go-self-test` on that build.
 - `make go-check`, `make go-frontend-test` (31 tests).
 
 **Not verified**: the icon, its menu and hiding to the tray on a desktop that has a tray host (KDE, GNOME with the AppIndicator extension) and on Windows. The lab cannot show a tray; it is for the owner's desktop and for tasks 6.2 and 6.3. Recent calls in the tray menu, which the Rust candidate has, are not built.
