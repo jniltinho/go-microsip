@@ -132,7 +132,58 @@ rust-microsip mcp --stdio         # MCP server for AI agents
 
 Every change waits for **Allow** in the window, unless you issued a scoped, time- and quota-limited
 grant in **Settings → Agent access**. `rust-microsip service` runs without a window from a
-single-use bootstrap exported there. See [Controlling rust-microsip](docs/agent-cli-mcp.md).
+single-use bootstrap exported there. See [Controlling rust-microsip](docs/agent-cli-mcp-rust.md).
+
+## go-microsip: the Go rewrite (in progress)
+
+rust-microsip is being rewritten in Go with a Wails window as **go-microsip**
+([plan](openspec/changes/migrate-to-go-wails/proposal.md),
+[tasks](openspec/changes/migrate-to-go-wails/tasks.md), [receipts](docs/receipts/)). Until the
+cutover the Rust application above is the product; go-microsip has no release yet and is built
+from this repository:
+
+```sh
+make go-dist               # dist/go: Linux binary, AppImage, Windows .exe and .zip, SHA256SUMS
+```
+
+Both applications can be installed and run by the same user: each has its own name, settings,
+database, lock and control socket, and neither touches the other's files. Nothing is imported by
+itself; to bring the Rust application's account, contacts and history over, with both closed:
+
+```sh
+go-microsip import rust-microsip            # a preview; changes nothing
+go-microsip import rust-microsip --apply    # --credential also copies the keyring password
+```
+
+Platform notes:
+
+- **Linux** (Ubuntu 26.04 and later, Debian 13; x86_64). The window uses the system's GTK 4 and
+  WebKitGTK 6.0 (`libgtk-4-1`, `libwebkitgtk-6.0-4`), which the default GNOME desktop of both
+  already has and another desktop may have to install, and the desktop's sound service (PipeWire
+  or PulseAudio). `go-microsip --safe-gpu` starts it without GPU acceleration, which a
+  virtual machine may need.
+  - A password typed in Settings is kept in the desktop keyring (Secret Service) and nowhere
+    else. Without a keyring, or with a locked one, it lasts for the session and is asked for
+    again at the next start; that is also the case of a user who logs in without a password.
+    `account.password_env` or a private `account.password_file` avoid the prompt.
+  - An incoming call is shown as a desktop notification with **Answer** and **Reject** where
+    the notification service offers buttons.
+  - On a desktop with a tray (KDE, Ubuntu's GNOME) the close button hides the window to the tray
+    icon, whose menu lists the latest calls; without one, the close button quits, asking first
+    during a call.
+  - `sip:` and `tel:` links open go-microsip, which asks before it calls. Making it the default
+    handler is your choice in the desktop's settings.
+  - The command line, the MCP server and the headless service work here:
+    [Controlling go-microsip](docs/agent-cli-mcp.md).
+- **Windows** (preview; x86_64 with the WebView2 runtime). The window opens with its settings,
+  contacts and history, and the password is kept in the Credential Manager. Calls are not
+  verified there yet. Not built yet: notifications, the tray, link registration, and the command
+  line's control commands, the MCP tools and the headless service, which have no transport on
+  Windows so far.
+- **macOS**: not built.
+
+`go-microsip doctor` prints a sanitized report of the configuration, the display and the sound;
+`go-microsip --help` lists every command.
 
 ## Build from source
 
@@ -151,7 +202,8 @@ The [development guide](docs/DEVELOPMENT.md) covers the layout, the lab and the 
 
 - [Roadmap and receipts](docs/README.md): what is done, with evidence, and what remains.
 - [Architecture](docs/architecture.md): crate layers from the domain to the window.
-- [Controlling rust-microsip](docs/agent-cli-mcp.md): CLI, MCP, grants and the headless service.
+- [Controlling rust-microsip](docs/agent-cli-mcp-rust.md): CLI, MCP, grants and the headless service.
+- [Controlling go-microsip](docs/agent-cli-mcp.md): the same for the Go rewrite.
 - [Development guide](docs/DEVELOPMENT.md) and [release process](docs/release.md).
 - OpenSpec changes: [Linux release](openspec/changes/create-native-rust-linux-release/proposal.md),
   [agent CLI/MCP](openspec/changes/add-agent-cli-mcp/proposal.md),

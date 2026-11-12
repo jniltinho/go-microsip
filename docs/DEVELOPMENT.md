@@ -216,7 +216,7 @@ make dist
 
 Your personal settings, database and installed AppImage are real data: point `XDG_CONFIG_HOME`,
 `XDG_DATA_HOME` and `XDG_RUNTIME_DIR` at scratch directories when experimenting, and never use a
-production account for tests. See [agent-cli-mcp.md](agent-cli-mcp.md) for the CLI, MCP and the
+production account for tests. See [agent-cli-mcp-rust.md](agent-cli-mcp-rust.md) for the CLI, MCP and the
 headless service.
 
 ## Release process

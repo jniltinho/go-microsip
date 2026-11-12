@@ -168,18 +168,32 @@ Not covered in 6.5:
 - An MCP input line over 1 MiB (the limit is the SDK's, set here; no test sends one).
 - The service on a machine that really has no desktop session, and its sound devices there; here it runs in the lab container beside the session's sound service. What it says about the microphone follows the call's media, not the devices themselves as in the Rust candidate.
 - Windows: none of this has a transport there yet (6.3).
-- The documentation of these commands (6.6); `docs/agent-cli-mcp.md` still describes the Rust candidate.
+- The documentation of these commands came with 6.6, below.
+
+## Task 6.6: the documentation
+
+- [`docs/agent-cli-mcp.md`](../agent-cli-mcp.md) is now go-microsip's: the rules that always apply, grants, the headless service, the command line with every command, the MCP server and what is recorded. The Rust application's page is kept as [`docs/agent-cli-mcp-rust.md`](../agent-cli-mcp-rust.md), and the README and the development guide, which are still the Rust application's, point to it.
+- The README has a section on go-microsip with the platform notes: what it needs on Linux, where the password is kept, notifications, the tray, links, agent control; what the Windows preview has and lacks; that both applications run side by side and how to import.
+
+| Check | Result |
+| --- | --- |
+| `TestEveryDocumentedCommandRunsAsWritten` (`cmd/docs_linux_test.go`) | pass: the 26 control command lines of the sh blocks of both documents are run as written, with their placeholders filled and their piped input, against an owner on a socket of the test's own, which receives each as the operation it names, with the grant where one is written; the 10 others (the service, the MCP server, the import, `--help`, `--safe-gpu`, `doctor`) are checked against the command tree, their options and their arguments, since running them here would start a server, a softphone, a window or an import; the MCP client configuration names the `mcp` command with an absolute path; `--help` lists every command the documents name; `make go-dist` is a target; the document names the fifteen tools |
+| the test against a document with three mistakes put in (a missing argument, an unknown option, a misspelt value) | each is reported; the document was then restored |
+| the built binary | `make go-window-call` runs `status --json`, `history list`, `call dial 600 --key K --json`, `operation get ID`, `mcp`, `service --grant-file FILE --config FILE`, `dnd on --grant-file FILE --key K`, `history list --json --grant-file FILE` and `call hangup ID VERSION --grant-file FILE --key K` as the document writes them (the run of commit `eec4a52`) |
+
+Not covered in 6.6: the documented commands are not each run on the built binary, only those of the lab walkthrough; `claude mcp add` and `codex mcp add` are other programs' commands and are not run; the README's notes on a desktop other than GNOME (the packages it may have to install) and on KDE's tray rest on the owner's report and on the package names, not on a run.
 
 ## Status
 
-45 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 4 of 7.
+46 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 5 of 7.
 
 - **6.1 is checked** on the lab evidence above: a second start with a link, the exit during a call (asked for, and on a termination signal) and a PBX that stopped answering, each with the built window. What "Not covered in 6.1" lists is left to the manual checklist of task 7.2.
 - **6.2 is checked**: each service is driven with and without it in the lab (GNOME Keyring on a private bus, the test itself as the notification service and as the tray host; a bus with none of them), where no password reaches a file or the database; and on the default desktops of the two supported distributions the services they bring are asked with the same adapters: one desktop with a tray host and one without, both with a notification service, both with a keyring that is missing or locked and then unlocked. What "Not covered in 6.2" lists stays open for 7.2.
 - **6.3 is not checked**: see "Open in 6.3".
 - **6.4 is checked**: the tests of `crates/control` are ported and pass, with those of the Rust owner and of its ledger; the built window serves the contract and a call asked for waits for the person; the two applications ran side by side in both supported desktops without sharing a lock, a socket or a file. The headless service was left out of it and came with 6.5.
 - **6.5 is checked**: the control commands, the MCP server with the Rust tool set and rules, and the headless service; an unapproved call from the built command line and from the built MCP server waits for Allow in the built window and is audited, and the tools that need a grant are refused without one. What "Not covered in 6.5" lists stays open.
-- 6.6 and 6.7 are not started.
+- **6.6 is checked**: the command line, the MCP server and the service are documented for go-microsip, the README has the platform notes, and a test runs or checks every command the two documents write.
+- 6.7 is not started.
 
 Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). Agent control (6.4 and 6.5) has had no independent review yet: it is due with the close of M4 (6.7) at the latest. A review is not call evidence.
 
