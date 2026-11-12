@@ -28,6 +28,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"github.com/jniltinho/go-microsip/internal/control"
 	"github.com/jniltinho/go-microsip/internal/core/app"
 	"github.com/jniltinho/go-microsip/internal/core/ports"
 )
@@ -259,10 +260,33 @@ func Run(o Options) error {
 			if svc.recentChanged != nil {
 				svc.recentChanged() // the history of earlier sessions
 			}
+			// Agent control: the command line and the MCP server reach this window through a
+			// socket of this user's session. Without one the window works as before.
+			owner, err := control.NewOwner(phone, svc.approvalsChanged)
+			if err != nil {
+				warnings.Warn("agent control is not available: " + err.Error())
+			} else {
+				svc.owner = owner // before anything forwards events
+			}
 			forwarded := make(chan struct{})
 			go func() { defer close(forwarded); svc.forward() }()
 			// Leaving: the calls end and the account unregisters, and the last events are through.
 			defer func() { phone.Close(); <-forwarded }()
+			if owner != nil { // it stops being served before the phone closes
+				defer owner.Close()
+				env := o.Core.Env
+				if env == nil {
+					env = map[string]string{"XDG_RUNTIME_DIR": os.Getenv("XDG_RUNTIME_DIR")}
+				}
+				welcome := control.Welcome{Protocol: control.Protocol, Version: control.SchemaVersion, Mode: control.ModeWindow, Epoch: uint64(owner.Epoch())}
+				if dir, err := control.RuntimeDir(env); err != nil {
+					warnings.Warn("agent control is not served: " + err.Error())
+				} else if endpoint, err := control.Listen(dir, welcome, owner); err != nil {
+					warnings.Warn("agent control is not served: " + err.Error())
+				} else {
+					defer endpoint.Close()
+				}
+			}
 		}
 	}
 	pageGone := func(UIEvent) {} // where events go once the window has closed

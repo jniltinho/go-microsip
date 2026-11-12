@@ -117,10 +117,13 @@ go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 
 	$(GO) sh -c 'mkdir -p $(GO_DIST)/g0 && CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/audio.test ./internal/platform/audio && \
 		CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/notify.test ./internal/platform/notify && \
 		CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/keyring.test ./internal/platform/keyring && \
+		CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/control.test ./internal/control && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/audio.test.exe ./internal/platform/audio && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/lock.test.exe ./internal/platform/lock && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/keyring.test.exe ./internal/platform/keyring'
 	mkdir -p $(GO_VM_OUT)
+	@# The Rust candidate's AppImage, when one was built here: the VMs run it beside go-microsip.
+	@cp -f $(firstword $(wildcard dist/rust-microsip-*.AppImage)) $(GO_DIST)/g0/rust-microsip.AppImage 2>/dev/null || rm -f $(GO_DIST)/g0/rust-microsip.AppImage
 	build/vm/run.sh $(GO_VERSION) "$(abspath $(GO_VM_OUT))" $(or $(SECONDS),300) $(GO_VMS)
 
 go-shell: ## Go: interactive shell in the build container

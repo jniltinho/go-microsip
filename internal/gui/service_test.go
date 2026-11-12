@@ -13,9 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jniltinho/go-microsip/internal/control"
 	"github.com/jniltinho/go-microsip/internal/core/app"
 	"github.com/jniltinho/go-microsip/internal/core/domain"
 	"github.com/jniltinho/go-microsip/internal/core/ports"
+	"github.com/jniltinho/go-microsip/internal/core/store"
 )
 
 // own is a ports.FileAccess that owns every file.
@@ -666,3 +668,108 @@ func TestProbeVerdict(t *testing.T) {
 }
 
 func second(_ string, err error) error { return err }
+
+// agentPhone is the softphone as agent control sees it: a real database, and the commands it is
+// sent written down.
+type agentPhone struct {
+	db   *store.Store
+	mu   sync.Mutex
+	sent []domain.Command
+}
+
+func (p *agentPhone) Send(c domain.Command) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.sent = append(p.sent, c)
+	return nil
+}
+func (p *agentPhone) SetDND(bool) error      { return nil }
+func (p *agentPhone) Settings() app.Settings { return app.Settings{} }
+func (p *agentPhone) Contacts(search string) ([]app.Contact, error) {
+	return p.db.SearchContacts(search, 10)
+}
+func (p *agentPhone) History(filter app.HistoryFilter, search string) ([]app.HistoryEntry, error) {
+	return p.db.RecentCalls(10, filter, search)
+}
+func (p *agentPhone) AudioDevices() (inputs, outputs []ports.Device, err error) { return nil, nil, nil }
+func (p *agentPhone) Ledger() (app.Ledger, error)                               { return p.db, nil }
+
+// An agent's request for a call waits for the person at the window: the page is told, the window
+// comes in sight, nothing is sent until the yes, and a no sends nothing.
+func TestAnAgentRequestWaitsForThePersonAtTheWindow(t *testing.T) {
+	db, err := store.OpenInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	phone := &agentPhone{db: db}
+	var mu sync.Mutex
+	var events []UIEvent
+	shown := 0
+	svc := &App{
+		emit: func(ev UIEvent) { mu.Lock(); events = append(events, ev); mu.Unlock() }, quit: func() {},
+		attention: func() { mu.Lock(); shown++; mu.Unlock() }, subscribed: true,
+	}
+	owner, err := control.NewOwner(phone, svc.approvalsChanged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	svc.owner = owner
+	last := func() []Approval {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(events) == 0 || events[len(events)-1].Type != "approvals" {
+			t.Fatalf("the page was not told of the requests: %+v", events)
+		}
+		return *events[len(events)-1].Approvals
+	}
+	ask := func(key, target string) control.Response {
+		return owner.Handle(control.Request{SchemaVersion: 1, RequestID: "r", IdempotencyKey: &key,
+			Operation: control.Operation{Op: control.CallDial, Target: target}}, 77)
+	}
+	before := time.Now()
+	first := ask("k1", "1002")
+	if first.Status != control.StatusApprovalRequired || first.OperationID == nil {
+		t.Fatalf("the agent's request: %+v", first)
+	}
+	waiting := last()
+	if len(waiting) != 1 || waiting[0].ID != *first.OperationID || waiting[0].Description != "call 1002" || !strings.Contains(waiting[0].Requester, "77") ||
+		waiting[0].Deadline < before.Add(59*time.Second).UnixMilli() || waiting[0].Deadline > time.Now().Add(61*time.Second).UnixMilli() {
+		t.Errorf("what the page was told: %+v", waiting)
+	}
+	if wire, _ := json.Marshal(UIEvent{Type: "approvals", Approvals: &waiting}); !strings.HasPrefix(string(wire), `{"type":"approvals","approvals":[{"id":"op-1-`) ||
+		!strings.Contains(string(wire), `"requester":"A local program (process 77)","description":"call 1002","deadline":`) {
+		t.Errorf("the event as the page reads it: %s", wire)
+	}
+	if shown != 1 || len(phone.sent) != 0 {
+		t.Errorf("the window was brought in sight %d times; %d commands sent before the yes", shown, len(phone.sent))
+	}
+	// A page that subscribes now is told what waits: Subscribe sends this list.
+	if list := *svc.approvals(); len(list) != 1 || list[0].ID != *first.OperationID {
+		t.Errorf("what a page that subscribes is told: %+v", list)
+	}
+	if err := svc.Approve(*first.OperationID); err != nil {
+		t.Fatal(err)
+	}
+	if dial, ok := phone.sent[0].(domain.Dial); len(phone.sent) != 1 || !ok || dial.Target.Value() != "1002" || len(last()) != 0 {
+		t.Errorf("after the yes: sent %v, %d waiting", phone.sent, len(last()))
+	}
+	second := ask("k2", "1003")
+	if err := svc.Deny(*second.OperationID); err != nil || len(last()) != 0 || len(phone.sent) != 1 {
+		t.Errorf("after a no: %v, %d waiting, %d sent", err, len(last()), len(phone.sent))
+	}
+	ask("k3", "1004")
+	ask("k4", "1005")
+	if err := svc.DenyAll(); err != nil || len(last()) != 0 || len(phone.sent) != 1 {
+		t.Errorf("after deny all: %v, %d waiting, %d sent", err, len(last()), len(phone.sent))
+	}
+	if paused := ask("k5", "1006"); paused.Error == nil || paused.Error.Code != control.Busy {
+		t.Errorf("a request after deny all: %+v", paused)
+	}
+	// Without agent control there is nothing to decide, and the page is told of an empty list.
+	bare := &App{emit: func(UIEvent) {}}
+	if bare.Approve("x") == nil || bare.Deny("x") == nil || bare.DenyAll() == nil || len(*bare.approvals()) != 0 {
+		t.Error("a window without agent control decided something")
+	}
+}

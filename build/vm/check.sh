@@ -179,6 +179,104 @@ else
 	grep -E '_test.go|^(--- |FAIL|panic)' "$work/keyring.log" | sed 's/^/vm-check: keyring: /'
 	failed="$failed keyring"
 fi
+# 6. Beside the Rust candidate (task 6.4), when its AppImage came with the artifacts: both windows
+# in this session, each with its own lock and its own control socket; each client reaches its own
+# owner; a second start of each goes to its own first instance; and what one application does
+# changes no file of the other. The two share the session's runtime directory and, here, the same
+# data and configuration homes, each under its own name.
+rust=/dist/g0/rust-microsip.AppImage
+if [ -f "$rust" ]; then
+	cp "$rust" "$work/rust.AppImage"
+	chmod +x "$work/rust.AppImage"
+	side() { XDG_DATA_HOME="$work/side/data" XDG_CONFIG_HOME="$work/side/config" "$@"; }
+	files() { find "$work/side/data/$1" "$work/side/config/$1" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -d' ' -f1; }
+	listening() { # <application>: its control socket is there within 40 s
+		i=0
+		until [ -S "$XDG_RUNTIME_DIR/$1/control.sock" ]; do
+			i=$((i + 1))
+			[ "$i" -lt 80 ] || return 1
+			sleep 0.5
+		done
+	}
+	gone() { # <process name>: ended within 20 s of being asked
+		pkill -x "$1" 2>/dev/null || :
+		i=0
+		while pgrep -x "$1" >/dev/null; do
+			i=$((i + 1))
+			[ "$i" -lt 40 ] || return 1
+			sleep 0.5
+		done
+	}
+	beside=
+	side "$work/rust.AppImage" >"$work/rust.log" 2>&1 &
+	if ! listening rust-microsip; then
+		echo "vm-check: beside: FAILED: the Rust candidate did not start"
+		tail -n 5 "$work/rust.log" | sed 's/^/vm-check:   /'
+		beside=failed
+	else
+		echo "vm-check: beside: the Rust candidate runs ($(side "$work/rust.AppImage" --version 2>/dev/null))"
+		sleep 3
+		rust_before=$(files rust-microsip)
+		side "$work/app.AppImage" >"$work/go.log" 2>&1 &
+		if ! listening go-microsip; then
+			echo "vm-check: beside: FAILED: go-microsip did not serve its control socket beside the Rust candidate"
+			tail -n 5 "$work/go.log" | sed 's/^/vm-check:   /'
+			beside=failed
+		fi
+		# Each client reaches its own owner.
+		if side "$work/rust.AppImage" status --json 2>/dev/null | grep -q '"status":"ok"'; then
+			echo "vm-check: beside: the Rust candidate's client is answered by the Rust candidate"
+		else
+			echo "vm-check: beside: FAILED: the Rust candidate's client got no status"
+			beside=failed
+		fi
+		if GO_MICROSIP_CONTROL_TEST=session GO_MICROSIP_CONTROL_RUST=1 /dist/g0/control.test -test.v -test.run TestTheWindowOfThisSessionAnswers >"$work/control.log" 2>&1; then
+			:
+		else
+			beside=failed
+		fi
+		grep -E 'session_linux_test|^(--- |FAIL|panic)' "$work/control.log" | sed 's/^/vm-check: beside: /'
+		# A second start of each ends by itself, and one of each stays.
+		for app in app rust; do
+			if side timeout -k 5 30 "$work/$app.AppImage" >/dev/null 2>&1; then
+				:
+			else
+				echo "vm-check: beside: FAILED: a second start of $app.AppImage did not end with 0"
+				beside=failed
+			fi
+		done
+		sleep 2
+		running="$(pgrep -cx go-microsip || :) $(pgrep -cx rust-microsip || :)"
+		if [ "$running" = "1 1" ]; then
+			echo "vm-check: beside: after a second start of each, one go-microsip and one Rust candidate run"
+		else
+			echo "vm-check: beside: FAILED: go-microsip and Rust candidate processes: $running, want 1 1"
+			beside=failed
+		fi
+		# go-microsip ends: nothing of the Rust candidate's changed while it ran.
+		gone go-microsip || beside=failed
+		if [ "$(files rust-microsip)" = "$rust_before" ]; then
+			echo "vm-check: beside: the Rust candidate's files are as they were before go-microsip ran"
+		else
+			echo "vm-check: beside: FAILED: the Rust candidate's files changed while go-microsip ran"
+			beside=failed
+		fi
+		# And the other way: with go-microsip ended, the Rust candidate is used and ends.
+		go_before=$(files go-microsip)
+		side "$work/rust.AppImage" status --json >/dev/null 2>&1 || :
+		side timeout -k 5 30 "$work/rust.AppImage" >/dev/null 2>&1 || :
+		gone rust-microsip || beside=failed
+		if [ -n "$(find "$work/side/data/go-microsip" -type f 2>/dev/null | head -n 1)" ] && [ "$(files go-microsip)" = "$go_before" ]; then
+			echo "vm-check: beside: go-microsip's files are as they were before the Rust candidate was used"
+		else
+			echo "vm-check: beside: FAILED: go-microsip's files changed, or there are none"
+			beside=failed
+		fi
+	fi
+	[ -z "$beside" ] || failed="$failed beside-rust"
+else
+	echo "vm-check: beside: not checked: no Rust candidate AppImage with the artifacts"
+fi
 # Leave the application open for the screenshot the host takes of the VM's screen.
 (setsid "$work/app.AppImage" >/dev/null 2>&1 &)
 sleep 6

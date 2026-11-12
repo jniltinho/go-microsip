@@ -24,6 +24,10 @@ import (
 	"github.com/emiago/sipgo"
 	gosip "github.com/emiago/sipgo/sip"
 	"github.com/godbus/dbus/v5"
+
+	"github.com/jniltinho/go-microsip/internal/control"
+	"github.com/jniltinho/go-microsip/internal/core/app"
+	"github.com/jniltinho/go-microsip/internal/core/store"
 )
 
 // traceLine is one line of the file --ui-trace writes: an event sent to the page, or what the page
@@ -487,6 +491,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("the password is remembered", func(t *testing.T) { passwordIsRemembered(t, bin, server, passwords["1002"]) })
 	t.Run("quit with a PBX that stopped answering", func(t *testing.T) { quitWithASilentPBX(t, bin) })
 	t.Run("the tray", func(t *testing.T) { theTray(t, bin, server, passwords["1002"]) })
+	t.Run("agent control", func(t *testing.T) { agentControl(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
 	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
@@ -1618,4 +1623,197 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		t.Error("the third window did not unregister after the termination signal")
 	}
 	t.Logf("%s: %s", user, strings.Join(w.story, "; "))
+}
+
+// agentControl is the window as a program of the same user reaches it (task 6.4): the control
+// socket of the session answers status without a name or a number, refuses personal data without
+// a grant, and a call asked for waits for the person at the window. Nothing is sent before the
+// yes, a no sends nothing, and each decision is in the audit trail of the database.
+func agentControl(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered") })
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	runtime, err := control.RuntimeDir(map[string]string{"XDG_RUNTIME_DIR": os.Getenv("XDG_RUNTIME_DIR")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var client *control.Client
+	for deadline := time.Now().Add(10 * time.Second); client == nil; time.Sleep(200 * time.Millisecond) {
+		if client, err = control.Dial(runtime); err != nil && time.Now().After(deadline) {
+			t.Fatalf("the window does not serve agent control: %v", err)
+		}
+	}
+	defer client.Close()
+	if welcome := client.Welcome(); welcome.Mode != control.ModeWindow || welcome.Epoch == 0 {
+		t.Errorf("the owner's welcome: %+v", welcome)
+	}
+	n := 0
+	ask := func(key string, op control.Operation) control.Response {
+		n++
+		r := control.Request{SchemaVersion: control.SchemaVersion, RequestID: fmt.Sprintf("lab-%d", n), Operation: op}
+		if key != "" {
+			r.IdempotencyKey = &key
+		}
+		return client.Do(r)
+	}
+	type status struct {
+		Registration string `json:"registration"`
+		Call         *struct {
+			CallID  uint64 `json:"call_id"`
+			Version uint64 `json:"version"`
+			Phase   string `json:"phase"`
+		} `json:"call"`
+	}
+	read := func() (status, string) {
+		t.Helper()
+		r := ask("", control.Operation{Op: control.StatusGet})
+		var s status
+		if r.Status != control.StatusOK || json.Unmarshal(r.Data, &s) != nil {
+			t.Fatalf("status_get: %+v (%+v)", r, r.Error)
+		}
+		return s, string(r.Data)
+	}
+	state := func(operation string) string {
+		t.Helper()
+		r := ask("", control.Operation{Op: control.OperationGet, OperationID: operation})
+		var data struct {
+			State string `json:"state"`
+		}
+		if r.Status != control.StatusOK || json.Unmarshal(r.Data, &data) != nil {
+			t.Fatalf("operation_get: %+v (%+v)", r, r.Error)
+		}
+		return data.State
+	}
+	// Status says the account is registered, and names nobody.
+	if s, wire := read(); s.Registration != "registered" || s.Call != nil || strings.Contains(wire, "1002") || strings.Contains(wire, server) {
+		t.Errorf("the status of an idle window: %s", wire)
+	}
+	// Personal data needs a grant.
+	for _, op := range []string{control.HistoryList, control.ContactsSearch, control.ConfigShow, control.DevicesList} {
+		if r := ask("", control.Operation{Op: op}); r.Error == nil || r.Error.Code != control.GrantRequired {
+			t.Errorf("%s without a grant: %+v", op, r)
+		}
+	}
+	// A call asked for waits for the person: the window says who asks and for what.
+	dial := control.Operation{Op: control.CallDial, Target: "600"}
+	asked := ask("lab-dial", dial)
+	if asked.Status != control.StatusApprovalRequired || asked.OperationID == nil {
+		t.Fatalf("a call asked for without a grant: %+v (%+v)", asked, asked.Error)
+	}
+	w.until(10*time.Second, "the agent's request shown", func() bool { return w.shows("asks to:", "call 600", "Allow", "Deny") })
+	if !w.shows(fmt.Sprintf("process %d", os.Getpid())) {
+		t.Errorf("the request does not name the process that asked (%d):\n%s", os.Getpid(), w.page.Text)
+	}
+	if w.watch(2*time.Second, func() bool { return w.call.ID != 0 }) {
+		t.Fatalf("a call (%+v) before the person allowed it", w.call)
+	}
+	if again := ask("lab-dial", dial); again.Status != control.StatusApprovalRequired || again.OperationID == nil || *again.OperationID != *asked.OperationID {
+		t.Errorf("the same request again: %+v", again)
+	}
+	if got := state(*asked.OperationID); got != "awaiting_approval" {
+		t.Errorf("the operation before the decision is %q", got)
+	}
+	// Allow is the second button; Deny has the focus, and Allow works after a second on screen.
+	w.keys("Tab", "Return")
+	w.until(30*time.Second, "the call the agent asked for connected", func() bool { return w.call.Phase == "established" && w.call.Remote == "600" })
+	if got := state(*asked.OperationID); got != "succeeded" {
+		t.Errorf("the operation after the yes is %q", got)
+	}
+	if again := ask("lab-dial", dial); again.Status != control.StatusOK {
+		t.Errorf("the same request after it ran: %+v", again)
+	}
+	first := w.call.ID
+	// The agent sees the call, without the number, and asks to end it: a no keeps the call.
+	hangup := func(key string) control.Response {
+		t.Helper()
+		for range 5 { // the snapshot may move between the status and the request
+			s, wire := read()
+			if s.Call == nil || s.Call.Phase != "established" || strings.Contains(wire, "600") {
+				t.Fatalf("the status during the call: %s", wire)
+			}
+			r := ask(key, control.Operation{Op: control.CallHangup, CallID: s.Call.CallID, ExpectedVersion: s.Call.Version})
+			if r.Error == nil || r.Error.Code != control.NotFound {
+				return r
+			}
+		}
+		t.Fatal("the call's version never held still")
+		return control.Response{}
+	}
+	if s, _ := read(); s.Call != nil {
+		if r := ask("lab-old", control.Operation{Op: control.CallHangup, CallID: s.Call.CallID, ExpectedVersion: s.Call.Version + 100}); r.Error == nil || r.Error.Code != control.NotFound {
+			t.Errorf("a hang-up at a version the call does not have: %+v", r)
+		}
+	}
+	refused := hangup("lab-hangup-1")
+	if refused.Status != control.StatusApprovalRequired {
+		t.Fatalf("a hang-up asked for: %+v (%+v)", refused, refused.Error)
+	}
+	w.until(10*time.Second, "the hang-up request shown", func() bool { return w.shows("asks to:", "hang up the call") })
+	w.keys("Return") // Deny has the focus
+	w.until(10*time.Second, "the request gone", func() bool { return !w.shows("asks to:") })
+	if w.watch(2*time.Second, func() bool { return w.call.Phase != "established" }) || state(*refused.OperationID) != "denied" {
+		t.Fatalf("after the no the call is %q and the operation %q", w.call.Phase, state(*refused.OperationID))
+	}
+	allowed := hangup("lab-hangup-2")
+	if allowed.Status != control.StatusApprovalRequired {
+		t.Fatalf("a second hang-up asked for: %+v (%+v)", allowed, allowed.Error)
+	}
+	w.until(10*time.Second, "the second hang-up request shown", func() bool { return w.shows("asks to:", "hang up the call") })
+	time.Sleep(1500 * time.Millisecond) // Allow takes no key during its first second on screen
+	w.keys("Tab", "Return")
+	w.until(15*time.Second, "the call ended by the agent's request", func() bool { return w.call.ID == first && w.call.Phase == "ended" })
+	if got := state(*allowed.OperationID); got != "succeeded" {
+		t.Errorf("the hang-up after the yes is %q", got)
+	}
+	// The client leaves; the window goes on. Then the window ends, and its database tells what
+	// was asked and decided, without the number.
+	client.Close()
+	if w.watch(time.Second, func() bool { return w.registered != "registered" }) {
+		t.Errorf("the registration is %q after the client left", w.registered)
+	}
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-exited:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the softphone did not end on a termination signal")
+	}
+	if _, err := control.Dial(runtime); !errors.Is(err, control.ErrUnavailable) {
+		t.Errorf("a client after the window ended: %v", err)
+	}
+	db, err := store.Open(app.StorePath(map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rows, err := db.AuditRows(50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trail []string
+	for i := len(rows) - 1; i >= 0; i-- {
+		trail = append(trail, rows[i].Operation+" "+rows[i].Decision+" "+rows[i].Detail)
+	}
+	want := []string{"call_dial requested destination ***00", "call_dial approved destination ***00", "call_dial succeeded -",
+		"call_hangup requested -", "call_hangup denied -", "call_hangup requested -", "call_hangup approved -", "call_hangup succeeded -"}
+	if !slices.Equal(trail, want) {
+		t.Errorf("the audit trail:\n  %s\nwant:\n  %s", strings.Join(trail, "\n  "), strings.Join(want, "\n  "))
+	}
+	t.Logf("the audit trail: %s", strings.Join(trail, "; "))
 }

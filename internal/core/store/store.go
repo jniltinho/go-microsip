@@ -182,6 +182,7 @@ const (
 	ConfigKey       InvalidField = "settings key"     // outside ConfigKeys
 	ConfigValue     InvalidField = "settings value"   // too long, control characters, or not a number
 	SecretRef       InvalidField = "secret reference" // empty, too long or with control characters
+	ControlText     InvalidField = "control text"     // too long or with control characters, or a hash of the wrong size
 )
 
 // ErrorKind classifies a storage failure.

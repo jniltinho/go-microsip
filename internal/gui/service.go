@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jniltinho/go-microsip/internal/buildinfo"
+	"github.com/jniltinho/go-microsip/internal/control"
 	"github.com/jniltinho/go-microsip/internal/core/app"
 	"github.com/jniltinho/go-microsip/internal/core/domain"
 	"github.com/jniltinho/go-microsip/internal/core/ports"
@@ -36,6 +37,9 @@ type App struct {
 	// recentChanged is told when the latest calls or their names may have changed (the tray's
 	// menu lists them); nil does nothing.
 	recentChanged func()
+	// owner is agent control (the command line and the MCP server): it holds the requests that
+	// wait for the person at the window. nil: no agent control in this run.
+	owner *control.Owner
 	// sending and stream stand in for the phone's commands and events in tests; nil uses the phone.
 	sending func(domain.Command) error
 	stream  <-chan domain.Event
@@ -112,6 +116,9 @@ func (a *App) forward() {
 	}
 	for ev := range stream {
 		ringing, finished := false, false
+		if a.owner != nil {
+			a.owner.Observe(ev) // what an agent is told of, and may act on
+		}
 		a.mu.Lock()
 		switch ev := ev.(type) {
 		case domain.RegistrationChanged:
@@ -176,7 +183,7 @@ func (a *App) Subscribe() error {
 	if a.call != nil {
 		a.emit(uiEvent(domain.CallChanged{Call: *a.call}))
 	}
-	a.emit(UIEvent{Type: "approvals", Approvals: &[]Approval{}}) // agent control arrives with M4
+	a.emit(UIEvent{Type: "approvals", Approvals: a.approvals()})
 	a.emitDesktop()
 	if a.stopped {
 		a.emit(UIEvent{Type: "stopped"})
@@ -580,18 +587,61 @@ func (a *App) ClearHistory() error {
 	return err
 }
 
-// errNoAgentControl: requests from agents arrive with the control channel (milestone M4); until
-// then there is none to decide.
-var errNoAgentControl = errors.New("agent requests are not available in this build")
+// errNoAgentControl: this run serves no agent control, so there is no request to decide.
+var errNoAgentControl = errors.New("agent control is not running")
+
+// approvals is the list of agent requests waiting for the person, oldest first, as the page
+// takes it: never nil.
+func (a *App) approvals() *[]Approval {
+	list := []Approval{}
+	if a.owner != nil {
+		for _, p := range a.owner.Pending() {
+			list = append(list, Approval{ID: p.OperationID, Requester: p.Requester, Description: p.Description, Deadline: p.Deadline.UnixMilli()})
+		}
+	}
+	return &list
+}
+
+// approvalsChanged tells the page the new list of agent requests. A request that waits brings
+// the window in sight: nobody can decide what they do not see, and it expires in a minute.
+func (a *App) approvalsChanged() {
+	list := a.approvals()
+	a.mu.Lock()
+	if a.subscribed {
+		a.emit(UIEvent{Type: "approvals", Approvals: list})
+	}
+	a.mu.Unlock()
+	if len(*list) > 0 && a.attention != nil {
+		a.attention()
+	}
+}
 
 // Approve allows one pending agent request.
-func (a *App) Approve(string) error { return errNoAgentControl }
+func (a *App) Approve(id string) error {
+	if a.owner == nil {
+		return errNoAgentControl
+	}
+	a.owner.Decide(id, true)
+	return nil
+}
 
 // Deny refuses one pending agent request.
-func (a *App) Deny(string) error { return errNoAgentControl }
+func (a *App) Deny(id string) error {
+	if a.owner == nil {
+		return errNoAgentControl
+	}
+	a.owner.Decide(id, false)
+	return nil
+}
 
 // DenyAll refuses every pending agent request and pauses new ones.
-func (a *App) DenyAll() error { return errNoAgentControl }
+func (a *App) DenyAll() error {
+	if a.owner == nil {
+		return errNoAgentControl
+	}
+	a.owner.DenyAll()
+	return nil
+}
 
 // Account is the SIP account as the page exchanges it. It never carries the password.
 type Account struct {
