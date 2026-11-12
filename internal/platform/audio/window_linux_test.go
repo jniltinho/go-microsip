@@ -365,7 +365,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
-	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98"} {
+	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
 		for _, desktop := range []struct {
 			name string
 			env  []string
@@ -421,7 +421,7 @@ func windowAtScale(t *testing.T, bin, server, password, skin, name string, env [
 		}
 	}
 	w.until(60*time.Second, "the dialpad with the registered account", func() bool {
-		return w.registered == "registered" && w.shows("Dialpad", "Calls", "Contacts", "Registered", "1002@"+server)
+		return w.registered == "registered" && w.shows("Home", "Calls", "Contacts", "Keypad", "Registered", "1002@"+server)
 	})
 	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
 		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
@@ -435,7 +435,10 @@ func windowAtScale(t *testing.T, bin, server, password, skin, name string, env [
 		t.Errorf("at %s %%: the page has %.2f device pixels per CSS pixel, want %.0f: the desktop's scale did not reach it", name, w.page.Scale, want)
 	}
 	t.Logf("%s at %s %%: the page is %d by %d CSS pixels at %.2f device pixels each", skin, name, w.page.Width, w.page.Height, w.page.Scale)
-	whole("dialpad")
+	whole("home")
+	w.click("Keypad")
+	w.until(10*time.Second, "the keypad", func() bool { return w.shows("ABC", "WXYZ") })
+	whole("keypad")
 	w.click("Contacts")
 	w.until(10*time.Second, "the contacts tab", func() bool { return w.shows("Add") })
 	whole("contacts")
@@ -676,15 +679,13 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	}
 	w.shot(user + "-6-incoming-call")
 	w.keys("Return") // Answer has the focus
-	// On another tab the call is a strip with the name; "Show call" opens its panel.
+	// The window goes to the call by itself when it is answered.
 	w.until(15*time.Second, "the answered incoming call shown", func() bool {
-		return w.call.Phase == "established" && w.shows("Connected", hostile)
+		return w.call.Phase == "established" && w.shows("Connected", "From", hostile, protection)
 	})
-	w.click("Show call")
-	w.until(10*time.Second, "the panel of the incoming call", func() bool { return w.shows("Connected", "From", hostile, protection) })
 	w.shot(user + "-7-incoming-call-answered")
 	// A blind transfer of the caller to the lab's tone, from the window.
-	w.click("Xfer")
+	w.click("Transfer")
 	w.until(10*time.Second, "the transfer field", func() bool {
 		for _, f := range w.page.Fields {
 			if f.Label == "Transfer to" {
@@ -732,7 +733,7 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 	w.click("Calls")
 	w.until(10*time.Second, "the three calls in the history", func() bool {
 		rows := func(what string) int { return strings.Count(w.page.Text, what) }
-		return rows("Out · Answered") == 1 && rows("In · Answered") == 1 && rows("In · Rejected") == 1 && w.shows(hostile)
+		return rows("Outgoing · Answered") == 1 && rows("Incoming · Answered") == 1 && rows("Incoming · Rejected") == 1 && w.shows(hostile)
 	})
 	w.shot(user + "-8-history")
 	if w.page.Images != 0 {

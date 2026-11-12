@@ -236,6 +236,18 @@ test("quitting during a call asks first and signals do not", async () => {
   expect(b.take()).toEqual(["shutdown()"]);
 });
 
+test("an account is not saved or shown during a call", async () => {
+  const [st, b] = fresh();
+  const before = st.account;
+  st.hasPassword = true;
+  call(st, snap(3, "outgoing", "established", 1));
+  const other = { ...account(), username: "1005" };
+  await run(st, [{ type: "saveAccount", account: other, password: "x" }]);
+  expect(st.account, "the account shown is the one the engine uses").toBe(before);
+  expect([b.saved, b.take()]).toEqual([[], []]);
+  expect(st.notice(0)).toBe("Another call is already active");
+});
+
 test("a refused shutdown can be tried again", async () => {
   const [st, b] = fresh();
   b.fail = "overloaded";

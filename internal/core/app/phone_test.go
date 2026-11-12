@@ -470,4 +470,61 @@ func TestPhoneDoesNotRegisterOverTLSWithoutItsBundle(t *testing.T) {
 	if err := later.Register(*s.Account, nil); !errors.Is(err, ErrRestartForCA) {
 		t.Errorf("registering over TLS after the CA bundle changed: %v, want the restart asked for", err)
 	}
+	// A ca_file that is not a valid setting (a relative path) reads as "none": that is not the
+	// absence of a bundle, and a typed password does not get past it.
+	write("ca_file = \"lab-ca.pem\"\n")
+	typed := "typed-in-the-window"
+	var invalid *config.Error
+	if err := later.Register(*s.Account, &typed); !errors.As(err, &invalid) || invalid.Field != config.CAFile {
+		t.Errorf("registering over TLS with an invalid ca_file: %v, want the setting refused by name", err)
+	}
+}
+
+// During a call the engine keeps its account: the window can neither save nor register another
+// one, so what it shows as the account stays the one in use. The skin can still change.
+func TestPhoneKeepsItsAccountDuringACall(t *testing.T) {
+	o, _ := options(t, ringingRegistrar(t))
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	target, _ := domain.ParseDialTarget("1002")
+	if err := p.Send(domain.Dial{Target: target}); err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "the call ringing", func(ev domain.Event) bool {
+		c, ok := ev.(domain.CallChanged)
+		return ok && c.Call.Phase.Kind == domain.Ringing
+	})
+	account := *p.Settings().Account
+	other := account
+	other.DisplayName = "Another"
+	password := "another"
+	var busy Refused
+	if err := p.SaveSettings(SettingsPatch{Account: &other}); !errors.As(err, &busy) || err.Error() != "busy" {
+		t.Errorf("saving another account during a call: %v, want busy", err)
+	}
+	if err := p.Register(other, &password); !errors.As(err, &busy) || err.Error() != "busy" {
+		t.Errorf("registering another account during a call: %v, want busy", err)
+	}
+	if s := p.Settings(); s.Account == nil || s.Account.DisplayName != "" {
+		t.Errorf("the account after the refused change: %+v", s.Account)
+	}
+	light := "light"
+	if err := p.SaveSettings(SettingsPatch{Theme: &light}); err != nil {
+		t.Errorf("changing the skin during a call: %v", err)
+	}
+	// Once the call is over the account can change again.
+	if err := p.Send(domain.Hangup{Call: 1}); err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "the call's end", func(ev domain.Event) bool {
+		c, ok := ev.(domain.CallChanged)
+		return ok && c.Call.Phase.IsFinal()
+	})
+	if err := p.SaveSettings(SettingsPatch{Account: &account}); err != nil {
+		t.Errorf("saving the account after the call: %v", err)
+	}
 }

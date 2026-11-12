@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jniltinho/go-microsip/internal/core/config"
@@ -92,6 +93,8 @@ type Phone struct {
 	// caFile is the CA bundle the engine was started with ("" for none): the engine keeps it for
 	// its whole life.
 	caFile string
+	// inCall: the engine has a call. It keeps its account for the length of it.
+	inCall atomic.Bool
 
 	mu       sync.Mutex
 	password domain.Secret // typed in this session; never stored
@@ -142,6 +145,9 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 		defer close(p.pumped)
 		defer close(journaled)
 		for ev := range p.engine.Events() {
+			if c, ok := ev.(domain.CallChanged); ok {
+				p.inCall.Store(!c.Call.Phase.IsFinal())
+			}
 			p.journal.record(ev)
 			journaled <- ev
 		}
@@ -208,6 +214,9 @@ func (p *Phone) Register(account domain.AccountSettings, password *string) error
 	if err := account.Validate(); err != nil {
 		return err
 	}
+	if p.inCall.Load() {
+		return Refused(domain.NoticeBusy) // the engine would refuse it: nothing changes meanwhile
+	}
 	p.mu.Lock()
 	secret := p.password
 	p.mu.Unlock()
@@ -223,9 +232,14 @@ func (p *Phone) Register(account domain.AccountSettings, password *string) error
 		return ErrNoPassword
 	}
 	if account.Transport == domain.TLS {
-		// The engine checks the server against the bundle it started with. If another one is
-		// configured by now, registering would trust the wrong roots.
-		if draft, _, loaded, _ := config.Draft(p.context()); !loaded || draft.CAFile != p.caFile {
+		// The engine checks the server against the bundle it started with. A configuration that
+		// does not resolve says nothing reliable of its bundle (an invalid ca_file reads as none),
+		// and another bundle than the engine's would mean trusting the wrong roots.
+		draft, _, loaded, err := config.Draft(p.context())
+		switch {
+		case err != nil:
+			return err
+		case !loaded || draft.CAFile != p.caFile:
 			return ErrRestartForCA
 		}
 	}
@@ -286,6 +300,11 @@ func (p *Phone) SaveSettings(patch SettingsPatch) error {
 	s, err := p.storage()
 	if err != nil {
 		return err
+	}
+	if patch.Account != nil && p.inCall.Load() {
+		// The engine keeps its account for the length of a call: saving another one now would
+		// leave the window showing an account the engine does not use.
+		return Refused(domain.NoticeBusy)
 	}
 	before, sources, loaded, draftErr := config.Draft(p.context())
 	if !loaded {

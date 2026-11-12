@@ -362,6 +362,9 @@ export class UiState {
         if (error) return this.setNotice(validationText(error), now);
         if (password === null && !this.hasPassword)
           return this.setNotice("Password is required", now);
+        // The engine keeps its account for the length of a call: nothing is saved or shown as
+        // the account meanwhile.
+        if (this.call) return this.setNotice(noticeText("busy"), now);
         try {
           await this.engine.saveSettings({ account });
         } catch (e) {
