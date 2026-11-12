@@ -10,6 +10,7 @@ Each round reviews a sanitized extract made with `git archive` (no engine, no th
 | 4 | `757cf47` | SOUND WITH CHANGES: 1 resolved, 1 partially; 1 new major | [codex-round4.md](codex-round4.md) |
 | 5 | `eba3378` | SOUND WITH CHANGES: 1 resolved, 1 partially; 1 new major | [codex-round5.md](codex-round5.md) |
 | 6 | `951c228` | SOUND WITH CHANGES: 1 resolved, 1 partially; 1 new major (the same matter) | [codex-round6.md](codex-round6.md) |
+| 7 | `14351a3` | SOUND WITH CHANGES: resolved; 1 new major | [codex-round7.md](codex-round7.md) |
 
 ## What was done about round 1
 
@@ -67,3 +68,11 @@ After this round the branch that unites layout B, the AAA skins and the Matrix s
 | R5.1 / 1 | A call that arrives between the save of another account and its registration: the engine refuses the registration and keeps its account, while the window names the one it saved | Fixed where the report asked: with the engine's word. A registration event now carries the account it is about (`RegistrationChanged.Account`, `registration.account` for the page), and the header shows that account while the engine uses one; what is saved is shown only when the engine uses none. `TestRegistrationEventsNameTheEnginesAccount` (the engine), `TestEventsHaveTheContractsShape` (the event) and "the header names the engine's account, not one it has not taken" in `state.test.ts`, which lets a call come in while the save is on its way and refuses the registration. The saved account then waits: the settings stay open with the notice, and Register applies it once the call is over. The lab's engine scenarios and the window's lab call pass after the change (66 of 66, 17 of 17). |
 
 Receipt: the keyboard and scale logs are those of the merged page (52 and 140 checks, seven skins), run again here; the page's test count is 31.
+
+## What was done about round 7
+
+| # | Finding | Response |
+| --- | --- | --- |
+| 1 | The microphone and the speaker chosen before an account existed were ignored at the next start: the engine started with the system's defaults while the settings showed the chosen ones | Fixed. The devices are read with the settings, whether or not an account is configured, like do-not-disturb and the CA bundle. `TestSavedSoundDevicesAreUsedWithoutAnAccount` checks what the engine is started with at the second start; it does not place a call to see the device opened. The lab call of the window, which names its devices in the configuration, passes after the change (17 of 17). |
+
+After this finding, everything a phone reads at its start was checked for the same dependence on a complete account: do-not-disturb (round 3), the CA bundle (round 4) and the sound devices (this round) no longer have it; only the registration itself waits for an account and a password.
