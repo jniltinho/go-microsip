@@ -56,6 +56,6 @@ All nine findings are minor. The scripts they name are test harness; findings 8 
 | 6 | The toast check could report a decision that never came back | Fixed. A pressed button counts only when the notifier's own test logged the decision; otherwise the step fails. |
 | 7 | The call walkthrough could report the removal of a toast that was never shown | Fixed. No notification while the call rings fails the step; the removal is claimed only after one was seen, and an unreadable history is reported as not verified. The receipt says what the check shows: none in the notification center after the call, not the moment it left the screen. |
 | 8 | A toast that Windows did not take away was never tried again | Fixed. The notifier remembers it and tries again before the next toast is shown, never after. |
-| 9 | Every removal initialized the Windows Runtime again on the notifier's thread | Fixed. It is initialized once, when the notifier's thread starts. |
+| 9 | Every removal initialized the Windows Runtime again on the notifier's thread | Fixed. A removal initializes nothing: the toast library initializes the thread once, when it shows its first toast, and a removal only ever follows a toast. A first answer to this finding initialized the thread when the notifier started; the library takes an initialized thread for a failure, so the first toast of a run was not shown, which the call from the lab PBX in the Windows VM caught (no notification while the call rang). |
 
 No round has reviewed these answers yet.

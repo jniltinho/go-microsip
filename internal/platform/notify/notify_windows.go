@@ -85,8 +85,10 @@ func forget() error {
 // serve shows each ringing call as a toast, takes the toast away when the call stops ringing,
 // and passes its buttons on.
 func (d *Desktop) serve() {
-	runtime.LockOSThread()  // the Windows Runtime is initialized for this thread,
-	_ = ole.RoInitialize(1) // once, and for as long as the softphone runs
+	// The Windows Runtime is initialized for this thread by the toast library, once, when it
+	// shows its first toast, and it takes a thread that is initialized already for a failure:
+	// nothing here initializes it. A toast is only ever taken away after one was shown.
+	runtime.LockOSThread()
 	wintoast.SetActivationCallback(func(_ string, arguments string, _ []wintoast.UserData) {
 		if action, pressed := shown.pressed(arguments); pressed {
 			select {
