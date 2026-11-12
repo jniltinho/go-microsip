@@ -358,6 +358,37 @@ func TestSavedDoNotDisturbIsAppliedWithoutAnAccount(t *testing.T) {
 	}
 }
 
+// The sound devices chosen before any account exists are the ones the engine starts with at the
+// next start, account or not: a call of an account completed later must not go to the system's
+// default microphone and speaker while the settings show a headset.
+func TestSavedSoundDevicesAreUsedWithoutAnAccount(t *testing.T) {
+	dir := t.TempDir()
+	o := Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	first, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.input != "" || first.output != "" {
+		t.Errorf("a first start uses the devices %q and %q, want the system's", first.input, first.output)
+	}
+	mic, speaker := "headset-mic", "headset-speaker"
+	if err := first.SaveSettings(SettingsPatch{AudioInput: &mic, AudioOutput: &speaker}); err != nil {
+		t.Fatal(err)
+	}
+	first.Close()
+	second, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	if second.input != mic || second.output != speaker {
+		t.Errorf("the engine was started with the devices %q and %q, want the saved %q and %q", second.input, second.output, mic, speaker)
+	}
+	if s := second.Settings(); s.Account != nil || s.AudioInput != mic || s.AudioOutput != speaker {
+		t.Errorf("settings at the second start: %+v", s)
+	}
+}
+
 // A value in the configuration file that cannot be read (a transport in capitals) is not an
 // account the window may complete: the account is not offered as configured, saving one is
 // refused with the file's error, and nothing is stored.

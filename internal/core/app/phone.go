@@ -93,6 +93,9 @@ type Phone struct {
 	// caFile is the CA bundle the engine was started with ("" for none): the engine keeps it for
 	// its whole life.
 	caFile string
+	// input and output are the sound devices the engine was started with ("" for the system's
+	// default): it keeps them for its whole life.
+	input, output string
 	// inCall: the engine has a call. It keeps its account for the length of it.
 	inCall atomic.Bool
 
@@ -129,9 +132,13 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 			o.warn("the CA file was not read: " + options.Untrusted.Error())
 		}
 	}
-	if cfg != nil {
-		options.Input, options.Output = cfg.Config.Audio.InputDevice, cfg.Config.Audio.OutputDevice
+	// The sound devices are a preference of their own, like do-not-disturb: they are the saved
+	// ones whether or not an account is configured yet. A window that shows a headset selected
+	// must not place the first call of a new account on the system's default devices.
+	if loaded {
+		p.input, p.output = draft.Audio.InputDevice, draft.Audio.OutputDevice
 	}
+	options.Input, options.Output = p.input, p.output
 	p.engine = engine.Start(options)
 	for _, c := range startup(draft, loaded, cfg) {
 		p.engine.Send(c)
