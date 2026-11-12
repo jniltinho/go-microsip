@@ -542,7 +542,8 @@ func TestGrantsRunOnlyWhatTheyCoverAndNeverPrompt(t *testing.T) {
 	if stale := s.with(later.Capability, "", Operation{Op: ConfigShow}); code(stale) != GrantRequired {
 		t.Errorf("a grant of the session before: %+v", stale)
 	}
-	// An expired grant is refused.
+	// A grant of one minute works while it lasts (its expiry: TestAnExpiredGrantIsNotActive, at
+	// the database, whose clock a test of the owner cannot move).
 	short, err := s.Issue(GrantSpec{Scopes: []string{"read:config"}, Minutes: 1})
 	if err != nil {
 		t.Fatal(err)

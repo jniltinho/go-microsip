@@ -82,6 +82,35 @@ func TestControlLedgerKeysEpochsAndFinalStates(t *testing.T) {
 	}
 }
 
+// A grant past its expiry is not one: its capability reaches nothing and it is not listed, with
+// no restart and no revocation in between. (The owner asks for the active grant before it
+// counts a call against it.)
+func TestAnExpiredGrantIsNotActive(t *testing.T) {
+	s := memory(t)
+	epoch, err := s.BeginControlEpoch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := bytes.Repeat([]byte{4}, 32)
+	if err := s.InsertGrant(Grant{ID: "g-short", Scopes: []string{"read:history", "control:dial"}, Destinations: []string{"1002"},
+		ExpiresUTC: nowUTC() + 60, Quota: 2, Epoch: epoch}, hash); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := s.ActiveGrant(hash, epoch); err != nil || !ok {
+		t.Fatalf("the grant before its expiry: found %v, %v", ok, err)
+	}
+	// The minute passes: the stored moment is moved instead of the clock.
+	if _, err := s.db.Exec("UPDATE control_grants SET expires_utc = ?1 WHERE id = 'g-short'", nowUTC()-1); err != nil {
+		t.Fatal(err)
+	}
+	if g, ok, err := s.ActiveGrant(hash, epoch); err != nil || ok {
+		t.Errorf("the grant after its expiry: %+v (found %v, %v)", g, ok, err)
+	}
+	if listed, err := s.Grants(epoch); err != nil || len(listed) != 0 {
+		t.Errorf("the grants listed after the expiry: %v, %v", listed, err)
+	}
+}
+
 func TestControlRowsExpireAndTheAuditIsSanitizedAndClearable(t *testing.T) {
 	s := memory(t)
 	epoch, err := s.BeginControlEpoch()

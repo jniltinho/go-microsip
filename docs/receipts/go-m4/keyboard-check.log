@@ -29,6 +29,11 @@ PASS  Enter opens the menu on its first item
 PASS  arrow keys move in the menu
 PASS  Escape closes the menu and returns the focus
 PASS  the menu opens Settings
+PASS  Space ticks a permission of a grant
+PASS  Tab reaches Create grant file
+PASS  Enter makes the grant: its file is named and it is listed
+PASS  Tab reaches Revoke
+PASS  Enter revokes a grant
 PASS  choosing a skin applies at once
 PASS  Escape leaves Settings
 PASS  the skin is remembered after a reload
