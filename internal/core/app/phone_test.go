@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -930,6 +931,45 @@ func TestAWriteThatLandsLateDoesNotReplaceTheLaterPassword(t *testing.T) {
 	until(t, p, "registration at the next start", registered)
 	if keyring.read != second {
 		t.Error("the next start read the password of the write that landed late, not the one typed last")
+	}
+}
+
+// A database that cannot be opened does not stop the phone (design D15): the account that a file
+// and the environment give registers, a warning says that storage is unavailable, and what needs
+// the database says so instead of working on nothing: the history, and the control ledger without
+// which the headless service does not start.
+func TestADatabaseThatCannotBeOpenedDoesNotStopThePhone(t *testing.T) {
+	o, db := options(t, registrar(t))
+	o.Locks = &memory.Locks{}
+	if err := os.MkdirAll(filepath.Dir(db), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(db, []byte("this is not a database, and it is left as it is\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var warnings []string
+	o.Warn = func(message string) { mu.Lock(); warnings = append(warnings, message); mu.Unlock() }
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatalf("the phone did not open over a database that cannot be opened: %v", err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	mu.Lock()
+	told := slices.ContainsFunc(warnings, func(w string) bool { return strings.Contains(w, "unavailable") })
+	mu.Unlock()
+	if !told {
+		t.Errorf("no warning says that storage is unavailable: %q", warnings)
+	}
+	if calls, err := p.History(AllCalls, ""); err == nil {
+		t.Errorf("the history answered without a database: %+v", calls)
+	}
+	if ledger, err := p.Ledger(); err == nil {
+		t.Errorf("a control ledger without a database: %v", ledger)
+	}
+	if left, err := os.ReadFile(db); err != nil || !strings.HasPrefix(string(left), "this is not a database") {
+		t.Errorf("the file that is not a database was touched: %q, %v", left, err)
 	}
 }
 

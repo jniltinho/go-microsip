@@ -175,17 +175,38 @@ Platform notes:
     handler is your choice in the desktop's settings.
   - The command line, the MCP server and the headless service work here:
     [Controlling go-microsip](docs/agent-cli-mcp.md).
-- **Windows** (preview; x86_64 with the WebView2 runtime). The window opens with its settings,
+- **Windows 11** (preview; x86_64). Windows 10 needs the WebView2 runtime, which Windows 11
+  brings, and is not tested. The window opens with its settings,
   contacts and history, and the password is kept in the Credential Manager, where it outlives
   the application's folder. The close button hides the window to the notification area; a
   `sip:` or `tel:` link can be opened with go-microsip, which asks before it calls, once you
   choose it in Settings, Default apps; an incoming call is also a Windows notification with
-  **Answer** and **Reject**; and the command line, the MCP server and the headless service work
-  as on Linux. Calls over UDP and TCP are checked in a Windows VM against a lab PBX, with audio
+  **Answer** and **Reject**; and the command line reaches the window as on Linux (the MCP
+  server and the headless service are not tried on Windows yet). Calls over UDP and TCP are checked in a Windows VM against a lab PBX, with audio
   as packets both ways; sound on a real sound card, TLS and SRTP are not verified on Windows
   yet. At the first call Windows asks whether its firewall should let go-microsip accept
   connections: calls, incoming ones included, work whichever you answer.
 - **macOS**: not built.
+
+Limits of this version, known and accepted for it:
+
+- **The network.** There is no STUN and no keepalive. Calls work with a PBX that keeps the
+  audio passing through itself and answers to the address packets come from (symmetric RTP),
+  which is how the lab's Asterisk is set and what a default FreePBX extension asks for; a PBX
+  that expects the softphone to know its public address is not supported. Behind a home
+  router this was not tried yet.
+- **One account**, and one call at a time.
+- **Sound.** A call that rings makes no sound of its own yet, and there is no audio test and
+  no volume in the window (the system's mixer has one for each application). A sound device
+  chosen in the settings is used from the next start.
+- **A transfer that the PBX accepts and then fails.** FreePBX takes the other party away
+  before it reports the failure: go-microsip says the transfer failed and stays in a call
+  with nobody in it until you hang up.
+- **Secure media.** Unencrypted RTP is used unless SRTP is chosen for the account, and every
+  call says which one it has. Three protections of the Rust candidate's own SRTP code are
+  not in the library used here: the receiver bound to one source, the stop before the packet
+  counter runs out, and the bounded list of unauthenticated sources.
+- **Builds.** The build image pins its base by digest but not every package and tool in it.
 
 `go-microsip doctor` prints a sanitized report of the configuration, the display and the sound;
 `go-microsip --help` lists every command.

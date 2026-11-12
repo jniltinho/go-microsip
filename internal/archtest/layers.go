@@ -1,6 +1,7 @@
 // Package archtest checks the repository's layering (design D2 of migrate-to-go-wails): the core
 // stays free of the desktop toolkit, of front ends and of operating-system code; front ends reach
-// the core only through its contract; cgo stays in the two packages that need it.
+// the core only through its contract; cgo stays in the two packages that need it; raw memory and
+// system calls stay in the platform adapters and the OS-bound files beside them.
 package archtest
 
 import (
@@ -33,7 +34,18 @@ var (
 	domainImports = []string{"errors", "fmt", "strings", "strconv", "unicode", "unicode/utf8", "slices", "maps", "bytes", "math"}
 	// cgoPackages may use cgo: the audio adapter (design D4) and the window's webview layer.
 	cgoPackages = []string{"internal/platform/audio", "internal/gui"}
+	// osBesides are the packages outside internal/platform whose OS-bound files talk to the
+	// system themselves: the control endpoint and the window's desktop glue.
+	osBesides = []string{"internal/control", "internal/gui"}
+	// signalNames may import syscall for the names of signals, and nothing else of it is used
+	// there: the commands that end on a signal and the lab's runner.
+	signalNames = []string{"cmd", "internal/g0"}
 )
+
+// system reports whether an import reaches raw memory or the operating system directly.
+func system(imp string) bool {
+	return imp == "unsafe" || imp == "syscall" || strings.HasPrefix(imp, "golang.org/x/sys/")
+}
 
 func in(dir string, roots ...string) bool {
 	for _, r := range roots {
@@ -69,6 +81,10 @@ func Violations(f File) []string {
 		switch {
 		case imp == "C" && !in(dir, cgoPackages...):
 			bad("cgo is allowed only in %v", cgoPackages)
+		case system(imp) && !in(dir, "internal/platform") &&
+			!(in(dir, osBesides...) && (f.OSBound || hasSuffixOS(f.Path))) &&
+			!(imp == "syscall" && in(dir, signalNames...)):
+			bad("imports %s: raw memory and system calls stay in internal/platform and the OS-bound files of %v", imp, osBesides)
 		case strings.HasPrefix(imp, "github.com/wailsapp/") && !in(dir, "internal/gui"):
 			bad("imports %s: only internal/gui may import Wails", imp)
 		case core && ours && (in(local, frontEnds...) || in(local, "internal/platform")):

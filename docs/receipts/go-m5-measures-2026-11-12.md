@@ -50,9 +50,9 @@ Memory on Linux is the proportional set size of every process of the application
 
 The Rust AppImage carries what it needs but the C library and the sound library; go-microsip's uses the desktop's GTK 4 and WebKitGTK 6.0, which are not in these numbers (design D11).
 
-## Regressions, for the owner to accept at the parity gate
+## Regressions, accepted by the owner
 
-Each is the cost of the window being a web page in the system's web view (design D5). None is accepted yet: task 7.4 records the owner's decision.
+Each is the cost of the window being a web page in the system's web view (design D5). The owner accepted them on 2026-11-12 (decision D14 of [the parity decisions](../migration/parity-decisions.md); no installer is decision P5).
 
 1. **A usable window takes longer.** On Linux the first drawn page comes 0.46 to 0.77 s after the launch, where the Rust candidate's window loop answers after 0.08 to 0.13 s; with a cold file cache, 0.84 to 0.99 s against 0.21 to 0.24 s. On Windows the window is there after 0.6 s against 0.04 s (an empty window, for the Rust candidate).
 2. **It holds four to five times the memory on Linux**: 347 to 382 MB against 75 MB, proportional. On Windows the working set is six times the Rust candidate's (321 MB against 52 MB), and the private bytes are fewer (156 MB against 273 MB).

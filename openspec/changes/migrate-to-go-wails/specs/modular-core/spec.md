@@ -17,6 +17,10 @@ The core SHALL contain the domain model, SIP engine, media, configuration and st
 - **WHEN** the core, the CLI, the MCP server and the control packages are compiled with C interoperability disabled
 - **THEN** they compile, and the layering check fails on any project file that uses C interoperability outside the audio adapter and the desktop window's webview layer
 
+#### Scenario: Unsafe memory and system calls confined to platform files
+- **WHEN** a project file outside the platform files allowed for it uses unchecked memory access or calls the operating system directly
+- **THEN** the layering check fails and names the file
+
 #### Scenario: Core builds for an unsupported desktop
 - **WHEN** the core packages are compiled for macOS without any GUI or OS adapter
 - **THEN** the compilation succeeds

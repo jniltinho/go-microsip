@@ -24,6 +24,10 @@ Each milestone SHALL produce in `dist/` a Linux amd64 executable, an `x86_64` Ap
 - **WHEN** the milestone build command completes
 - **THEN** the four artifacts and the checksum file exist, the checksums verify, and the manifest names the commit
 
+#### Scenario: Bill of materials
+- **WHEN** the milestone build command completes
+- **THEN** a software bill of materials lists the Go modules and the frontend packages that the artifacts contain, the same components as the third-party notices
+
 #### Scenario: Version reported
 - **WHEN** each artifact is run with the version command
 - **THEN** it prints the milestone version and the commit it was built from

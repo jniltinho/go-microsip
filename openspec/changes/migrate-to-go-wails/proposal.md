@@ -22,6 +22,7 @@ The softphone is a Rust workspace with an egui/eframe window (release candidate 
 - New telephony features beyond the Rust candidate (multiple accounts or calls, conference, attended transfer, video, chat, BLF, TURN, Opus).
 - A macOS build in this change; a Windows MSI installer (Windows ships as a portable `.exe`/`.zip` like the sibling projects).
 - Pixel identity with the egui window: parity is workflow equivalence, and the look is deliberately redesigned.
+- STUN and other NAT traversal helpers, a separate device for ringing, a change of sound device during a call, and volume controls in the window (owner's decisions of 2026-11-12 at the parity gate).
 - Publishing a final `v0.1.0` from Rust; the Go line continues as `0.2.0` pre-releases under the existing release gates.
 - Touching the installed reference AppImage, personal settings, production PBXs or real credentials.
 

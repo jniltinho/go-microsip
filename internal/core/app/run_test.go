@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -135,6 +136,41 @@ func TestRunRegistersAndStopsWhenAsked(t *testing.T) {
 	}
 	if info, err := os.Stat(db); err != nil || info.Mode().Perm() != 0o600 {
 		t.Errorf("history database: %v %v", info, err)
+	}
+}
+
+// Without a window too, a database that cannot be opened does not stop the softphone (design
+// D15): it warns that the history is unavailable, registers, and leaves the file as it is.
+func TestRunGoesOnWithoutADatabase(t *testing.T) {
+	o, db := options(t, registrar(t))
+	if err := os.MkdirAll(filepath.Dir(db), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(db, []byte("this is not a database\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var warnings []string
+	o.Warn = func(message string) { mu.Lock(); warnings = append(warnings, message); mu.Unlock() }
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	registered := false
+	err := Run(ctx, o, RunOptions{}, func(ev domain.Event) {
+		if r, ok := ev.(domain.RegistrationChanged); ok && r.State.Status == domain.Registered {
+			registered = true
+			cancel()
+		}
+	})
+	if err != nil || !registered {
+		t.Fatalf("run over a database that cannot be opened: registered %v, %v", registered, err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.ContainsFunc(warnings, func(w string) bool { return strings.Contains(w, "history storage unavailable") }) {
+		t.Errorf("no warning says that the history is unavailable: %q", warnings)
+	}
+	if left, err := os.ReadFile(db); err != nil || string(left) != "this is not a database\n" {
+		t.Errorf("the file that is not a database was touched: %q, %v", left, err)
 	}
 }
 
