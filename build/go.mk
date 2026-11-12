@@ -6,7 +6,7 @@
 GO_IMAGE   ?= go-microsip-build:13
 GO         := GO_IMAGE=$(GO_IMAGE) scripts/go-docker.sh
 GO_PKGS    := . ./cmd/... ./internal/... ./build/winicon
-GO_VERSION ?= 0.2.0-m1
+GO_VERSION ?= 0.2.0-m2
 GO_COMMIT  := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 GO_LDFLAGS := -s -w -X main.version=$(GO_VERSION) -X main.commit=$(GO_COMMIT)
 GO_DIST    ?= dist/go

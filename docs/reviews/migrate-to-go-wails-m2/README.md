@@ -11,6 +11,7 @@ Each round reviews a sanitized extract made with `git archive` (no engine, no th
 | 5 | `eba3378` | SOUND WITH CHANGES: 1 resolved, 1 partially; 1 new major | [codex-round5.md](codex-round5.md) |
 | 6 | `951c228` | SOUND WITH CHANGES: 1 resolved, 1 partially; 1 new major (the same matter) | [codex-round6.md](codex-round6.md) |
 | 7 | `14351a3` | SOUND WITH CHANGES: resolved; 1 new major | [codex-round7.md](codex-round7.md) |
+| 8 | `752ec66` | SOUND: resolved; no new problem | [codex-round8.md](codex-round8.md) |
 
 ## What was done about round 1
 
@@ -76,3 +77,17 @@ Receipt: the keyboard and scale logs are those of the merged page (52 and 140 ch
 | 1 | The microphone and the speaker chosen before an account existed were ignored at the next start: the engine started with the system's defaults while the settings showed the chosen ones | Fixed. The devices are read with the settings, whether or not an account is configured, like do-not-disturb and the CA bundle. `TestSavedSoundDevicesAreUsedWithoutAnAccount` checks what the engine is started with at the second start; it does not place a call to see the device opened. The lab call of the window, which names its devices in the configuration, passes after the change (17 of 17). |
 
 After this finding, everything a phone reads at its start was checked for the same dependence on a complete account: do-not-disturb (round 3), the CA bundle (round 4) and the sound devices (this round) no longer have it; only the registration itself waits for an account and a password.
+
+## Round 8
+
+Sound, on `752ec66`, with nothing to change. What the report leaves standing is in the receipt:
+
+- Windows has no guard against a navigation or a new window (the owner accepted the content security policy alone there), and what happens when the Linux guard cannot be installed is read from the code, not exercised.
+- The keyboard and scale checks cover the operations they list, with the 150 % case simulated; the development backend is a simulation, not a replay of recorded events.
+- The transfer's rendering and the agreement of call ids and versions between the engine and the page are not asserted.
+- The rule against raw HTML is a source scan in the page's tests; no CI job runs it yet.
+- System following the desktop is verified on GNOME only.
+- Debian's and Windows' sound in the VMs failed; neither is passing evidence.
+- Task 4.8 asks for the call walkthrough on the Windows executable in the Windows VM, which has not been done.
+
+The reviewer built and ran nothing: the test runs, the lab calls and the VM checks are the receipt's.
