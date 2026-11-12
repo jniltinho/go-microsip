@@ -3,8 +3,8 @@
 # go-microsip is registered for sip: and tel: links, that its control socket answers the command
 # line, that a second start with a link is handed to the running window, which asks, that a call
 # asked for on the command line waits for the person, and that the close button hides the window
-# to the notification area. Prints one "desktop:" line per step; the exit code is the number of
-# steps that failed.
+# to the notification area, and that a ringing call's notification reaches Windows. Prints one
+# "desktop:" line per step; the exit code is the number of steps that failed.
 param([Parameter(Mandatory = $true)][string]$Exe, [Parameter(Mandatory = $true)][string]$Work,
     [string]$ControlTest = '', [string]$NotifyTest = '', [string]$Shots = '')
 $ErrorActionPreference = 'Stop'
@@ -91,14 +91,118 @@ if ($ControlTest) {
     $log = "$Work\session.log"
     $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"`"$ControlTest`" -test.v -test.run TestTheWindowOfThisSessionAnswers > `"$log`" 2>&1`"" -PassThru -WindowStyle Hidden
     $p.WaitForExit(60000) | Out-Null
-    Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -match 'notify_windows_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: notifications: $_" }
+    Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -match 'session_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: control: $_" }
+    if ($p.ExitCode -ne 0) { Fail 'control: the session test' }
+}
+
+# 3. A second start with a link ends by itself, and the running window asks before it calls.
+$link = Run 'tel:600'
+if ($link.Code -eq 0 -and (Shows 'A link asks to call 600' 20)) {
+    'desktop: single instance: a second start with tel:600 ended with 0 and the running window asks "A link asks to call 600. Call it?"'
+} else { Fail "single instance: the second start exit $($link.Code): $($link.Out); the page shows: $((Page).Substring(0, [Math]::Min(300, (Page).Length)))" }
+Key '{ESC}' # Cancel: nothing is dialed
+if (-not (Shows '^(?!.*A link asks to call).*$' 10)) { Fail 'single instance: the question did not go away on Escape' }
+if (@(Get-Process go-microsip -ErrorAction SilentlyContinue).Count -ne 1) { Fail "single instance: $(@(Get-Process go-microsip).Count) softphone processes run" }
+
+# 4. A call asked for on the command line waits for the person; Escape denies it.
+# A key of this run: the VM is kept between runs, and a key of an earlier one is stale by now.
+$key = "vm-dial-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+$dial = Run "call dial 600 --key $key --json"
+if ($dial.Code -eq 3 -and $dial.Out -match '"status":"approval_required"' -and $dial.Out -match '"operation_id":"(op-[A-Za-z0-9-]+)"') {
+    $operation = $Matches[1]
+    if (Shows 'asks to:.*call 600' 20) { 'desktop: control: call dial 600 waits (approval_required, exit 3) and the window shows who asks and for what' }
+    else { Fail 'control: the window does not show the request' }
+    Key '{ESC}'
+    Start-Sleep -Seconds 2
+    $after = Run "operation get $operation"
+    if ($after.Code -eq 0 -and $after.Out -match '"state": "denied"') { 'desktop: control: Escape denied it, and operation get says denied' }
+    else { Fail "control: operation get after Escape exit $($after.Code): $($after.Out)" }
+} else { Fail "control: call dial exit $($dial.Code): $($dial.Out)" }
+
+if ($Shots) {
+    try {
+        $w = Window
+        [Shell]::ShowWindow($w.MainWindowHandle, 9) | Out-Null
+        [Shell]::SetForegroundWindow($w.MainWindowHandle) | Out-Null
+        Start-Sleep -Seconds 1
+        $r = New-Object Shell+RECT
+        [Shell]::GetWindowRect($w.MainWindowHandle, [ref]$r) | Out-Null
+        $bmp = New-Object System.Drawing.Bitmap ($r.Right - $r.Left), ($r.Bottom - $r.Top)
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.CopyFromScreen($r.Left, $r.Top, 0, 0, $bmp.Size)
+        $bmp.Save("$Shots\windows-desktop.png", [System.Drawing.Imaging.ImageFormat]::Png)
+        $g.Dispose(); $bmp.Dispose()
+    } catch { "desktop: picture not taken: $($_.Exception.Message)" }
+}
+
+# 5. The close button hides the window to the notification area: the softphone goes on, with no
+# window in sight; a second start brings the window back.
+$w = Window
+if ($w) {
+    $w.CloseMainWindow() | Out-Null
+    Start-Sleep -Seconds 3
+    $alive = @(Get-Process go-microsip -ErrorAction SilentlyContinue)
+    if ($alive.Count -eq 1 -and -not (Window)) {
+        'desktop: tray: the close button hid the window and the softphone goes on'
+        $again = Run '' 20
+        Start-Sleep -Seconds 2
+        if ($again.Code -eq 0 -and (Window)) { 'desktop: tray: a second start brought the window back and ended with 0' }
+        else { Fail "tray: a second start exit $($again.Code), window in sight: $([bool](Window))" }
+    } else { Fail "tray: after the close button $($alive.Count) softphone processes run, window in sight: $([bool](Window))" }
+} else { Fail 'tray: no window to close' }
+
+Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force
+
+# 6. Notifications: a ringing call is a toast with Answer and Reject. The notifier's own test
+# hands the toast to Windows and waits for a button; this script looks for the button on the
+# screen and presses it when it finds it. A new Windows installation has its own do-not-disturb
+# on, which keeps toasts off the screen: the toast is then in the notification center, of which
+# a picture is taken, and its button is reported as not pressed.
+if ($NotifyTest) {
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $env:GO_MICROSIP_NOTIFY_TEST = 'desktop'
+    $toast = "$Work\toast.log"
+    Remove-Item $toast -ErrorAction SilentlyContinue
+    $t = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"`"$NotifyTest`" -test.v -test.run TestAToastOnThisDesktop > `"$toast`" 2>&1`"" -PassThru -WindowStyle Hidden
+    $pressed = $false
+    $pictured = $false
+    $opened = $false
+    $started = Get-Date
+    $deadline = (Get-Date).AddSeconds(30)
+    $named = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Answer')
+    while (-not $pressed -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 700
+        try {
+            $button = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $named)
+            # A picture of the screen: when the button is found, or a few seconds after the
+            # notification center was opened, whichever comes first.
+            if ($Shots -and -not $pictured -and ($button -or ($opened -and ((Get-Date) - $started).TotalSeconds -gt 9))) {
+                $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+                $bmp = New-Object System.Drawing.Bitmap $screen.Width, $screen.Height
+                $g = [System.Drawing.Graphics]::FromImage($bmp)
+                $g.CopyFromScreen(0, 0, 0, 0, $bmp.Size)
+                $bmp.Save("$Shots\windows-toast.png", [System.Drawing.Imaging.ImageFormat]::Png)
+                $g.Dispose(); $bmp.Dispose()
+                $pictured = $true
+            }
+            if ($button) {
+                $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+                $pressed = $true
+            } elseif (-not $opened -and ((Get-Date) - $started).TotalSeconds -gt 5) {
+                Start-Process 'ms-actioncenter:' # the toast is not on the screen: it is in here
+                $opened = $true
+            }
+        } catch { "desktop: notifications: looking for the button: $($_.Exception.Message)" }
+    }
+    $t.WaitForExit(60000) | Out-Null
+    Get-Content $toast -ErrorAction SilentlyContinue | Where-Object { $_ -match 'notify_windows_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: notifications: $_" }
     # What Windows holds for go-microsip in its notification center.
     $held = 0
     try {
         [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
         $held = @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory('go-microsip')).Count
     } catch { "desktop: notifications: the notification history was not read: $($_.Exception.Message)" }
-    if ($p.ExitCode -ne 0) { Fail 'notifications: the toast test' }
+    if ($t.ExitCode -ne 0) { Fail 'notifications: the toast test' }
     elseif ($pressed) { 'desktop: notifications: the toast was shown and its Answer button, pressed on the screen, decided the call' }
     elseif ($held -gt 0) { "desktop: notifications: Windows took the toast and holds $held notification(s) of go-microsip in its notification center; NOT VERIFIED: its buttons (Windows' own do-not-disturb kept it off the screen, and the button was not found there)" }
     else { Fail 'notifications: Windows holds no notification of go-microsip' }

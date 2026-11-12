@@ -5,6 +5,10 @@ param([Parameter(Mandatory = $true)][string]$Version, [int]$Seconds = 300)
 $ErrorActionPreference = 'Stop'
 $work = 'C:\g0work'
 New-Item -ItemType Directory -Force $work | Out-Null
+# A VM kept up between runs may still have the softphone of the run before: it is ended, or its
+# file could not be replaced.
+Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 500
 Copy-Item "C:\dist\go-microsip-$Version-windows-amd64.exe" "$work\go-microsip.exe" -Force
 Copy-Item 'C:\dist\g0\audio.test.exe' "$work\audio.test.exe" -Force
 Copy-Item 'C:\dist\g0\lock.test.exe' "$work\lock.test.exe" -Force

@@ -4,34 +4,34 @@ vm-check: libwebkitgtk-6.0-4 2.54.0-1~deb13u3 (ii )
 vm-check: headless version and doctor OK
 vm-check: audio: --- PASS: TestNoService (0.00s)
 vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
-vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 23 ms, 0 samples dropped); speaker 1990 of 1995 10 ms pieces (longest silence 0 pieces, arrival gap 79 ms, 0 samples dropped or silent)
-vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 15 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 322 ms between frames); capture: 2560 samples dropped; playback: 31 of 194 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 322 ms without samples); playback: 2347 samples dropped or silent, over 0.5 %
-vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 132.708µs, microphone back after 168.306389ms
-vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 96 pieces, longest silence 0 pieces
-vm-check: audio: --- PASS: TestPulseLoopback (28.14s)
-vm-check: audio: PASS
-vm-check: audio adapter OK on the distribution's audio service
+vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 25 ms, 0 samples dropped); speaker 1974 of 1995 10 ms pieces (longest silence 1 pieces, arrival gap 98 ms, 21 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:163: playback: 21 of 1995 10 ms pieces missing on the speaker, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:163: playback: gap over 60 ms (1 silent pieces in a row, 98 ms without samples)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 320 ms between frames); capture: 2400 samples dropped; playback: 30 of 192 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 320 ms without samples); playback: 2315 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 122.299µs, microphone back after 170.134223ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- FAIL: TestPulseLoopback (28.14s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
 vm-check: desktop session: GNOME on wayland, GNOME Shell 48.7
 vm-check: window: AppImage: opened and the page called the backend
 vm-check: the AppImage window passed with the default start
-vm-check: system skin: followed the desktop to dark in 319 ms and back to light in 215 ms
+vm-check: system skin: followed the desktop to dark in 323 ms and back to light in 214 ms
 vm-check: tray: this desktop has no tray host: the window has no tray icon
 vm-check: notifications:     desktop_linux_test.go:31: the desktop's notification service: gnome-shell 48.7 (GNOME); buttons offered: true
-vm-check: notifications:     desktop_linux_test.go:47: the service took notification 9 away (reason 3) when the call was over
-vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.03s)
-vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 4ms, no prompt left open
-vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.00s)
+vm-check: notifications:     desktop_linux_test.go:47: the service took notification 11 away (reason 3) when the call was over
+vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.02s)
+vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 5ms, no prompt left open
+vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.01s)
 vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.02s)
 vm-check: keyring: --- PASS: TestALockedKeyringIsReportedAndNotPrompted (0.00s)
 vm-check: keyring: started with the login password, the desktop's keyring stores, replaces and removes a password, and says so when it is locked
 vm-check: beside: the Rust candidate runs (rust-microsip 0.1.0-rc.3)
 vm-check: beside: alone, the Rust candidate's client is answered by the Rust candidate's window
 vm-check: beside: with go-microsip's window open, the Rust candidate's client is told: status:error code:timeout (its owner answers, or times out while its window is covered)
-vm-check: beside:     session_linux_test.go:37: go-microsip's window answers on its own socket: protocol go-microsip-control, epoch 1, registration disabled
-vm-check: beside:     session_linux_test.go:51: the Rust candidate's owner, on its own socket, does not take go-microsip's hello
 vm-check: beside: --- PASS: TestTheWindowOfThisSessionAnswers (0.00s)
 vm-check: beside: after a second start of each, one go-microsip and one Rust candidate run
 vm-check: beside: the Rust candidate's files are as they were before go-microsip ran
 vm-check: beside: after go-microsip left, the Rust candidate's client is answered again
 vm-check: beside: go-microsip's files are as they were before the Rust candidate was used
-vm-check: PASS Debian GNU/Linux 13 (trixie)
+vm-check: FAIL Debian GNU/Linux 13 (trixie): audio

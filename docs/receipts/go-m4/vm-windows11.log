@@ -1,0 +1,56 @@
+vm-check: Microsoft Windows 11 Enterprise Evaluation 10.0.26200
+vm-check: WebView2 runtime 157.0.4341.46 (part of Windows; nothing was installed)
+vm-check: go-microsip 0.3.0-m3 (1ca14bfeb442)
+vm-check: doctor {"build":{"version":"0.3.0-m3","commit":"1ca14bfeb442","os":"windows","arch":"amd64","window":"webview2"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"unknown_theme":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: lock: --- PASS: TestLockIsExclusiveAndReleased (0.00s)
+vm-check: lock: PASS
+vm-check: the instance lock is exclusive and released on Windows
+vm-check: control: --- PASS: TestAClientReachesTheOwnerOnWindows (0.01s)
+vm-check: control: --- PASS: TestGrantFilesOnWindows (0.01s)
+vm-check: control: PASS
+vm-check: the control transport serves one owner and names its peers on Windows
+vm-check: audio: --- PASS: TestWASAPIFromAThreadWithCOMInAnotherMode (0.01s)
+vm-check: audio:     wasapi_windows_test.go:73: device "Microphone (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:73: device "Speakers (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:129: 60 s: capture 2929 of 3000 frames (longest miss 2 ticks, gap 60 ms, 0 samples dropped); speaker 5834 of 5996 10 ms pieces (longest silence 0 pieces, arrival gap 63 ms, 10720 samples dropped or silent)
+vm-check: audio:     wasapi_windows_test.go:131: capture: 71 of 3000 frames missing, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: playback: 162 of 5996 10 ms pieces missing on the speaker, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: playback: 10720 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:139: control: a 300 ms stall is caught: capture: 16 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (2 ticks missed in a row, 320 ms between frames); capture: 2208 samples dropped; playback: 39 of 194 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (7 silent pieces in a row, 320 ms without samples); playback: 1600 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:145: NOT VERIFIED: the loss of the sound card could not be provoked on this machine: Disable-PnpDevice: exit status 1: Disable-PnpDevice : Generic failure 
+vm-check: audio: --- FAIL: TestWASAPI (65.92s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.01s)
+vm-check: keyring: PASS
+vm-check: the Credential Manager stores, replaces and deletes a password
+vm-check: keyring: --- PASS: TestAStoredPasswordOutlivesTheRunThatLeftIt (0.00s)
+vm-check: a stored password outlives the removal of the application folder that stored it
+vm-check: window opened on WebView2 and the page called the backend
+vm-check: self-test: inline script and eval refused; a new window and navigation not probed (no guard on this platform); listening sockets not checked on this platform
+vm-check: listening ports: none in 7 looks at the running softphone
+vm-check: skin: light drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: dark drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: xp drawn on WebView2 in DejaVu Sans 400, DejaVu Sans 700, no font failed
+vm-check: skin: macos drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: ubuntu drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: win98 drawn on WebView2 in Liberation Sans 400, Liberation Sans 700, no font failed
+vm-check: skin: matrix drawn on WebView2 in JetBrains Mono 400, JetBrains Mono 600, no font failed
+vm-check: the seven skins drawn on WebView2, each with its bundled font
+vm-check: desktop: the window is open
+vm-check: desktop: links: registered for sip: and tel: under the current user, with this executable; not made the default
+vm-check: desktop: control: status --json is answered by the window (mode gui)
+vm-check: desktop: control: history list without a grant is refused (grant_required, exit 3)
+vm-check: desktop: control:     session_test.go:39: go-microsip's window answers on its own socket: protocol go-microsip-control, epoch 56, registration disabled
+vm-check: desktop: control: --- PASS: TestTheWindowOfThisSessionAnswers (0.00s)
+vm-check: desktop: single instance: a second start with tel:600 ended with 0 and the running window asks "A link asks to call 600. Call it?"
+vm-check: desktop: control: call dial 600 waits (approval_required, exit 3) and the window shows who asks and for what
+vm-check: desktop: control: Escape denied it, and operation get says denied
+vm-check: desktop: tray: the close button hid the window and the softphone goes on
+vm-check: desktop: tray: a second start brought the window back and ended with 0
+vm-check: desktop: notifications:     notify_windows_test.go:23: Windows took the toast of call 41
+vm-check: desktop: notifications:     notify_windows_test.go:35: NOT VERIFIED: no button of the toast was pressed
+vm-check: desktop: notifications: --- PASS: TestAToastOnThisDesktop (45.22s)
+vm-check: desktop: notifications: Windows took the toast and holds 5 notification(s) of go-microsip in its notification center; NOT VERIFIED: its buttons (Windows' own do-not-disturb kept it off the screen, and the button was not found there)
+vm-check: links, agent control, the second start and the tray pass on Windows; the notification reaches Windows
+vm-check: FAIL Microsoft Windows 11 Enterprise Evaluation: audio
