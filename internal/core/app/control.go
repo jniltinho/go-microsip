@@ -1,6 +1,10 @@
 package app
 
-import "github.com/jniltinho/go-microsip/internal/core/store"
+import (
+	"path/filepath"
+
+	"github.com/jniltinho/go-microsip/internal/core/store"
+)
 
 // The records of agent control, under the names of this package: front ends do not import the
 // store.
@@ -37,6 +41,8 @@ type Ledger interface {
 	InsertGrant(g Grant, capabilityHash []byte) error
 	ActiveGrant(capabilityHash []byte, epoch int64) (Grant, bool, error)
 	Grants(epoch int64) ([]Grant, error)
+	ConsumeBootstrap(bootstrapID string, capabilityHash []byte, epoch int64) (Grant, bool, error)
+	BootstrapConsumed(bootstrapID string) (bool, error)
 	UseGrantCall(id string) (bool, error)
 	RevokeGrant(id string) error
 }
@@ -49,4 +55,13 @@ func (p *Phone) Ledger() (Ledger, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// ConfigDir is the directory of the default configuration file: where what a person exports to
+// keep, such as the headless service's bootstrap grant, is written. Empty when there is none.
+func ConfigDir(o Options) string {
+	if path := o.base().DefaultConfigPath(); path != "" {
+		return filepath.Dir(path)
+	}
+	return ""
 }

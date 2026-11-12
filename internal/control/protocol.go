@@ -50,8 +50,13 @@ func CurrentHello() Hello { return Hello{Protocol: Protocol, Version: SchemaVers
 // Mode says which kind of process owns the profile.
 type Mode string
 
-// ModeWindow is the desktop window, the only owner there is: go-microsip has no headless service.
-const ModeWindow Mode = "gui"
+// The owners there are.
+const (
+	// ModeWindow is the desktop window: a mutation no grant covers waits for the person at it.
+	ModeWindow Mode = "gui"
+	// ModeService is the headless service: it runs only what its bootstrap grant allows.
+	ModeService Mode = "service"
+)
 
 // Welcome is the owner's answer to Hello.
 type Welcome struct {
@@ -364,7 +369,7 @@ const (
 	ApprovalExpired      Code = "approval_expired"        // nobody approved it in time
 	GrantExpired         Code = "grant_expired"           // the grant expired
 	EngineUnavailable    Code = "engine_unavailable"      // no owner is running; none was started
-	EngineOwnedByService Code = "engine_owned_by_service" // kept from the Rust contract; not used here
+	EngineOwnedByService Code = "engine_owned_by_service" // the headless service owns the profile
 	Timeout              Code = "timeout"                 // the owner did not answer in time; the outcome may still change
 	Conflict             Code = "conflict"                // the idempotency key was used for another request
 	StaleEpoch           Code = "stale_epoch"             // the operation belongs to an earlier owner session

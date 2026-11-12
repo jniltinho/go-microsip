@@ -10,16 +10,12 @@ import {
 } from "../api";
 import { defaultPort } from "../state";
 import { about, ui } from "../store";
+import AgentAccess from "./AgentAccess.vue";
 import Icon from "./Icon.vue";
 import SkinPicker from "./SkinPicker.vue";
 
 // What the Rust candidate offers and this contract does not carry yet: listed, never faked.
-const MISSING = [
-  "Audio test",
-  "Speaker and microphone volume",
-  "Contact CSV import",
-  "Agent access grants",
-];
+const MISSING = ["Audio test", "Speaker and microphone volume", "Contact CSV import"];
 
 const a = ui.account;
 const form = reactive({
@@ -235,6 +231,8 @@ const saveAudio = () =>
           Do not disturb (new calls get a busy answer)
         </label>
       </fieldset>
+
+      <AgentAccess />
 
       <fieldset class="group">
         <legend>Not available in this build</legend>

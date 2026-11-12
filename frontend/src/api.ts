@@ -115,6 +115,59 @@ export interface Approval {
   deadline: number;
 }
 
+/** The permissions a grant may carry, with what each lets a program do. */
+export const GRANT_SCOPES = [
+  { id: "read:contacts", label: "Read contacts" },
+  { id: "read:history", label: "Read call history" },
+  { id: "read:devices", label: "Read audio devices" },
+  { id: "read:config", label: "Read configuration" },
+  { id: "control:dial", label: "Call (May call)" },
+  { id: "control:answer", label: "Answer (May answer)" },
+  { id: "control:reject", label: "Reject (May answer)" },
+  { id: "control:hangup", label: "Hang up" },
+  { id: "control:dtmf", label: "Send DTMF" },
+  { id: "control:mute", label: "Mute" },
+  { id: "control:hold", label: "Hold" },
+  { id: "control:transfer", label: "Transfer (May call)" },
+  { id: "control:dnd", label: "Do not disturb" },
+] as const;
+
+/** What the person grants to a program (CLI/MCP) in Settings, Agent access. */
+export interface GrantSpec {
+  scopes: string[];
+  /** Exact numbers the program may call or transfer to. */
+  destinations: string[];
+  /** Exact callers the program may answer or reject. */
+  incoming: string[];
+  /** Validity, 1 to 60 minutes. */
+  minutes: number;
+  /** Calls (dial or answer) allowed in all, at most 100. */
+  quota: number;
+}
+
+/** A grant that can still be used. The secret is in its file and never comes here. */
+export interface Grant {
+  id: string;
+  scopes: string[];
+  destinations: string[];
+  incoming: string[];
+  /** Unix milliseconds. */
+  expires: number;
+  quota: number;
+  used: number;
+  /** Exported for the headless service, and not used yet. */
+  bootstrap: boolean;
+}
+
+/** One line of the record of agent requests and decisions. Never a number or digits. */
+export interface AuditEntry {
+  /** Unix milliseconds. */
+  at: number;
+  operation: string;
+  decision: string;
+  detail: string;
+}
+
 /** Everything the backend pushes, in order. Final call snapshots are never dropped. */
 export type UiEvent =
   | { type: "registration"; registration: Registration }
@@ -257,6 +310,17 @@ export interface Backend {
   deny(id: string): Promise<void>;
   /** Denies every pending request and pauses new ones. */
   denyAll(): Promise<void>;
+  /** The grants that can still be used, newest first. */
+  grants(): Promise<Grant[]>;
+  /**
+   * Issues a grant and writes its secret to a new private file; resolves with the file's path.
+   * `bootstrap` exports the single-use grant that starts the headless service.
+   */
+  createGrant(spec: GrantSpec, bootstrap: boolean): Promise<string>;
+  revokeGrant(id: string): Promise<void>;
+  /** The latest lines of the record of agent requests, newest first. */
+  auditLog(): Promise<AuditEntry[]>;
+  clearAudit(): Promise<void>;
   scenarios(): Promise<Scenario[]>;
   simulate(id: string): Promise<void>;
 }
@@ -366,6 +430,11 @@ function wails({ Call, Events }: Wails): Backend {
     approve: (id) => call("Approve", id),
     deny: (id) => call("Deny", id),
     denyAll: () => call("DenyAll"),
+    grants: () => call("Grants"),
+    createGrant: (spec, bootstrap) => call("CreateGrant", spec, bootstrap),
+    revokeGrant: (id) => call("RevokeGrant", id),
+    auditLog: () => call("AuditLog"),
+    clearAudit: () => call("ClearAudit"),
     scenarios: () => Promise.resolve([]),
     simulate: () => Promise.reject("Not available"),
   };
@@ -404,5 +473,10 @@ export const clearHistory = via("clearHistory");
 export const approve = via("approve");
 export const deny = via("deny");
 export const denyAll = via("denyAll");
+export const grants = via("grants");
+export const createGrant = via("createGrant");
+export const revokeGrant = via("revokeGrant");
+export const auditLog = via("auditLog");
+export const clearAudit = via("clearAudit");
 export const scenarios = via("scenarios");
 export const simulate = via("simulate");

@@ -24,9 +24,12 @@ import (
 	"github.com/emiago/sipgo"
 	gosip "github.com/emiago/sipgo/sip"
 	"github.com/godbus/dbus/v5"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/jniltinho/go-microsip/internal/control"
 	"github.com/jniltinho/go-microsip/internal/core/app"
+	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 	"github.com/jniltinho/go-microsip/internal/core/store"
 )
 
@@ -492,6 +495,8 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("quit with a PBX that stopped answering", func(t *testing.T) { quitWithASilentPBX(t, bin) })
 	t.Run("the tray", func(t *testing.T) { theTray(t, bin, server, passwords["1002"]) })
 	t.Run("agent control", func(t *testing.T) { agentControl(t, bin, server, passwords["1002"]) })
+	t.Run("the command line and MCP", func(t *testing.T) { commandLineAndMCP(t, bin, server, passwords["1002"]) })
+	t.Run("the headless service", func(t *testing.T) { headlessService(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
 	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
@@ -1824,6 +1829,428 @@ func agentControl(t *testing.T, bin, server, password string) {
 		"call_hangup requested -", "call_hangup denied -", "call_hangup requested -", "call_hangup approved -", "call_hangup succeeded -"}
 	if !slices.Equal(trail, want) {
 		t.Errorf("the audit trail:\n  %s\nwant:\n  %s", strings.Join(trail, "\n  "), strings.Join(want, "\n  "))
+	}
+	t.Logf("the audit trail: %s", strings.Join(trail, "; "))
+}
+
+// profile is the environment of one softphone profile of the lab: the session's runtime
+// directory and bus, and data and configuration homes of its own.
+func profile(dir, password string) []string {
+	return []string{
+		"DISPLAY=" + os.Getenv("DISPLAY"), "DBUS_SESSION_BUS_ADDRESS=" + os.Getenv("DBUS_SESSION_BUS_ADDRESS"),
+		"XDG_RUNTIME_DIR=" + os.Getenv("XDG_RUNTIME_DIR"), "HOME=" + dir,
+		"XDG_DATA_HOME=" + filepath.Join(dir, "data"), "XDG_CONFIG_HOME=" + filepath.Join(dir, "config"),
+		"GO_MICROSIP_SIP_PASSWORD=" + password, "APPIMAGE_EXTRACT_AND_RUN=1",
+	}
+}
+
+// commandLine runs the built softphone's command line and returns its exit status and what it
+// printed.
+func commandLine(t *testing.T, bin, dir string, args ...string) (int, string) {
+	t.Helper()
+	return commandLineWith(t, "", bin, dir, args...)
+}
+
+// commandLineWith is commandLine for a command that registers: it has the account's password.
+func commandLineWith(t *testing.T, password, bin, dir string, args ...string) (int, string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Env = profile(dir, password)
+	out, err := cmd.CombinedOutput()
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return 0, string(out)
+	case errors.As(err, &exit):
+		return exit.ExitCode(), string(out)
+	}
+	t.Fatalf("go-microsip %v: %v\n%s", args, err, out)
+	return -1, ""
+}
+
+// answered reads the owner's answer out of a --json command line.
+func answered(t *testing.T, out string) control.Response {
+	t.Helper()
+	var r control.Response
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatalf("not an answer of the owner: %s", out)
+	}
+	return r
+}
+
+// labStatus is what status_get tells.
+type labStatus struct {
+	Mode         string `json:"mode"`
+	Registration string `json:"registration"`
+	DND          bool   `json:"dnd"`
+	Call         *struct {
+		CallID  uint64 `json:"call_id"`
+		Version uint64 `json:"version"`
+		Phase   string `json:"phase"`
+	} `json:"call"`
+}
+
+// commandLineAndMCP is task 6.5 on the built artifact: the softphone's own command line and its
+// MCP server, as two programs of the session, against the window. A call asked for on the
+// command line and a hang-up asked for by an MCP tool wait for Allow; a tool that needs a grant
+// is refused without one; and the database tells what was asked and decided.
+func commandLineAndMCP(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered") })
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	// The command line: status, a read that needs a grant, a call that waits.
+	code, out := commandLine(t, bin, dir, "status", "--json")
+	var status labStatus
+	if r := answered(t, out); code != 0 || json.Unmarshal(r.Data, &status) != nil || status.Mode != "gui" || status.Registration != "registered" ||
+		strings.Contains(out, "1002") || strings.Contains(out, server) {
+		t.Fatalf("status --json: %d\n%s", code, out)
+	}
+	if code, out := commandLine(t, bin, dir, "history", "list"); code != 3 || !strings.Contains(out, "(grant_required)") {
+		t.Errorf("history list without a grant: %d\n%s", code, out)
+	}
+	code, out = commandLine(t, bin, dir, "call", "dial", "600", "--key", "lab-cli-1", "--json")
+	asked := answered(t, out)
+	if code != 3 || asked.Status != control.StatusApprovalRequired || asked.OperationID == nil {
+		t.Fatalf("call dial without a grant: %d\n%s", code, out)
+	}
+	w.until(10*time.Second, "the command line's request shown", func() bool { return w.shows("asks to:", "call 600") })
+	if w.watch(2*time.Second, func() bool { return w.call.ID != 0 }) {
+		t.Fatalf("a call (%+v) before the person allowed it", w.call)
+	}
+	if code, out := commandLine(t, bin, dir, "operation", "get", *asked.OperationID); code != 0 || !strings.Contains(out, `"state": "awaiting_approval"`) {
+		t.Errorf("operation get before the decision: %d\n%s", code, out)
+	}
+	w.keys("Tab", "Return") // Allow, armed by now
+	w.until(30*time.Second, "the call asked for on the command line connected", func() bool { return w.call.Phase == "established" && w.call.Remote == "600" })
+	if code, out := commandLine(t, bin, dir, "operation", "get", *asked.OperationID); code != 0 || !strings.Contains(out, `"state": "succeeded"`) {
+		t.Errorf("operation get after the yes: %d\n%s", code, out)
+	}
+	if code, out := commandLine(t, bin, dir, "call", "dial", "600", "--key", "lab-cli-1"); code != 0 || !strings.HasPrefix(out, "ok\n") {
+		t.Errorf("the same command again, with its key: %d\n%s", code, out)
+	}
+	first := w.call.ID
+
+	// The MCP server, started as an agent starts it, with no display of its own.
+	agent := exec.Command(bin, "mcp")
+	agent.Env = []string{"XDG_RUNTIME_DIR=" + os.Getenv("XDG_RUNTIME_DIR"), "HOME=" + dir, "APPIMAGE_EXTRACT_AND_RUN=1"}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "lab"}, nil).Connect(ctx, &mcp.CommandTransport{Command: agent}, nil)
+	if err != nil {
+		t.Fatalf("the MCP server did not start: %v", err)
+	}
+	defer session.Close()
+	tools, err := session.ListTools(ctx, nil)
+	if err != nil || len(tools.Tools) != 15 {
+		t.Fatalf("the MCP tools: %v, %v", tools, err)
+	}
+	tool := func(name string, arguments map[string]any) (control.Response, bool) {
+		t.Helper()
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
+		if err != nil {
+			t.Fatalf("the tool %s: %v", name, err)
+		}
+		text, ok := result.Content[0].(*mcp.TextContent)
+		if !ok {
+			t.Fatalf("the tool %s answered %+v", name, result.Content)
+		}
+		return answered(t, text.Text), result.IsError
+	}
+	// A tool that needs a grant is refused without one; no tool approves anything.
+	for _, name := range []string{"history_list", "config_show", "devices_list"} {
+		if r, failed := tool(name, nil); !failed || r.Error == nil || r.Error.Code != control.GrantRequired {
+			t.Errorf("the tool %s without a grant: %+v", name, r)
+		}
+	}
+	if r, failed := tool("contacts_search", map[string]any{"query": ""}); !failed || r.Error == nil || r.Error.Code != control.GrantRequired {
+		t.Errorf("the tool contacts_search without a grant: %+v", r)
+	}
+	if result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "approve", Arguments: map[string]any{"operation_id": *asked.OperationID}}); err == nil && !result.IsError {
+		t.Errorf("a tool that approves exists: %+v", result)
+	}
+	// The agent sees the call, without the number, and asks to end it: that waits for Allow too.
+	var hangup control.Response
+	for range 5 { // the snapshot may move between the status and the request
+		r, failed := tool("status_get", nil)
+		if failed || json.Unmarshal(r.Data, &status) != nil || status.Call == nil || strings.Contains(string(r.Data), "600") {
+			t.Fatalf("status_get during the call: %+v", r)
+		}
+		var refused bool
+		hangup, refused = tool("call_hangup", map[string]any{"call_id": status.Call.CallID, "expected_version": status.Call.Version, "idempotency_key": "lab-mcp-1"})
+		if !refused {
+			break
+		}
+		if hangup.Error.Code != control.NotFound {
+			t.Fatalf("call_hangup: %+v", hangup.Error)
+		}
+	}
+	if hangup.Status != control.StatusApprovalRequired || hangup.OperationID == nil {
+		t.Fatalf("an MCP hang-up without a grant: %+v (%+v)", hangup, hangup.Error)
+	}
+	w.until(10*time.Second, "the MCP request shown", func() bool { return w.shows("asks to:", "hang up the call") })
+	if w.watch(2*time.Second, func() bool { return w.call.Phase != "established" }) {
+		t.Fatalf("the call is %q before the person allowed the hang-up", w.call.Phase)
+	}
+	if r, _ := tool("operation_get", map[string]any{"operation_id": *hangup.OperationID}); !strings.Contains(string(r.Data), `"state":"awaiting_approval"`) {
+		t.Errorf("operation_get before the decision: %s", r.Data)
+	}
+	w.keys("Tab", "Return")
+	w.until(15*time.Second, "the call ended by the MCP request", func() bool { return w.call.ID == first && w.call.Phase == "ended" })
+	if r, _ := tool("operation_get", map[string]any{"operation_id": *hangup.OperationID}); !strings.Contains(string(r.Data), `"state":"succeeded"`) {
+		t.Errorf("operation_get after the yes: %s", r.Data)
+	}
+	// The MCP client leaves; the window goes on. Then the window ends and its database tells.
+	session.Close()
+	if w.watch(time.Second, func() bool { return w.registered != "registered" }) {
+		t.Errorf("the registration is %q after the MCP client left", w.registered)
+	}
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-exited:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the softphone did not end on a termination signal")
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		if code, _ := commandLine(t, bin, dir, "status"); code == 4 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the command line still reaches a softphone after the window ended")
+		}
+	}
+	trail := auditTrail(t, dir)
+	want := []string{"call_dial requested destination ***00", "call_dial approved destination ***00", "call_dial succeeded -",
+		"call_hangup requested -", "call_hangup approved -", "call_hangup succeeded -"}
+	if !slices.Equal(trail, want) {
+		t.Errorf("the audit trail:\n  %s\nwant:\n  %s", strings.Join(trail, "\n  "), strings.Join(want, "\n  "))
+	}
+	t.Logf("the audit trail: %s", strings.Join(trail, "; "))
+}
+
+// auditTrail reads the audit trail of a profile's database, oldest first.
+func auditTrail(t *testing.T, dir string) []string {
+	t.Helper()
+	db, err := store.Open(app.StorePath(map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rows, err := db.AuditRows(100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trail []string
+	for i := len(rows) - 1; i >= 0; i-- {
+		trail = append(trail, rows[i].Operation+" "+rows[i].Decision+" "+rows[i].Detail)
+	}
+	return trail
+}
+
+// ledgerOnly is the softphone as far as issuing a grant needs it: its database.
+type ledgerOnly struct{ db *store.Store }
+
+func (ledgerOnly) Send(domain.Command) error { return nil }
+func (ledgerOnly) SetDND(bool) error         { return nil }
+func (ledgerOnly) Settings() app.Settings    { return app.Settings{} }
+func (l ledgerOnly) Contacts(search string) ([]app.Contact, error) {
+	return l.db.SearchContacts(search, 1)
+}
+func (l ledgerOnly) History(filter app.HistoryFilter, search string) ([]app.HistoryEntry, error) {
+	return l.db.RecentCalls(1, filter, search)
+}
+func (ledgerOnly) AudioDevices() (inputs, outputs []ports.Device, err error) { return nil, nil, nil }
+func (l ledgerOnly) Ledger() (app.Ledger, error)                             { return l.db, nil }
+
+// headlessService is the softphone without a window (go-microsip service): it starts on a
+// bootstrap grant exported from the window, registers, runs what the grant covers and refuses
+// the rest without asking anybody, turns a window and a link away, and stops on a signal. The
+// bootstrap starts one session only.
+//
+// The window's screen that exports the bootstrap is not driven here: the test issues it with
+// the window's own code, on the profile's database, before the service starts.
+func headlessService(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(app.StorePath(map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuer, err := control.NewOwner(ledgerOnly{db}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued, err := issuer.IssueBootstrap(control.GrantSpec{Scopes: []string{"control:dial", "control:hangup", "control:dnd", "read:history"},
+		Destinations: []string{"600"}, Minutes: 10, Quota: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := control.WriteGrantFile(filepath.Join(dir, "config", "go-microsip", "bootstrap"), issued)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuer.Close()
+	db.Close()
+
+	output := func() string {
+		logs, _ := filepath.Glob(filepath.Join(dir, "output-*.log"))
+		var all []byte
+		for _, name := range logs {
+			text, _ := os.ReadFile(name)
+			all = append(all, text...)
+		}
+		return string(all)
+	}
+	said := func(what string, d time.Duration) {
+		t.Helper()
+		for deadline := time.Now().Add(d); !strings.Contains(output(), what); time.Sleep(100 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatalf("the service did not say %q:\n%s", what, output())
+			}
+		}
+	}
+	service, exited := softphone(t, bin, dir, password, "service", "--grant-file", grant, "--config", file)
+	said("service ready (epoch 2)", 30*time.Second)
+	with := func(args ...string) (int, string) {
+		return commandLine(t, bin, dir, append(args, "--grant-file", grant)...)
+	}
+	status := func() labStatus {
+		t.Helper()
+		code, out := with("status", "--json")
+		var s labStatus
+		if r := answered(t, out); code != 0 || json.Unmarshal(r.Data, &s) != nil || s.Mode != "service" {
+			t.Fatalf("the service's status: %d\n%s", code, out)
+		}
+		return s
+	}
+	for deadline := time.Now().Add(30 * time.Second); status().Registration != "registered"; time.Sleep(300 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the service did not register: %+v\n%s", status(), output())
+		}
+	}
+	// Without the grant, and outside it, nothing runs and nobody is asked.
+	for name, line := range map[string][]string{
+		"a call without the grant":          {"call", "dial", "600"},
+		"do-not-disturb without the grant":  {"dnd", "on"},
+		"history without the grant":         {"history", "list"},
+		"a call outside the grant, with it": {"call", "dial", "601", "--grant-file", grant},
+		"contacts, which the grant lacks":   {"contacts", "search", "--grant-file", grant},
+	} {
+		if code, out := commandLine(t, bin, dir, line...); code != 3 || !strings.Contains(out, "(grant_required)") {
+			t.Errorf("%s: %d\n%s", name, code, out)
+		}
+	}
+	// What the grant covers runs at once.
+	if code, out := with("dnd", "on", "--key", "lab-svc-dnd"); code != 0 || !strings.HasPrefix(out, "accepted\n") {
+		t.Errorf("do-not-disturb by the grant: %d\n%s", code, out)
+	}
+	if !status().DND {
+		t.Error("do-not-disturb is not on after the service took it")
+	}
+	if code, out := with("history", "list", "--json"); code != 0 || !strings.Contains(out, `"items":`) {
+		t.Errorf("history by the grant: %d\n%s", code, out)
+	}
+	if code, out := with("call", "dial", "600", "--key", "lab-svc-dial"); code != 0 || !strings.HasPrefix(out, "accepted\n") {
+		t.Fatalf("a call by the grant: %d\n%s", code, out)
+	}
+	var call labStatus
+	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(300 * time.Millisecond) {
+		if call = status(); call.Call != nil && call.Call.Phase == "established" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the call the service placed did not connect: %+v\n%s", call, output())
+		}
+	}
+	said("microphone active", 5*time.Second)
+	// The quota was one call.
+	if code, out := with("call", "dial", "600", "--key", "lab-svc-dial-2"); code != 3 || !strings.Contains(out, "(grant_required)") {
+		t.Errorf("a second call, over the quota: %d\n%s", code, out)
+	}
+	// A window and a link are turned away; a second service finds the profile taken.
+	if code, out := commandLine(t, bin, dir); code != 4 || !strings.Contains(out, "engine_owned_by_service") {
+		t.Errorf("the window beside the service: %d\n%s", code, out)
+	}
+	if code, out := commandLine(t, bin, dir, "tel:600"); code != 4 || !strings.Contains(out, "uri_confirmation_unavailable") {
+		t.Errorf("a link beside the service: %d\n%s", code, out)
+	}
+	if code, out := commandLine(t, bin, dir, "service", "--grant-file", grant, "--config", file); code != 4 || !strings.Contains(out, "owns the profile") {
+		t.Errorf("a second service: %d\n%s", code, out)
+	}
+	// The call is ended by the grant.
+	ended := false
+	for range 5 {
+		call = status()
+		if call.Call == nil {
+			t.Fatal("the call ended by itself")
+		}
+		code, out := with("call", "hangup", strconv.FormatUint(call.Call.CallID, 10), strconv.FormatUint(call.Call.Version, 10), "--key", "lab-svc-hangup")
+		if ended = code == 0; ended || !strings.Contains(out, "(not_found)") {
+			break
+		}
+	}
+	if !ended {
+		t.Fatal("the hang-up by the grant was not taken")
+	}
+	for deadline := time.Now().Add(15 * time.Second); status().Call != nil; time.Sleep(300 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the call did not end")
+		}
+	}
+	said("microphone released", 5*time.Second)
+	// A signal stops it: it unregisters and leaves with 0.
+	if err := syscall.Kill(-service.Process.Pid, syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-exited:
+		if err != nil {
+			t.Errorf("the service left with %v, want 0", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("the service did not stop on a termination signal")
+	}
+	if !strings.Contains(output(), "service stopping") {
+		t.Errorf("the service did not say it was stopping:\n%s", output())
+	}
+	if code, out := commandLine(t, bin, dir, "status"); code != 4 || !strings.Contains(out, "(engine_unavailable)") {
+		t.Errorf("status after the service stopped: %d\n%s", code, out)
+	}
+	// The bootstrap started that session and starts no other.
+	if code, out := commandLineWith(t, password, bin, dir, "service", "--grant-file", grant, "--config", file); code != 3 || !strings.Contains(out, "already used") {
+		t.Errorf("the service started again on the same bootstrap: %d\n%s", code, out)
+	}
+	trail := auditTrail(t, dir)
+	want := []string{"grant bootstrap issued 4 scopes, 10 min", "dnd_set granted enabled=true by grant " + issued.ID, "dnd_set succeeded -",
+		"call_dial granted destination ***00 by grant " + issued.ID, "call_dial succeeded -",
+		"call_hangup granted - by grant " + issued.ID, "call_hangup succeeded -"}
+	if !slices.Equal(trail, want) {
+		t.Errorf("the audit trail:\n  %s\nwant:\n  %s", strings.Join(trail, "\n  "), strings.Join(want, "\n  "))
+	}
+	if all := strings.Join(trail, " ") + output(); strings.Contains(all, issued.Capability) {
+		t.Error("the capability is in the audit trail or in the service's output")
 	}
 	t.Logf("the audit trail: %s", strings.Join(trail, "; "))
 }

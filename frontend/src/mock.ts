@@ -3,15 +3,18 @@
 //   1007 not acceptable, 1008 no answer, 1009 busy (also as a transfer target: fails with 486).
 // Registration: password "wrong" is refused, server "down.invalid" times out.
 // `?scene=<scenario id>` puts the engine in that state before the first event.
+import { GRANT_SCOPES } from "./api";
 import type {
   AccountSettings,
   Approval,
+  AuditEntry,
   Backend,
   CallOutcome,
   CallSnapshot,
   Command,
   Contact,
   EndReason,
+  Grant,
   HistoryEntry,
   Notice,
   Registration,
@@ -54,6 +57,34 @@ export function createMock(): Backend {
   let answeredAt: number | undefined;
   let startedUtc = 0;
   let approvals: Approval[] = [];
+  // One grant and a short record, so that Agent access has something to list.
+  let grants: Grant[] = [
+    {
+      id: "grant-7-0123456789abcdef01234567",
+      scopes: ["read:history", "control:dial"],
+      destinations: ["1003"],
+      incoming: [],
+      expires: Date.now() + 12 * 60_000,
+      quota: 2,
+      used: 1,
+      bootstrap: false,
+    },
+  ];
+  let audit: AuditEntry[] = [
+    { at: Date.now() - 40_000, operation: "call_dial", decision: "succeeded", detail: "-" },
+    {
+      at: Date.now() - 41_000,
+      operation: "call_dial",
+      decision: "granted",
+      detail: "destination ***03 by grant grant-7-0123456789abcdef01234567",
+    },
+    {
+      at: Date.now() - 180_000,
+      operation: "grant",
+      decision: "issued",
+      detail: "2 scopes, 15 min",
+    },
+  ];
   let failed = false;
   let noAudio = false;
   let nextCall = 1;
@@ -420,6 +451,50 @@ export function createMock(): Backend {
     },
     denyAll: () => {
       decide(() => false);
+      return ok();
+    },
+    grants: () => Promise.resolve(copy(grants)),
+    createGrant: (spec, bootstrap) => {
+      const known = GRANT_SCOPES.map((scope) => scope.id as string);
+      if (!spec.scopes.length || spec.scopes.some((scope) => !known.includes(scope)))
+        return Promise.reject("choose at least one known permission");
+      if (spec.minutes < 1 || spec.minutes > 60 || spec.quota > 100)
+        return Promise.reject("validity must be 1 to 60 minutes and the call limit at most 100");
+      if (
+        [...spec.destinations, ...spec.incoming].some((n) => !/^\+?[A-Za-z0-9*#_.-]{1,64}$/.test(n))
+      )
+        return Promise.reject("every number must be a valid number or SIP user");
+      const id = `grant-7-${String(grants.length + 1).padStart(24, "0")}`;
+      grants.unshift({
+        id,
+        scopes: [...spec.scopes],
+        destinations: [...spec.destinations],
+        incoming: [...spec.incoming],
+        expires: Date.now() + spec.minutes * 60_000,
+        quota: spec.quota,
+        used: 0,
+        bootstrap,
+      });
+      audit.unshift({
+        at: Date.now(),
+        operation: "grant",
+        decision: bootstrap ? "bootstrap issued" : "issued",
+        detail: `${spec.scopes.length} scopes, ${spec.minutes} min`,
+      });
+      return Promise.resolve(
+        bootstrap
+          ? `~/.config/go-microsip/bootstrap/${id}.json`
+          : `/run/user/1000/go-microsip/grants/${id}.grant`,
+      );
+    },
+    revokeGrant: (id) => {
+      grants = grants.filter((g) => g.id !== id);
+      audit.unshift({ at: Date.now(), operation: "grant", decision: "revoked", detail: "-" });
+      return ok();
+    },
+    auditLog: () => Promise.resolve(copy(audit)),
+    clearAudit: () => {
+      audit = [];
       return ok();
     },
     scenarios: () => Promise.resolve(SCENARIOS),

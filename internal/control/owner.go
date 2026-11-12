@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -89,6 +90,7 @@ type Approval struct {
 // called, outside any lock, whenever that list changes.
 type Owner struct {
 	phone   Phone
+	mode    Mode
 	ledger  app.Ledger // nil: no database; nothing is changed without a ledger
 	epoch   int64
 	key     []byte
@@ -106,10 +108,44 @@ type Owner struct {
 	pace         sync.Mutex // one DTMF operation at a time
 }
 
-// NewOwner opens a new epoch in the phone's ledger. Without a database, or when the epoch cannot
-// be opened, the owner still answers status and refuses every change.
+// Errors of starting the headless service's owner.
+var (
+	// ErrNoLedger: the service needs the database, where its grant is.
+	ErrNoLedger = errors.New("the settings database is needed")
+	// ErrBootstrapConsumed: the bootstrap grant already started a service session.
+	ErrBootstrapConsumed = errors.New("the bootstrap grant was already used: export a new one from the window for a new service session")
+	// ErrBootstrapInvalid: the bootstrap grant is unknown, expired or revoked.
+	ErrBootstrapInvalid = errors.New("the bootstrap grant is unknown, expired or revoked")
+)
+
+// NewServiceOwner is the owner of the headless service: it opens a new epoch and consumes, once,
+// the bootstrap grant a person exported from the window. Nothing waits for a person there: what
+// that grant does not cover is answered grant_required.
+func NewServiceOwner(phone Phone, bootstrapID, capability string) (*Owner, error) {
+	o, err := NewOwner(phone, nil)
+	if err != nil {
+		return nil, err
+	}
+	if o.ledger == nil {
+		return nil, ErrNoLedger
+	}
+	o.mode = ModeService
+	switch _, bound, err := o.ledger.ConsumeBootstrap(bootstrapID, capabilityHash(capability), o.epoch); {
+	case err != nil:
+		return nil, ErrNoLedger
+	case !bound:
+		if consumed, _ := o.ledger.BootstrapConsumed(bootstrapID); consumed {
+			return nil, ErrBootstrapConsumed
+		}
+		return nil, ErrBootstrapInvalid
+	}
+	return o, nil
+}
+
+// NewOwner opens a new epoch in the phone's ledger, for the window. Without a database, or when
+// the epoch cannot be opened, the owner still answers status and refuses every change.
 func NewOwner(phone Phone, changed func()) (*Owner, error) {
-	o := &Owner{phone: phone, changed: changed, now: time.Now, gap: DTMFGap, key: make([]byte, 32)}
+	o := &Owner{phone: phone, mode: ModeWindow, changed: changed, now: time.Now, gap: DTMFGap, key: make([]byte, 32)}
 	if o.changed == nil {
 		o.changed = func() {}
 	}
@@ -126,6 +162,11 @@ func NewOwner(phone Phone, changed func()) (*Owner, error) {
 
 // Epoch is the owner's session in the ledger; 0 without one.
 func (o *Owner) Epoch() int64 { return o.epoch }
+
+// Welcome is what the owner answers a client's hello with.
+func (o *Owner) Welcome() Welcome {
+	return Welcome{Protocol: Protocol, Version: SchemaVersion, Mode: o.mode, Epoch: uint64(o.epoch)}
+}
 
 // Close stops the owner: what waits is left to the next epoch, which expires it.
 func (o *Owner) Close() {
@@ -299,7 +340,7 @@ type status struct {
 
 // status is the registration, do-not-disturb and the call, without a name or a number.
 func (o *Owner) status() status {
-	s := status{Mode: ModeWindow, Epoch: o.epoch, Registration: o.registration.String(), DND: o.phone.Settings().DND}
+	s := status{Mode: o.mode, Epoch: o.epoch, Registration: o.registration.String(), DND: o.phone.Settings().DND}
 	if c := o.call; c != nil {
 		s.Call = &callStatus{CallID: uint64(c.ID), Version: c.Version, Direction: c.Direction.String(),
 			Phase: c.Phase.Kind.String(), Secure: c.Secure, Muted: c.Muted, Held: c.Phase.Kind == domain.Held}
@@ -403,19 +444,28 @@ func (o *Owner) mutation(r Request, pid int) (Response, bool, error) {
 		return Response{}, false, fail(Busy, "control requests are paused in the window; try again later")
 	}
 	// A grant that covers this exact request runs it without a prompt; anything it does not
-	// cover asks a person.
+	// cover asks a person at the window, and is refused by the service, where nobody is.
 	grant, granted, err := o.requestGrant(r)
 	if err != nil {
 		return Response{}, false, err
 	}
-	if granted && o.grantAllows(grant, op) == nil {
-		operationID, err := o.record(key, op, mac, app.OpExecuting)
-		if err != nil {
-			return Response{}, false, err
+	if granted {
+		refusal := o.grantAllows(grant, op)
+		if refusal == nil {
+			operationID, err := o.record(key, op, mac, app.OpExecuting)
+			if err != nil {
+				return Response{}, false, err
+			}
+			_ = o.ledger.Audit(op.Op, "granted", auditDetail(op)+" by grant "+grant.ID)
+			o.execute(operationID, op)
+			return Pending(id, StatusAccepted, operationID), false, nil
 		}
-		_ = o.ledger.Audit(op.Op, "granted", auditDetail(op)+" by grant "+grant.ID)
-		o.execute(operationID, op)
-		return Pending(id, StatusAccepted, operationID), false, nil
+		if o.mode == ModeService {
+			return Response{}, false, refusal
+		}
+	}
+	if o.mode == ModeService {
+		return Response{}, false, fail(GrantRequired, "the service runs only what its grant allows")
 	}
 	if len(o.pending) >= MaxPending {
 		return Response{}, false, fail(Busy, "too many requests are waiting for approval")

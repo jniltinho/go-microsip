@@ -68,6 +68,7 @@ type session struct {
 	platform        Platform
 	env             map[string]string // nil: the process environment
 	stdout, stderr  io.Writer
+	stdin           io.Reader // nil: the process's standard input
 	version, commit string
 	configPath      string
 	envFile         string
@@ -112,6 +113,15 @@ account.password_env, a private account.password_file, or the prompt of the wind
 				}
 				dial = target.Value()
 			}
+			// The headless service owns the profile: no window opens beside it, and a link is
+			// not dialed, since nobody is there to confirm it.
+			if s.servedByService() {
+				message := "engine_owned_by_service: stop the headless service before opening the window"
+				if dial != "" {
+					message = "uri_confirmation_unavailable: the headless service owns the profile; the link was not dialed"
+				}
+				return &failure{message: "go-microsip: " + message, code: 4}
+			}
 			if err := runWindow(c, s, dial); err != nil {
 				return failed(err)
 			}
@@ -133,7 +143,8 @@ account.password_env, a private account.password_file, or the prompt of the wind
 		Run: func(c *cobra.Command, _ []string) {
 			fmt.Fprintf(c.OutOrStdout(), "go-microsip %s (%s)\n", s.version, s.commit)
 		},
-	}, s.doctor(), s.config(), s.importCommand(), s.run(), mcpCommand())
+	}, s.doctor(), s.config(), s.importCommand(), s.run(), s.mcpCommand(), s.service())
+	root.AddCommand(s.controlCommands()...)
 	return root
 }
 
@@ -148,6 +159,9 @@ func execute(s *session, args []string) int {
 	root := s.root()
 	root.SetArgs(args)
 	root.SetOut(s.stdout)
+	if s.stdin != nil {
+		root.SetIn(s.stdin)
+	}
 	root.SetErr(s.stderr)
 	err := root.Execute()
 	var f *failure

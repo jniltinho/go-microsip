@@ -164,6 +164,13 @@ for skin in $skins; do
 	shot settings
 	ab eval "document.querySelector('section[aria-label=Settings] > div:last-child').scrollTop = 9999"
 	shot settings-more
+	# Agent access: the permissions and the grant in use, then the audit log open.
+	ab eval "document.querySelector('[data-testid=agent-access]').scrollIntoView()"
+	shot agent-access
+	click '[data-testid=agent-access] button[aria-expanded]'
+	ab wait 200
+	ab eval "document.querySelector('[data-testid=agent-access] [aria-label=\"Audit log\"]').scrollIntoView({ block: 'end' })"
+	shot agent-audit
 
 	scene approval
 	shot approval
@@ -208,6 +215,8 @@ for skin in $skins; do
 	rings menu '[role="menu"]'
 	keys Enter
 	rings settings 'section[aria-label="Settings"]'
+	ab eval "document.querySelector('[data-testid=agent-access]').scrollIntoView()"
+	rings agent-access '[data-testid="agent-access"]'
 	scene approval
 	rings approval 'dialog[open]'
 done

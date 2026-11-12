@@ -168,3 +168,40 @@ func Dial(dir string) (*Client, error) {
 	}
 	return client, err
 }
+
+// GrantsDir is where the files of this session's grants are written: in the private runtime
+// directory, gone with the session.
+func GrantsDir(runtimeDir string) string { return filepath.Join(runtimeDir, "grants") }
+
+// WriteGrantFile writes an issued grant to a new file in dir, which is created for this user
+// alone; the file is this user's alone too (0600) and is never written over. It returns the
+// file's path.
+func WriteGrantFile(dir string, grant IssuedGrant) (string, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	if err := private(dir); err != nil {
+		return "", err
+	}
+	name, content := grant.File()
+	path := filepath.Join(dir, name)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o600)
+	if err != nil {
+		return "", err
+	}
+	err = file.Chmod(0o600) // whatever the umask made of it
+	if err == nil {
+		_, err = file.WriteString(content)
+	}
+	if err == nil {
+		err = file.Sync()
+	}
+	if closing := file.Close(); err == nil {
+		err = closing
+	}
+	if err != nil {
+		_ = os.Remove(path)
+		return "", err
+	}
+	return path, nil
+}

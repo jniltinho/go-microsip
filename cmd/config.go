@@ -64,6 +64,6 @@ never imported.`,
 			fmt.Fprint(c.OutOrStdout(), text)
 			return nil
 		},
-	}, imp)
+	}, imp, s.configShow())
 	return c
 }

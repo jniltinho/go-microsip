@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -771,5 +773,149 @@ func TestAnAgentRequestWaitsForThePersonAtTheWindow(t *testing.T) {
 	bare := &App{emit: func(UIEvent) {}}
 	if bare.Approve("x") == nil || bare.Deny("x") == nil || bare.DenyAll() == nil || len(*bare.approvals()) != 0 {
 		t.Error("a window without agent control decided something")
+	}
+}
+
+// A grant made in the window is a private file whose capability runs what it covers without a
+// prompt; the list, the revocation and the audit trail are what the page shows.
+func TestAGrantMadeInTheWindowIsAPrivateFile(t *testing.T) {
+	db, err := store.OpenInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	phone := &agentPhone{db: db}
+	dir := t.TempDir()
+	svc := &App{emit: func(UIEvent) {}, grantDir: filepath.Join(dir, "run", "grants"), bootstrapDir: filepath.Join(dir, "config", "bootstrap")}
+	owner, err := control.NewOwner(phone, svc.approvalsChanged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	svc.owner = owner
+	spec := GrantSpec{Scopes: []string{"control:dial"}, Destinations: []string{"1002"}, Minutes: 10, Quota: 1}
+	path, err := svc.CreateGrant(spec, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o600 || filepath.Dir(path) != svc.grantDir || !strings.HasSuffix(path, ".grant") {
+		t.Fatalf("the grant file %s: %v", path, err)
+	}
+	capability, err := control.ReadCapability(path, own{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := "g1"
+	granted := owner.Handle(control.Request{SchemaVersion: 1, RequestID: "r", IdempotencyKey: &key, Capability: &capability,
+		Operation: control.Operation{Op: control.CallDial, Target: "1002"}}, 0)
+	if granted.Status != control.StatusAccepted || len(phone.sent) != 1 || len(*svc.approvals()) != 0 {
+		t.Errorf("a call with the grant's file: %+v (%+v), %d sent", granted, granted.Error, len(phone.sent))
+	}
+	grants, err := svc.Grants()
+	if err != nil || len(grants) != 1 || grants[0].Bootstrap || grants[0].Used != 1 || grants[0].Quota != 1 || grants[0].Expires < time.Now().UnixMilli() ||
+		!slices.Equal(grants[0].Destinations, []string{"1002"}) || grants[0].Incoming == nil {
+		t.Fatalf("the grants the page lists: %+v, %v", grants, err)
+	}
+	if wire, _ := json.Marshal(grants); strings.Contains(string(wire), capability) || !strings.Contains(string(wire), `"incoming":[]`) {
+		t.Errorf("the list as the page reads it: %s", wire)
+	}
+	// The export for the headless service: a file beside the configuration, listed until used.
+	boot, err := svc.CreateGrant(GrantSpec{Scopes: []string{"control:dnd"}, Minutes: 5}, true)
+	if err != nil || filepath.Dir(boot) != svc.bootstrapDir || !strings.HasSuffix(boot, ".json") {
+		t.Fatalf("the bootstrap file %s: %v", boot, err)
+	}
+	if id, _, err := control.ReadBootstrap(boot, own{}); err != nil || !strings.HasPrefix(id, "boot-") {
+		t.Errorf("the bootstrap file's content: %q, %v", id, err)
+	}
+	if both, _ := svc.Grants(); len(both) != 2 || both[0].Bootstrap == both[1].Bootstrap {
+		t.Errorf("the grants after the export: %+v", both)
+	}
+	// What cannot be granted is said, and leaves no file.
+	if _, err := svc.CreateGrant(GrantSpec{Scopes: []string{"control:shell"}, Minutes: 5}, false); err == nil {
+		t.Error("an unknown permission was granted")
+	}
+	if _, err := svc.CreateGrant(GrantSpec{Scopes: []string{"control:dial"}, Destinations: []string{"10 02"}, Minutes: 5}, false); err == nil {
+		t.Error("a destination that is no number was granted")
+	}
+	if files, _ := os.ReadDir(svc.grantDir); len(files) != 1 {
+		t.Errorf("%d files in the grants directory, want the one grant", len(files))
+	}
+	if err := svc.RevokeGrant(grants[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := svc.Grants(); len(after) != 1 || !after[0].Bootstrap {
+		t.Errorf("the grants after the session's one was revoked: %+v", after)
+	}
+	log, err := svc.AuditLog()
+	if err != nil || len(log) < 5 || log[0].Decision != "revoked" || log[0].At < time.Now().Add(-time.Minute).UnixMilli() {
+		t.Errorf("the audit trail: %+v, %v", log, err)
+	}
+	for _, entry := range log {
+		if strings.Contains(entry.Detail, capability) || strings.Contains(entry.Detail, "1002") {
+			t.Errorf("the audit trail holds a capability or a number: %+v", entry)
+		}
+	}
+	if err := svc.ClearAudit(); err != nil {
+		t.Fatal(err)
+	}
+	if log, _ := svc.AuditLog(); len(log) != 0 {
+		t.Errorf("the audit trail after it was cleared: %+v", log)
+	}
+	// Without a private directory, or without agent control, nothing is granted.
+	svc.grantDir = ""
+	if _, err := svc.CreateGrant(spec, false); err == nil {
+		t.Error("a grant was made with nowhere to write its file")
+	}
+	bare := &App{emit: func(UIEvent) {}}
+	if _, err := bare.CreateGrant(spec, false); err == nil {
+		t.Error("a window without agent control made a grant")
+	}
+	if _, err := bare.Grants(); err == nil || bare.RevokeGrant("x") == nil || bare.ClearAudit() == nil {
+		t.Error("a window without agent control listed or revoked grants")
+	}
+	if _, err := bare.AuditLog(); err == nil {
+		t.Error("a window without agent control has an audit trail")
+	}
+}
+
+// Every backend method the page calls (frontend/src/api.ts) is a method of the service, and the
+// grant the page sends is read field for field.
+func TestThePageCallsMethodsTheServiceHas(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "frontend", "src", "api.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := reflect.TypeOf(&App{})
+	names := map[string]bool{}
+	for _, pattern := range []string{`call(?:<[^>]*>)?\("([A-Z][A-Za-z]*)"`, `return \["([A-Z][A-Za-z]*)"`} {
+		for _, found := range regexp.MustCompile(pattern).FindAllStringSubmatch(string(source), -1) {
+			names[found[1]] = true
+		}
+	}
+	if len(names) < 30 {
+		t.Fatalf("only %d backend methods found in api.ts: the patterns no longer match it", len(names))
+	}
+	for name := range names {
+		if _, has := service.MethodByName(name); !has {
+			t.Errorf("the page calls %s, which the service does not have", name)
+		}
+	}
+	for _, name := range []string{"Grants", "CreateGrant", "RevokeGrant", "AuditLog", "ClearAudit", "Approve", "Deny", "DenyAll"} {
+		if !names[name] {
+			t.Errorf("the page does not call %s", name)
+		}
+	}
+	var spec GrantSpec
+	if err := json.Unmarshal([]byte(`{"scopes":["control:dial"],"destinations":["1002"],"incoming":["1003"],"minutes":10,"quota":2}`), &spec); err != nil ||
+		len(spec.Scopes) != 1 || spec.Destinations[0] != "1002" || spec.Incoming[0] != "1003" || spec.Minutes != 10 || spec.Quota != 2 {
+		t.Errorf("the grant the page sends is read as %+v, %v", spec, err)
+	}
+	if wire, _ := json.Marshal(AuditEntry{At: 1, Operation: "o", Decision: "d", Detail: "x"}); string(wire) != `{"at":1,"operation":"o","decision":"d","detail":"x"}` {
+		t.Errorf("an audit line as the page reads it: %s", wire)
+	}
+	if wire, _ := json.Marshal(Grant{ID: "g", Scopes: []string{}, Destinations: []string{}, Incoming: []string{}}); string(wire) !=
+		`{"id":"g","scopes":[],"destinations":[],"incoming":[],"expires":0,"quota":0,"used":0,"bootstrap":false}` {
+		t.Errorf("a grant as the page reads it: %s", wire)
 	}
 }

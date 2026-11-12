@@ -20,6 +20,8 @@ light/contact-edit: ok
 light/menu: ok
 light/settings: ok
 light/settings-more: ok
+light/agent-access: ok
+light/agent-audit: ok
 light/approval: ok
 light/error-registration: ok
 light/error-audio: ok
@@ -48,6 +50,8 @@ dark/contact-edit: ok
 dark/menu: ok
 dark/settings: ok
 dark/settings-more: ok
+dark/agent-access: ok
+dark/agent-audit: ok
 dark/approval: ok
 dark/error-registration: ok
 dark/error-audio: ok
@@ -76,6 +80,8 @@ xp/contact-edit: ok
 xp/menu: ok
 xp/settings: ok
 xp/settings-more: ok
+xp/agent-access: ok
+xp/agent-audit: ok
 xp/approval: ok
 xp/error-registration: ok
 xp/error-audio: ok
@@ -104,6 +110,8 @@ macos/contact-edit: ok
 macos/menu: ok
 macos/settings: ok
 macos/settings-more: ok
+macos/agent-access: ok
+macos/agent-audit: ok
 macos/approval: ok
 macos/error-registration: ok
 macos/error-audio: ok
@@ -132,6 +140,8 @@ ubuntu/contact-edit: ok
 ubuntu/menu: ok
 ubuntu/settings: ok
 ubuntu/settings-more: ok
+ubuntu/agent-access: ok
+ubuntu/agent-audit: ok
 ubuntu/approval: ok
 ubuntu/error-registration: ok
 ubuntu/error-audio: ok
@@ -160,6 +170,8 @@ win98/contact-edit: ok
 win98/menu: ok
 win98/settings: ok
 win98/settings-more: ok
+win98/agent-access: ok
+win98/agent-audit: ok
 win98/approval: ok
 win98/error-registration: ok
 win98/error-audio: ok
@@ -188,6 +200,8 @@ matrix/contact-edit: ok
 matrix/menu: ok
 matrix/settings: ok
 matrix/settings-more: ok
+matrix/agent-access: ok
+matrix/agent-audit: ok
 matrix/approval: ok
 matrix/error-registration: ok
 matrix/error-audio: ok

@@ -177,3 +177,63 @@ func TestGrantsAreEpochBoundQuotaLimitedAndRevocable(t *testing.T) {
 		t.Error("a hash of 8 bytes was taken")
 	}
 }
+
+func TestBootstrapsAreConsumedOnceIntoTheServiceEpoch(t *testing.T) {
+	s := memory(t)
+	window, err := s.BeginControlEpoch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	five, six := bytes.Repeat([]byte{5}, 32), bytes.Repeat([]byte{6}, 32)
+	boot := Grant{ID: "b1", Scopes: []string{"control:dnd"}, ExpiresUTC: nowUTC() + 600, Quota: 1, BootstrapID: "boot-1"}
+	if err := s.InsertGrant(boot, five); err != nil {
+		t.Fatal(err)
+	}
+	if listed, err := s.Grants(window); err != nil || len(listed) != 1 || listed[0].BootstrapID != "boot-1" || listed[0].Epoch != 0 {
+		t.Errorf("a bootstrap is listed until it is consumed: %+v, %v", listed, err)
+	}
+	if _, ok, _ := s.ActiveGrant(five, window); ok {
+		t.Error("a bootstrap can be used before it is consumed")
+	}
+	service, _ := s.BeginControlEpoch()
+	if _, ok, err := s.ConsumeBootstrap("boot-1", six, service); ok || err != nil {
+		t.Errorf("consumed with another capability: %v, %v", ok, err)
+	}
+	if consumed, _ := s.BootstrapConsumed("boot-1"); consumed {
+		t.Error("a refused attempt consumed the bootstrap")
+	}
+	bound, ok, err := s.ConsumeBootstrap("boot-1", five, service)
+	if err != nil || !ok || bound.Epoch != service || bound.ID != "b1" {
+		t.Fatalf("consuming the bootstrap: %+v, %v, %v", bound, ok, err)
+	}
+	if consumed, err := s.BootstrapConsumed("boot-1"); !consumed || err != nil {
+		t.Errorf("the bootstrap after it was consumed: %v, %v", consumed, err)
+	}
+	if consumed, err := s.BootstrapConsumed("boot-unknown"); consumed || err != nil {
+		t.Errorf("an unknown bootstrap: %v, %v", consumed, err)
+	}
+	again, _ := s.BeginControlEpoch()
+	if _, ok, _ := s.ConsumeBootstrap("boot-1", five, again); ok {
+		t.Error("a bootstrap was consumed twice")
+	}
+	if _, ok, _ := s.ActiveGrant(five, again); ok {
+		t.Error("a new session used the bootstrap of the one before")
+	}
+	// A bootstrap has no epoch, and a session's grant has one.
+	if err := s.InsertGrant(Grant{ID: "b2", Scopes: []string{"control:dnd"}, ExpiresUTC: nowUTC() + 600, Epoch: again, BootstrapID: "boot-2"}, six); err == nil {
+		t.Error("a bootstrap with an epoch was taken")
+	}
+	if err := s.InsertGrant(Grant{ID: "g9", Scopes: []string{"control:dnd"}, ExpiresUTC: nowUTC() + 600}, six); err == nil {
+		t.Error("a session's grant without an epoch was taken")
+	}
+	// A revoked bootstrap cannot be consumed.
+	if err := s.InsertGrant(Grant{ID: "b3", Scopes: []string{"control:dnd"}, ExpiresUTC: nowUTC() + 600, BootstrapID: "boot-3"}, six); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RevokeGrant("b3"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := s.ConsumeBootstrap("boot-3", six, again); ok {
+		t.Error("a revoked bootstrap was consumed")
+	}
+}

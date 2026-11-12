@@ -241,14 +241,32 @@ type IssuedGrant struct {
 	ID string
 	// Capability is the secret: 64 hexadecimal digits.
 	Capability string
+	// BootstrapID is the single-use id of a grant exported for the headless service; empty for
+	// a grant of this session.
+	BootstrapID string
 }
 
 // String describes the grant without its capability.
 func (g IssuedGrant) String() string { return g.ID + " [REDACTED]" }
 
+// File is the grant as its private file holds it: the capability alone for a session's grant,
+// which a client passes with --grant-file; the bootstrap id and the capability for the service's.
+func (g IssuedGrant) File() (name, content string) {
+	if g.BootstrapID != "" {
+		return g.ID + ".json", fmt.Sprintf("{\"bootstrap_id\":%q,\"capability\":%q}\n", g.BootstrapID, g.Capability)
+	}
+	return g.ID + ".grant", g.Capability + "\n"
+}
+
 // Issue stores a grant for this session and returns its capability. The error is a reason a
 // person can read; nothing was stored then.
-func (o *Owner) Issue(spec GrantSpec) (IssuedGrant, error) {
+func (o *Owner) Issue(spec GrantSpec) (IssuedGrant, error) { return o.issue(spec, false) }
+
+// IssueBootstrap stores a single-use grant for the headless service: it is bound to no session
+// until the service consumes it, once.
+func (o *Owner) IssueBootstrap(spec GrantSpec) (IssuedGrant, error) { return o.issue(spec, true) }
+
+func (o *Owner) issue(spec GrantSpec, bootstrap bool) (IssuedGrant, error) {
 	if len(spec.Scopes) == 0 || slices.ContainsFunc(spec.Scopes, func(s string) bool { return !slices.Contains(Scopes, s) }) {
 		return IssuedGrant{}, errors.New("choose at least one known permission")
 	}
@@ -274,13 +292,21 @@ func (o *Owner) Issue(spec GrantSpec) (IssuedGrant, error) {
 		return IssuedGrant{}, errors.New("no system randomness")
 	}
 	capability := hex.EncodeToString(secret)
+	issued := IssuedGrant{ID: id, Capability: capability}
 	grant := app.Grant{ID: id, Scopes: spec.Scopes, Destinations: spec.Destinations, Incoming: spec.Incoming,
 		ExpiresUTC: o.now().Unix() + int64(spec.Minutes)*60, Quota: spec.Quota, Epoch: o.epoch}
+	decision := "issued"
+	if bootstrap {
+		if issued.BootstrapID, err = o.newID("boot"); err != nil {
+			return IssuedGrant{}, errors.New("no system randomness")
+		}
+		grant.Epoch, grant.BootstrapID, decision = 0, issued.BootstrapID, "bootstrap issued"
+	}
 	if o.ledger.InsertGrant(grant, capabilityHash(capability)) != nil {
 		return IssuedGrant{}, errors.New("the grant could not be stored")
 	}
-	_ = o.ledger.Audit("grant", "issued", fmt.Sprintf("%d scopes, %d min", len(spec.Scopes), spec.Minutes))
-	return IssuedGrant{ID: id, Capability: capability}, nil
+	_ = o.ledger.Audit("grant", decision, fmt.Sprintf("%d scopes, %d min", len(spec.Scopes), spec.Minutes))
+	return issued, nil
 }
 
 // Grants lists the grants that can still be used, for the window.

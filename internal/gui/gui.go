@@ -21,6 +21,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -278,13 +279,16 @@ func Run(o Options) error {
 				if env == nil {
 					env = map[string]string{"XDG_RUNTIME_DIR": os.Getenv("XDG_RUNTIME_DIR")}
 				}
-				welcome := control.Welcome{Protocol: control.Protocol, Version: control.SchemaVersion, Mode: control.ModeWindow, Epoch: uint64(owner.Epoch())}
 				if dir, err := control.RuntimeDir(env); err != nil {
 					warnings.Warn("agent control is not served: " + err.Error())
-				} else if endpoint, err := control.Listen(dir, welcome, owner); err != nil {
+				} else if endpoint, err := control.Listen(dir, owner.Welcome(), owner); err != nil {
 					warnings.Warn("agent control is not served: " + err.Error())
 				} else {
 					defer endpoint.Close()
+					svc.grantDir = control.GrantsDir(dir)
+				}
+				if dir := app.ConfigDir(o.Core); dir != "" {
+					svc.bootstrapDir = filepath.Join(dir, "bootstrap")
 				}
 			}
 		}

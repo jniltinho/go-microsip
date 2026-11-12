@@ -16,7 +16,9 @@ import (
 //
 // Each owner start opens a new epoch: operations still waiting for approval expire, and those
 // that may have been sent become "outcome_unknown" and are never retried. A grant is stored as
-// the SHA-256 of its capability and is bound to the epoch it was issued in.
+// the SHA-256 of its capability and is bound to the epoch it was issued in. A bootstrap grant is
+// the one exported for the headless service: it has no epoch until the service consumes its
+// single-use id, in the service's own new epoch.
 
 const (
 	// LedgerRetentionSecs is how long an operation's outcome can be asked for.
@@ -73,7 +75,8 @@ type Grant struct {
 	Incoming     []string // exact callers that may be answered or rejected
 	ExpiresUTC   int64    // Unix seconds
 	Quota, Used  uint32   // calls (dial or answer) allowed, and used so far
-	Epoch        int64    // the owner epoch it is valid in
+	Epoch        int64    // the owner epoch it is valid in; 0 for a bootstrap not consumed yet
+	BootstrapID  string   // the single-use id of a bootstrap grant; empty for a session's grant
 	Revoked      bool
 }
 
@@ -235,13 +238,18 @@ func grantList(items []string) bool {
 func (s *Store) InsertGrant(g Grant, capabilityHash []byte) error {
 	now := nowUTC()
 	if len(capabilityHash) != 32 || !textOK(g.ID, 64) || !grantList(g.Scopes) || !grantList(g.Destinations) ||
-		!grantList(g.Incoming) || g.ExpiresUTC <= now || g.ExpiresUTC > now+MaxGrantSecs {
+		!grantList(g.Incoming) || g.ExpiresUTC <= now || g.ExpiresUTC > now+MaxGrantSecs ||
+		(g.BootstrapID != "" && !textOK(g.BootstrapID, 64)) || (g.BootstrapID == "") == (g.Epoch == 0) {
 		return invalid(ControlText)
 	}
+	var epoch any // a bootstrap has none until it is consumed
+	if g.BootstrapID == "" {
+		epoch = g.Epoch
+	}
 	_, err := s.db.Exec(`INSERT INTO control_grants (id, capability_hash, scopes, destinations, incoming, expires_utc, quota,
-		used, epoch, bootstrap_id, bootstrap_consumed, revoked, created_utc) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8, NULL, 0, 0, ?9)`,
+		used, epoch, bootstrap_id, bootstrap_consumed, revoked, created_utc) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, ?8, ?9, 0, 0, ?10)`,
 		g.ID, capabilityHash, strings.Join(g.Scopes, "\n"), strings.Join(g.Destinations, "\n"), strings.Join(g.Incoming, "\n"),
-		g.ExpiresUTC, g.Quota, g.Epoch, now)
+		g.ExpiresUTC, g.Quota, epoch, nullable(g.BootstrapID), now)
 	return wrap(err)
 }
 
@@ -256,14 +264,38 @@ func (s *Store) ActiveGrant(capabilityHash []byte, epoch int64) (Grant, bool, er
 	return grants[0], true, nil
 }
 
-// Grants lists the grants that can still be used in the epoch, newest first.
+// Grants lists the grants that can still be used in the epoch, and the bootstraps that can
+// still be consumed, newest first.
 func (s *Store) Grants(epoch int64) ([]Grant, error) {
-	return s.grants("WHERE epoch = ?1 AND revoked = 0 AND expires_utc > ?2 ORDER BY created_utc DESC, id", epoch, nowUTC())
+	return s.grants(`WHERE (epoch = ?1 OR (epoch IS NULL AND bootstrap_consumed = 0)) AND revoked = 0 AND expires_utc > ?2
+		ORDER BY created_utc DESC, id`, epoch, nowUTC())
+}
+
+// ConsumeBootstrap consumes a bootstrap once and binds it to the epoch. It reports false when
+// the id is unknown, already consumed, revoked or expired, or the capability is not its own.
+func (s *Store) ConsumeBootstrap(bootstrapID string, capabilityHash []byte, epoch int64) (Grant, bool, error) {
+	n, err := changed(s.db.Exec(`UPDATE control_grants SET bootstrap_consumed = 1, epoch = ?3
+		WHERE bootstrap_id = ?1 AND capability_hash = ?2 AND bootstrap_consumed = 0 AND revoked = 0 AND expires_utc > ?4`,
+		bootstrapID, capabilityHash, epoch, nowUTC()))
+	if err != nil || n == 0 {
+		return Grant{}, false, err
+	}
+	return s.ActiveGrant(capabilityHash, epoch)
+}
+
+// BootstrapConsumed reports whether a bootstrap id was already consumed, for a precise error.
+func (s *Store) BootstrapConsumed(bootstrapID string) (bool, error) {
+	var consumed bool
+	err := s.db.QueryRow("SELECT bootstrap_consumed FROM control_grants WHERE bootstrap_id = ?1", bootstrapID).Scan(&consumed)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return consumed, wrap(err)
 }
 
 func (s *Store) grants(filter string, args ...any) ([]Grant, error) {
-	rows, err := s.db.Query(`SELECT id, scopes, destinations, incoming, expires_utc, quota, used, epoch, revoked
-		FROM control_grants `+filter, args...)
+	rows, err := s.db.Query(`SELECT id, scopes, destinations, incoming, expires_utc, quota, used, COALESCE(epoch, 0),
+		COALESCE(bootstrap_id, ''), revoked FROM control_grants `+filter, args...)
 	if err != nil {
 		return nil, wrap(err)
 	}
@@ -278,7 +310,7 @@ func (s *Store) grants(filter string, args ...any) ([]Grant, error) {
 	for rows.Next() {
 		var g Grant
 		var scopes, destinations, incoming string
-		if err := rows.Scan(&g.ID, &scopes, &destinations, &incoming, &g.ExpiresUTC, &g.Quota, &g.Used, &g.Epoch, &g.Revoked); err != nil {
+		if err := rows.Scan(&g.ID, &scopes, &destinations, &incoming, &g.ExpiresUTC, &g.Quota, &g.Used, &g.Epoch, &g.BootstrapID, &g.Revoked); err != nil {
 			return nil, wrap(err)
 		}
 		g.Scopes, g.Destinations, g.Incoming = split(scopes), split(destinations), split(incoming)

@@ -40,6 +40,10 @@ type App struct {
 	// owner is agent control (the command line and the MCP server): it holds the requests that
 	// wait for the person at the window. nil: no agent control in this run.
 	owner *control.Owner
+	// grantDir and bootstrapDir are where the files of grants are written: a session's grant in
+	// the private runtime directory, the headless service's bootstrap beside the configuration.
+	// Empty: there is no private place for it.
+	grantDir, bootstrapDir string
 	// sending and stream stand in for the phone's commands and events in tests; nil uses the phone.
 	sending func(domain.Command) error
 	stream  <-chan domain.Event
@@ -640,6 +644,116 @@ func (a *App) DenyAll() error {
 		return errNoAgentControl
 	}
 	a.owner.DenyAll()
+	return nil
+}
+
+// GrantSpec is what the person grants in Settings, Agent access.
+type GrantSpec struct {
+	Scopes       []string `json:"scopes"`
+	Destinations []string `json:"destinations"`
+	Incoming     []string `json:"incoming"`
+	Minutes      uint32   `json:"minutes"`
+	Quota        uint32   `json:"quota"`
+}
+
+// Grant is a grant that can still be used, as the page lists it. It never carries the capability.
+type Grant struct {
+	ID           string   `json:"id"`
+	Scopes       []string `json:"scopes"`
+	Destinations []string `json:"destinations"`
+	Incoming     []string `json:"incoming"`
+	// Expires is in Unix milliseconds.
+	Expires int64  `json:"expires"`
+	Quota   uint32 `json:"quota"`
+	Used    uint32 `json:"used"`
+	// Bootstrap: exported for the headless service, and not consumed yet.
+	Bootstrap bool `json:"bootstrap"`
+}
+
+// AuditEntry is one line of the audit trail of agent control.
+type AuditEntry struct {
+	// At is in Unix milliseconds.
+	At        int64  `json:"at"`
+	Operation string `json:"operation"`
+	Decision  string `json:"decision"`
+	Detail    string `json:"detail"`
+}
+
+// CreateGrant issues a grant and writes its capability to a new private file, whose path it
+// returns: for this session, to pass with --grant-file, or, with bootstrap, the single-use grant
+// that starts the headless service. A grant whose file could not be written is revoked: its
+// secret was delivered to nobody.
+func (a *App) CreateGrant(spec GrantSpec, bootstrap bool) (string, error) {
+	if a.owner == nil {
+		return "", errNoAgentControl
+	}
+	dir, issue := a.grantDir, a.owner.Issue
+	if bootstrap {
+		dir, issue = a.bootstrapDir, a.owner.IssueBootstrap
+	}
+	if dir == "" {
+		return "", errors.New("no private directory is available for grant files")
+	}
+	issued, err := issue(control.GrantSpec{Scopes: spec.Scopes, Destinations: spec.Destinations, Incoming: spec.Incoming, Minutes: spec.Minutes, Quota: spec.Quota})
+	if err != nil {
+		return "", err
+	}
+	path, err := control.WriteGrantFile(dir, issued)
+	if err != nil {
+		a.owner.Revoke(issued.ID)
+		return "", errors.New("the grant file could not be written; the grant was revoked")
+	}
+	return path, nil
+}
+
+// Grants lists the grants that can still be used, newest first.
+func (a *App) Grants() ([]Grant, error) {
+	if a.owner == nil {
+		return nil, errNoAgentControl
+	}
+	list := []Grant{}
+	for _, g := range a.owner.Grants() {
+		list = append(list, Grant{ID: g.ID, Scopes: orEmpty(g.Scopes), Destinations: orEmpty(g.Destinations), Incoming: orEmpty(g.Incoming),
+			Expires: g.ExpiresUTC * 1000, Quota: g.Quota, Used: g.Used, Bootstrap: g.BootstrapID != ""})
+	}
+	return list, nil
+}
+
+// orEmpty is the list as the page takes it: never null.
+func orEmpty(list []string) []string {
+	if list == nil {
+		return []string{}
+	}
+	return list
+}
+
+// RevokeGrant ends a grant now.
+func (a *App) RevokeGrant(id string) error {
+	if a.owner == nil {
+		return errNoAgentControl
+	}
+	a.owner.Revoke(id)
+	return nil
+}
+
+// AuditLog returns the latest lines of the audit trail of agent control, newest first.
+func (a *App) AuditLog() ([]AuditEntry, error) {
+	if a.owner == nil {
+		return nil, errNoAgentControl
+	}
+	list := []AuditEntry{}
+	for _, row := range a.owner.AuditRows(100) {
+		list = append(list, AuditEntry{At: row.AtUTC * 1000, Operation: row.Operation, Decision: row.Decision, Detail: row.Detail})
+	}
+	return list, nil
+}
+
+// ClearAudit deletes the audit trail; the page asks the person first.
+func (a *App) ClearAudit() error {
+	if a.owner == nil {
+		return errNoAgentControl
+	}
+	a.owner.ClearAudit()
 	return nil
 }
 

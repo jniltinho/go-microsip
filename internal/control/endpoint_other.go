@@ -19,3 +19,9 @@ func (*Endpoint) Close() error { return nil }
 
 // Dial connects to the owner of the session's runtime directory.
 func Dial(string) (*Client, error) { return nil, ErrUnsupported }
+
+// GrantsDir is where the files of this session's grants are written.
+func GrantsDir(string) string { return "" }
+
+// WriteGrantFile writes an issued grant to a new private file.
+func WriteGrantFile(string, IssuedGrant) (string, error) { return "", ErrUnsupported }

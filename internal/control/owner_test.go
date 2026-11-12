@@ -2,6 +2,7 @@ package control
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -711,5 +712,111 @@ func TestMACsBindRequestsAndIDsAreUnique(t *testing.T) {
 	long := dial("5511998877")
 	if auditDetail(long) != "destination ***77" || describe(long) != "call 5511998877" || masked("7") != "***7" {
 		t.Errorf("a dial in words: %q, %q", auditDetail(long), describe(long))
+	}
+}
+
+// service is a headless owner on the session's database: the window issued a bootstrap for it.
+func (s *session) service(t *testing.T, spec GrantSpec) (IssuedGrant, error) {
+	t.Helper()
+	issued, err := s.IssueBootstrap(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := NewServiceOwner(s.engine, issued.BootstrapID, issued.Capability)
+	if err != nil {
+		return issued, err
+	}
+	owner.now = func() time.Time { return s.clock }
+	s.Owner = owner
+	return issued, nil
+}
+
+func TestTheServiceRunsOnlyWhatItsBootstrapGrants(t *testing.T) {
+	s := newSession(t, true)
+	window := s.Epoch()
+	issued, err := s.service(t, spec([]string{"control:dnd", "control:dial"}, "1002"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Epoch() != window+1 || s.Welcome().Mode != ModeService || s.Welcome().Epoch != uint64(s.Epoch()) {
+		t.Errorf("the service's session: epoch %d after %d, welcome %+v", s.Epoch(), window, s.Welcome())
+	}
+	if wire, _ := json.Marshal(s.ask("", Operation{Op: StatusGet})); !strings.Contains(string(wire), `"mode":"service"`) {
+		t.Errorf("the service's status: %s", wire)
+	}
+	if on := s.with(issued.Capability, "s-1", Operation{Op: DNDSet, Enabled: true}); on.Status != StatusAccepted {
+		t.Fatalf("what the bootstrap grants: %+v (%+v)", on, on.Error)
+	}
+	if sent := s.engine.take(); !equal(sent, "SetDnd(true)") {
+		t.Errorf("the service sent %v", sent)
+	}
+	// What the grant does not cover is refused: nobody is there to ask.
+	s.established(3, 1)
+	for name, r := range map[string]Response{
+		"a destination outside the grant": s.with(issued.Capability, "s-2", dial("1003")),
+		"an operation outside the grant":  s.with(issued.Capability, "s-3", Operation{Op: CallMute, CallID: 3, ExpectedVersion: 1, Muted: true}),
+		"no grant at all":                 s.ask("s-4", dial("1002")),
+		"an unknown capability":           s.with(strings.Repeat("0", 64), "s-5", dial("1002")),
+	} {
+		if code(r) != GrantRequired {
+			t.Errorf("%s: %+v", name, r)
+		}
+	}
+	// The quota of one call: the first dial runs, the second is refused, not asked about.
+	if r := s.with(issued.Capability, "s-6", dial("1002")); r.Status != StatusAccepted {
+		t.Errorf("a dial the bootstrap grants: %+v (%+v)", r, r.Error)
+	}
+	if r := s.with(issued.Capability, "s-7", dial("1002")); code(r) != GrantRequired {
+		t.Errorf("a dial over the quota: %+v", r)
+	}
+	if len(s.Pending()) != 0 {
+		t.Errorf("the service waits for a person: %+v", s.Pending())
+	}
+	if sent := s.engine.take(); !equal(sent, "Dial(1002)") {
+		t.Errorf("the service sent %v", sent)
+	}
+	// The bootstrap starts one session only.
+	if _, err := NewServiceOwner(s.engine, issued.BootstrapID, issued.Capability); !errors.Is(err, ErrBootstrapConsumed) {
+		t.Errorf("the bootstrap used a second time: %v", err)
+	}
+	if _, err := NewServiceOwner(s.engine, "boot-0-unknown", issued.Capability); !errors.Is(err, ErrBootstrapInvalid) {
+		t.Errorf("an unknown bootstrap: %v", err)
+	}
+	if _, err := NewServiceOwner(&engine{}, issued.BootstrapID, issued.Capability); !errors.Is(err, ErrNoLedger) {
+		t.Errorf("a service without a database: %v", err)
+	}
+}
+
+func TestABootstrapIsOfNoUseToTheWindowThatIssuedIt(t *testing.T) {
+	s := newSession(t, true)
+	issued, err := s.IssueBootstrap(spec([]string{"control:dnd"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issued.BootstrapID == "" || !Token(issued.BootstrapID, 128) || strings.Contains(issued.String(), issued.Capability) {
+		t.Fatalf("the bootstrap issued: %s, id %q", issued, issued.BootstrapID)
+	}
+	// Listed in the window until it is consumed, and revocable there; not a grant of the window.
+	if grants := s.Grants(); len(grants) != 1 || grants[0].BootstrapID != issued.BootstrapID {
+		t.Errorf("the bootstrap in the window's list: %+v", grants)
+	}
+	if r := s.with(issued.Capability, "w-1", Operation{Op: DNDSet, Enabled: true}); code(r) != GrantRequired {
+		t.Errorf("the bootstrap's capability used at the window: %+v", r)
+	}
+	s.Revoke(issued.ID)
+	if _, err := NewServiceOwner(s.engine, issued.BootstrapID, issued.Capability); !errors.Is(err, ErrBootstrapInvalid) {
+		t.Errorf("a revoked bootstrap: %v", err)
+	}
+	// Its file holds the id and the capability; a session's grant holds the capability alone.
+	name, content := issued.File()
+	if id, capability, err := bootstrap(content); !strings.HasSuffix(name, ".json") || err != nil || id != issued.BootstrapID || capability != issued.Capability {
+		t.Errorf("the bootstrap's file %s: %v", name, err)
+	}
+	plain, err := s.Issue(spec([]string{"control:dnd"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name, content := plain.File(); name != plain.ID+".grant" || content != plain.Capability+"\n" {
+		t.Errorf("a session's grant file: %s", name)
 	}
 }
