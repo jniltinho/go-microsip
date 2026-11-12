@@ -1,4 +1,4 @@
-# M4 so far: links, bounded quit, the keyring (2026-11-12)
+# M4 so far: links, bounded quit, the keyring, agent control (2026-11-12)
 
 Change `openspec/changes/migrate-to-go-wails`, section 6. Work in progress: each section says what its checks show and what is still open; "Status" at the end says which tasks are checked on this evidence. Nothing here used a production account: the PBX is the disposable lab, the extensions and passwords are its fictional ones.
 
@@ -96,32 +96,75 @@ Not covered in 6.2:
 
 Open in 6.3: notifications, the tray and link registration on Windows; the sound on real hardware (the VM's emulated card fails the threshold); the call walkthrough of the `.exe`; that credentials survive removing the application folder (they are in the Credential Manager, outside it, which is not the same as having tried).
 
+## Task 6.4: agent control
+
+`internal/control` is the Rust candidate's local control contract (its `add-agent-cli-mcp`: `crates/control`, the owner in `apps/rust-microsip`, the ledger in `crates/storage`, the socket in `crates/platform`), version 1, under go-microsip's own names: protocol `go-microsip-control`, socket `$XDG_RUNTIME_DIR/go-microsip/control.sock`. A client of one application is not answered by the other.
+
+- **Protocol** (`protocol.go`): hello and welcome, the fifteen operations with their arguments, the request and response envelopes, the eighteen error codes with their exit statuses, one JSON object per line of at most 1 MiB. Unknown fields, unknown operations, missing or mistyped arguments are refused, and no error repeats what was sent.
+- **Owner** (`owner.go`, `grants.go`): one epoch per start of the window. A mutation is written to the ledger before it has any effect, under the epoch and the client's idempotency key, with a MAC of the request under a key that lives in memory for that start: the same request again is reported and never repeated, the key with another request is a conflict, a key of an earlier start is stale and never run again. Without a grant a mutation waits up to 60 seconds for the person at the window (eight at most; "Deny all" pauses new ones for five minutes). A grant issued for the session (scopes, exact destinations and callers, a call quota, at most an hour) runs what it covers without a prompt; its capability is stored as a hash. Status names nobody; contacts, history, devices and the configuration need a read grant. The audit trail holds what was asked and decided with a destination's last two characters and a count of digits, never a number or the digits.
+- **Ledger** (`internal/core/store/control.go`): on the tables the schema already had from the Rust candidate. A new epoch expires what waited and marks what may have been sent as unknown; operations are kept 24 hours, the audit 90 days.
+- **Transport** (`server.go`, `endpoint_linux.go`): a Unix socket (0600) in a directory only this user can enter (0700), both ends asking the kernel who the other is. The owner is the first go-microsip to take the lock of that directory; a second one runs without agent control and says so on the standard error. Sixteen connections, ten requests a second for each and fifty in all.
+- **The window** opens the epoch and serves the socket once its phone is open, shows the request that waits (the page had the dialog since M2), comes in sight for it, and stops serving before the phone closes.
+
+| Check | Result |
+| --- | --- |
+| the tests of `crates/control`, ported (`protocol_test.go`): the documented shape, unknown fields and operations, bounds without echo, exit codes, framing | pass, in `make go-test` |
+| the owner's tests, ported from the Rust owner (`owner_test.go`): one approval and no repeat, denial and expiry, the call an operation names, keys of an earlier epoch, paced DTMF with no digit stored, a key past its retention, deny all and the pause, grants (scope, destination, caller, quota, revocation, another session), paged reads | pass |
+| the ledger's tests, ported from `crates/storage` (`internal/core/store/control_test.go`) | pass |
+| the transport (`endpoint_linux_test.go`): a client reaches the owner and is named by the kernel's process id; one owner per session and the next takes over a socket left behind; no owner is "unavailable" and nothing is started; a directory others can enter, a file that is not a socket and a symbolic link are refused; the other application's hello, and its welcome, are refused; the limits | pass |
+| `TestAnAgentRequestWaitsForThePersonAtTheWindow` (`internal/gui`) | pass: the page is told of the request, the window is brought in sight, nothing is sent before the yes, a no and "deny all" send nothing |
+| `make go-window-call`, subtest `agent control` | pass: against the built window registered at the lab PBX, a client of the session's socket reads a status that names nobody; history, contacts, configuration and devices answer `grant_required`; a call to 600 asked for shows "A local program (process N) asks to: call 600" and nothing is dialed for two seconds; the same request again is the same operation; Allow connects the call and the operation is `succeeded`; a hang-up at a version the call does not have is `not_found`; a hang-up asked for and denied leaves the call; asked for again and allowed, the call ends; the client leaves and the window stays registered; after the window ends a client gets "unavailable"; the database's audit trail is the eight lines of what was asked and decided, the destination as `***00` ([log](go-m4/window-call.log)) |
+| `internal/archtest` | pass: `internal/control` reaches the core through `domain`, `ports` and `app` only |
+
+**Beside the Rust candidate** (implementation-migration, "Coexistence until cutover"). The VM check starts the Rust candidate's AppImage (`0.1.0-rc.3`) and go-microsip's in the same desktop session of Ubuntu 26.04 and Debian 13, with the session's runtime directory and the same data and configuration homes, each application under its own name (`build/vm/check.sh`, step 6):
+
+| Check | Ubuntu 26.04 and Debian 13 |
+| --- | --- |
+| both run at once | each has its own lock and its own control socket (`rust-microsip/control.sock`, `go-microsip/control.sock`) in the session's runtime directory |
+| each client reaches its own owner | go-microsip's client is answered by go-microsip's window (`TestTheWindowOfThisSessionAnswers`: protocol `go-microsip-control`, epoch 1); the Rust candidate's owner does not take go-microsip's hello; the Rust candidate's client is answered by the Rust candidate's window |
+| a second start of each | ends by itself with 0, and one process of each stays |
+| files | the Rust candidate's files are byte for byte what they were before go-microsip started, was asked and ended; go-microsip's are what they were before the Rust candidate was asked, started again and ended |
+
+Logs: [Ubuntu](go-m4/vm-ubuntu2604-beside.log), [Debian](go-m4/vm-debian13-beside.log) (20 s of sound in these runs).
+
+Found on the way, about the Rust candidate and not about go-microsip: while another window covers the Rust candidate's, its client is told `timeout`. Its owner answers from the window's redraw, which a Wayland desktop stops for a window out of sight. It happened with go-microsip's window over it and, tried by hand, with the file manager's; it answered again as soon as the other window was gone. go-microsip's owner answers on its own, whatever the window shows. The VM check records what the Rust client is told while both windows are open and requires an answer before and after.
+
+Different from the Rust candidate, on purpose or for now:
+
+- **No headless service.** The only owner is the window; there are no bootstrap grants and `engine_owned_by_service` is never sent. The Rust `service` command has no counterpart: to be accepted or built at the parity gate (task 7.4).
+- The owner of agent control is decided by a lock in the runtime directory, apart from the lock of the database: two go-microsip windows on different databases in one session do not fight over the socket; the second has no agent control.
+- A grant that covers a request runs it at once, where the Rust owner queued it for its next redraw; "Deny all" therefore has no queued granted operation to cancel. DTMF is paced by the owner's own clock, so the Rust "stalled" outcome does not exist.
+- A line over the size limit ends the connection, where the Rust owner answered and read on from the middle of the line.
+- The owner answers on the connection that asked, with no queue or deadline of its own; a client gives up after six seconds and is told the outcome may still change.
+
+Not built yet, and not part of 6.4: the command line's control commands and the MCP tools (6.5), the window's screen that issues grants and the grant files (6.5, 6.7), the Windows transport (6.3). Not covered by a test: a client of another user (the kernel's answer is replaced in the test, there is no second user in the lab), and a client on a real desktop asking for a call (the VMs have no PBX).
+
 ## Status
 
-43 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 2 of 7.
+44 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 3 of 7.
 
 - **6.1 is checked** on the lab evidence above: a second start with a link, the exit during a call (asked for, and on a termination signal) and a PBX that stopped answering, each with the built window. What "Not covered in 6.1" lists is left to the manual checklist of task 7.2.
 - **6.2 is checked**: each service is driven with and without it in the lab (GNOME Keyring on a private bus, the test itself as the notification service and as the tray host; a bus with none of them), where no password reaches a file or the database; and on the default desktops of the two supported distributions the services they bring are asked with the same adapters: one desktop with a tray host and one without, both with a notification service, both with a keyring that is missing or locked and then unlocked. What "Not covered in 6.2" lists stays open for 7.2.
 - **6.3 is not checked**: see "Open in 6.3".
-- 6.4 to 6.7 are not started.
+- **6.4 is checked**: the tests of `crates/control` are ported and pass, with those of the Rust owner and of its ledger; the built window serves the contract and a call asked for waits for the person; the two applications ran side by side in both supported desktops without sharing a lock, a socket or a file. The headless service the Rust candidate has is not built, which the parity gate has to accept or send back.
+- 6.5 to 6.7 are not started.
 
-Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). A review is not call evidence.
+Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). Agent control (6.4) has had no independent review yet: it is due with the close of M4 (6.7) at the latest. A review is not call evidence.
 
 ## Runs
 
-Artifacts `0.3.0-m3` of commit `69c0dc9` (`make go-dist`, `dirty false`, checksums verified). The checks ran on that commit's tree or, where said, on the commit before it (`aec4441`), from which `69c0dc9` differs only in the VM check and its two tests.
+Artifacts `0.3.0-m3` of commit `c5debaa` (`make go-dist`, `dirty false`, checksums verified). The checks ran on that commit's tree; the two fixes made after it are in the lab test and in the VM check, not in what is built.
 
 | Command | Result |
 | --- | --- |
-| `make go-check`, `make go-test`, `make go-frontend-test` (`aec4441`) | pass (33 page tests) |
-| `make go-window-call` (`aec4441`) | pass ([log](go-m3/window-call.log)) |
-| `make go-appimage-call` | pass: the AppImage through the two accounts (with the notification's Reject), the wrong password, every skin, links, quitting during a call, a termination signal during a call, the remembered password, a PBX that stopped answering and the tray ([log](go-m4/appimage-call.log)) |
+| `make go-check`, `make go-test` | pass |
+| `make go-frontend-test` | not run again: the page is as in commit `aec4441` (33 of 33 there) |
+| `make go-window-call` | pass, 11 walkthroughs and the seven skins at 100 and 200 % ([log](go-m4/window-call.log)) |
+| `make go-appimage-call` | pass: the AppImage through the same 25 subtests, agent control among them ([log](go-m4/appimage-call.log)). Its first run failed one check of the test, not of the application: the test asked for "unavailable" the moment the AppImage's launcher ended, while the softphone it had started was still leaving; the test now waits for it |
 | `make go-self-test` | pass |
-| `make go-offline-skins` (`aec4441`) | pass, seven of seven |
-| `make go-notify` (`aec4441`) | pass ([log](go-m3/notify.log)) |
-| `make go-keyring` | not run again: the adapter is as in commit `3b6b8bf`, but for a comment ([log](go-m3/keyring.log)) |
-| `make go-lab` | not run again: nothing under it changed since its 68 of 68 on commit `3b6b8bf` |
-| `KEEP=1 make go-vm GO_VMS="ubuntu2604 debian13"` | Ubuntu 26.04: pass, with five minutes of sound, the window, the System skin and the desktop's services ([log](go-m4/vm-ubuntu2604.log)). Debian 13: the window, the System skin and the desktop's services pass; **the sound fails**: in five minutes one stretch of 99 ms without samples on the speaker, over the 60 ms allowed (29929 of 29995 pieces arrived), so the run as a whole fails ([log](go-m4/vm-debian13.log)). A repeat of one minute passed ([log](go-m4/vm-debian13-repeat.log)), and so did this VM's first run, when it was a clean installation (20 s of sound, not recorded here). The sound adapter is the one that passed five minutes on a clean Debian VM at commit `4a5bd14` ([log](go-m3/vm-debian13.log)); what changed is that the VM is reused and shares the host with the Ubuntu one. Not explained further: the five-minute threshold on Debian is to be run again on a clean VM before task 7.2 relies on it |
+| `make go-offline-skins`, `make go-notify`, `make go-keyring`, `make go-lab` | not run again: nothing they exercise changed since their runs recorded for commits `aec4441` and `3b6b8bf` |
+| `KEEP=1 make go-vm GO_VMS="debian13 ubuntu2604" SECONDS=20` | pass on both, with the desktop's services and the Rust candidate beside ([Ubuntu](go-m4/vm-ubuntu2604-beside.log), [Debian](go-m4/vm-debian13-beside.log)); 20 s of sound, which passed on both |
+| the five-minute sound threshold | last run on commit `69c0dc9`: Ubuntu 26.04 passed ([log](go-m4/vm-ubuntu2604.log)); **Debian 13 failed** by one stretch of 99 ms without samples on the speaker (29929 of 29995 pieces arrived), in a VM that is reused and shares the host with the Ubuntu one ([log](go-m4/vm-debian13.log); a repeat of one minute passed: [log](go-m4/vm-debian13-repeat.log)). The sound adapter is the one that passed five minutes on a clean Debian VM at commit `4a5bd14` ([log](go-m3/vm-debian13.log)). Not explained further: to be run again on a clean VM before task 7.2 relies on it |
 | Windows 11 VM | not run again: the run of commit `4a5bd14` stands (the instance lock, the Credential Manager, the window, no listening port and the seven skins pass; the emulated sound card fails the audio threshold: [log](go-m3/vm-windows11.log)) |
 
 The two Linux VMs are kept up between runs from here on, by the owner's decision of 2026-11-12, and are destroyed when the change's tasks are done (`cd build/vm && vagrant destroy -f`). They stay on VirtualBox's NAT, with the two read-only shared folders. A run in a VM that was used before is not a run on a clean installation: the first run of each VM in this session was one, the later ones were not.

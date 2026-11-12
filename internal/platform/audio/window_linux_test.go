@@ -1794,8 +1794,18 @@ func agentControl(t *testing.T, bin, server, password string) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("the softphone did not end on a termination signal")
 	}
-	if _, err := control.Dial(runtime); !errors.Is(err, control.ErrUnavailable) {
-		t.Errorf("a client after the window ended: %v", err)
+	// An AppImage's launcher ends before the softphone it started has finished leaving.
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		late, err := control.Dial(runtime)
+		if errors.Is(err, control.ErrUnavailable) {
+			break
+		}
+		if err == nil {
+			late.Close()
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("a client after the window ended: %v", err)
+		}
 	}
 	db, err := store.Open(app.StorePath(map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}))
 	if err != nil {

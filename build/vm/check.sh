@@ -21,6 +21,7 @@ fi
 # A VM kept up between runs (KEEP=1) still shows the window the run before left open: it is ended,
 # or this run's window would hand over to it and end.
 pkill -x go-microsip 2>/dev/null || :
+pkill -f '[a]ppimage_extracted_[0-9a-f]*/AppRun' 2>/dev/null || : # the Rust candidate of step 6
 work=$(mktemp -d)
 cp "$appimage" "$work/app.AppImage"
 chmod +x "$work/app.AppImage"
@@ -198,38 +199,53 @@ if [ -f "$rust" ]; then
 			sleep 0.5
 		done
 	}
-	gone() { # <process name>: ended within 20 s of being asked
-		pkill -x "$1" 2>/dev/null || :
+	# The Rust candidate's process is its AppImage's AppRun; go-microsip's is go-microsip.
+	rust_running='[a]ppimage_extracted_[0-9a-f]*/AppRun'
+	gone() { # <pkill's arguments>: ended within 20 s of being asked
+		pkill "$@" 2>/dev/null || :
 		i=0
-		while pgrep -x "$1" >/dev/null; do
+		while pgrep "$@" >/dev/null; do
 			i=$((i + 1))
 			[ "$i" -lt 40 ] || return 1
 			sleep 0.5
 		done
 	}
+	rust_status() { side "$work/rust.AppImage" status --json 2>/dev/null | grep -o '"status":"[a-z_]*"\|"code":"[a-z_]*"\|"mode":"[a-z]*"' | tr -d '"' | tr '\n' ' '; }
 	beside=
-	side "$work/rust.AppImage" >"$work/rust.log" 2>&1 &
+	# The session's own environment names no Wayland display (the compositor needs none), and the
+	# Rust candidate's toolkit opens no window without the name.
+	[ -n "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$XDG_RUNTIME_DIR/wayland-0" ] || export WAYLAND_DISPLAY=wayland-0
+	side "$work/rust.AppImage" >"$work/rust.log" 2>&1 </dev/null &
 	if ! listening rust-microsip; then
 		echo "vm-check: beside: FAILED: the Rust candidate did not start"
 		tail -n 5 "$work/rust.log" | sed 's/^/vm-check:   /'
 		beside=failed
 	else
 		echo "vm-check: beside: the Rust candidate runs ($(side "$work/rust.AppImage" --version 2>/dev/null))"
-		sleep 3
+		# Each client reaches its own owner. The Rust candidate answers from its window's loop,
+		# which a software renderer takes a while to start; and, as found here, only while its
+		# window is in sight: with any other window over it, its client gets a timeout.
+		i=0
+		until rust_status | grep -q 'status:ok'; do
+			i=$((i + 1))
+			[ "$i" -lt 10 ] || break
+			sleep 4
+		done
+		if rust_status | grep -q 'status:ok.*mode:gui'; then
+			echo "vm-check: beside: alone, the Rust candidate's client is answered by the Rust candidate's window"
+		else
+			echo "vm-check: beside: FAILED: the Rust candidate's client got no status ($(rust_status))"
+			beside=failed
+		fi
 		rust_before=$(files rust-microsip)
-		side "$work/app.AppImage" >"$work/go.log" 2>&1 &
+		side "$work/app.AppImage" >"$work/go.log" 2>&1 </dev/null &
 		if ! listening go-microsip; then
 			echo "vm-check: beside: FAILED: go-microsip did not serve its control socket beside the Rust candidate"
 			tail -n 5 "$work/go.log" | sed 's/^/vm-check:   /'
 			beside=failed
 		fi
-		# Each client reaches its own owner.
-		if side "$work/rust.AppImage" status --json 2>/dev/null | grep -q '"status":"ok"'; then
-			echo "vm-check: beside: the Rust candidate's client is answered by the Rust candidate"
-		else
-			echo "vm-check: beside: FAILED: the Rust candidate's client got no status"
-			beside=failed
-		fi
+		sleep 5
+		echo "vm-check: beside: with go-microsip's window open, the Rust candidate's client is told: $(rust_status)(its owner answers, or times out while its window is covered)"
 		if GO_MICROSIP_CONTROL_TEST=session GO_MICROSIP_CONTROL_RUST=1 /dist/g0/control.test -test.v -test.run TestTheWindowOfThisSessionAnswers >"$work/control.log" 2>&1; then
 			:
 		else
@@ -246,7 +262,7 @@ if [ -f "$rust" ]; then
 			fi
 		done
 		sleep 2
-		running="$(pgrep -cx go-microsip || :) $(pgrep -cx rust-microsip || :)"
+		running="$(pgrep -cx go-microsip || :) $(pgrep -cf "$rust_running" || :)"
 		if [ "$running" = "1 1" ]; then
 			echo "vm-check: beside: after a second start of each, one go-microsip and one Rust candidate run"
 		else
@@ -254,7 +270,7 @@ if [ -f "$rust" ]; then
 			beside=failed
 		fi
 		# go-microsip ends: nothing of the Rust candidate's changed while it ran.
-		gone go-microsip || beside=failed
+		gone -x go-microsip || beside=failed
 		if [ "$(files rust-microsip)" = "$rust_before" ]; then
 			echo "vm-check: beside: the Rust candidate's files are as they were before go-microsip ran"
 		else
@@ -263,9 +279,15 @@ if [ -f "$rust" ]; then
 		fi
 		# And the other way: with go-microsip ended, the Rust candidate is used and ends.
 		go_before=$(files go-microsip)
-		side "$work/rust.AppImage" status --json >/dev/null 2>&1 || :
+		sleep 3
+		if rust_status | grep -q 'status:ok'; then
+			echo "vm-check: beside: after go-microsip left, the Rust candidate's client is answered again"
+		else
+			echo "vm-check: beside: FAILED: after go-microsip left the Rust candidate's client is told: $(rust_status)"
+			beside=failed
+		fi
 		side timeout -k 5 30 "$work/rust.AppImage" >/dev/null 2>&1 || :
-		gone rust-microsip || beside=failed
+		gone -f "$rust_running" || beside=failed
 		if [ -n "$(find "$work/side/data/go-microsip" -type f 2>/dev/null | head -n 1)" ] && [ "$(files go-microsip)" = "$go_before" ]; then
 			echo "vm-check: beside: go-microsip's files are as they were before the Rust candidate was used"
 		else
@@ -273,6 +295,7 @@ if [ -f "$rust" ]; then
 			beside=failed
 		fi
 	fi
+	pkill -f "$rust_running" 2>/dev/null || : # nothing of this step stays behind
 	[ -z "$beside" ] || failed="$failed beside-rust"
 else
 	echo "vm-check: beside: not checked: no Rust candidate AppImage with the artifacts"

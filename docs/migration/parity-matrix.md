@@ -12,18 +12,18 @@ Rules: a row is **proven** only with runtime evidence linked in the Evidence col
 
 | # | Change | Capability | Requirement | Scenario | Status | Go evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| A1 | add-agent-cli-mcp | agent-cli-mcp | Single owner and local modes | (requirement) |  |  |
-| A2 | add-agent-cli-mcp | agent-cli-mcp | Single owner and local modes | AG-01 multiple clients |  |  |
+| A1 | add-agent-cli-mcp | agent-cli-mcp | Single owner and local modes | (requirement) | partial | One owner of agent control in a session, by the lock of its runtime directory; clients reach it over its socket and never start it (`internal/control`). The command line and MCP clients are task 6.5. go-microsip has no headless service: a difference for the parity gate. [M4 receipt](../receipts/go-m4-desktop-2026-11-12.md) |
+| A2 | add-agent-cli-mcp | agent-cli-mcp | Single owner and local modes | AG-01 multiple clients | partial | `TestAClientReachesTheOwnerOfItsSession` (two clients), `TestOneOwnerServesASessionAndTheNextTakesOver`, `TestNoOwnerIsUnavailableAndNothingIsStarted`; the service cases do not apply |
 | A3 | add-agent-cli-mcp | agent-cli-mcp | Structured CLI and real commands | (requirement) |  |  |
 | A4 | add-agent-cli-mcp | agent-cli-mcp | Structured CLI and real commands | AG-02 CLI contract |  |  |
 | A5 | add-agent-cli-mcp | agent-cli-mcp | Interoperable stdio MCP | (requirement) |  |  |
 | A6 | add-agent-cli-mcp | agent-cli-mcp | Interoperable stdio MCP | AG-03 protocol and limits |  |  |
-| A7 | add-agent-cli-mcp | agent-cli-mcp | Local authorization and data protection | (requirement) |  |  |
-| A8 | add-agent-cli-mcp | agent-cli-mcp | Local authorization and data protection | AG-04 deny and grant |  |  |
-| A9 | add-agent-cli-mcp | agent-cli-mcp | Idempotency, concurrency, audit | (requirement) |  |  |
-| A10 | add-agent-cli-mcp | agent-cli-mcp | Idempotency, concurrency, audit | AG-05 replay and race |  |  |
-| A11 | add-agent-cli-mcp | agent-cli-mcp | Proven telephony and independent client shutdown | (requirement) |  |  |
-| A12 | add-agent-cli-mcp | agent-cli-mcp | Proven telephony and independent client shutdown | AG-06 real operation and disconnection |  |  |
+| A7 | add-agent-cli-mcp | agent-cli-mcp | Local authorization and data protection | (requirement) | partial | Mutations wait for a person or need a grant; status names nobody; personal reads need a read grant; capabilities kept as hashes (`internal/control/owner.go`, `grants.go`). The window's grant screen and the grant files are not built (6.5, 6.7) |
+| A8 | add-agent-cli-mcp | agent-cli-mcp | Local authorization and data protection | AG-04 deny and grant | partial | `TestDenialAndExpiryHaveNoEffect`, `TestGrantsRunOnlyWhatTheyCoverAndNeverPrompt`, `TestAGrantAnswersOnlyTheCallersItNames`, `TestDenyAllAlsoStopsGrantsAndTheAuditIsCleared`; `make go-window-call` ("agent control"): no approve operation exists, a no in the window sends nothing |
+| A9 | add-agent-cli-mcp | agent-cli-mcp | Idempotency, concurrency, audit | (requirement) | partial | The ledger is written before any effect, by epoch and key; an unavailable ledger refuses mutations; audit without digits or whole numbers (`internal/core/store/control.go`, `internal/control/owner.go`) |
+| A10 | add-agent-cli-mcp | agent-cli-mcp | Idempotency, concurrency, audit | AG-05 replay and race | partial | `TestAPersonApprovesExactlyOnceAndReplaysNeverRepeat`, `TestKeysFromAnEarlierEpochAreStaleAndNeverRerun`, `TestAKeyPastItsRetentionIsAConflict`, `TestDTMFIsPacedAndDigitsAreNotStored`, `TestControlLedgerKeysEpochsAndFinalStates`; through the command line and MCP in 6.5 |
+| A11 | add-agent-cli-mcp | agent-cli-mcp | Proven telephony and independent client shutdown | (requirement) | partial | A client of the control socket places and ends a call on the lab PBX through the built window, with the person's yes; a client that leaves does not end the owner (`make go-window-call`, "agent control"). No real-device voice through agent control |
+| A12 | add-agent-cli-mcp | agent-cli-mcp | Proven telephony and independent client shutdown | AG-06 real operation and disconnection | partial | `make go-window-call` and `make go-appimage-call`, subtest "agent control": [M4 receipt](../receipts/go-m4-desktop-2026-11-12.md) |
 | A13 | add-windows-port | agent-cli-mcp | Windows control channel | (requirement) |  |  |
 | A14 | add-windows-port | agent-cli-mcp | Windows control channel | WIN-10 other user |  |  |
 | A15 | add-windows-port | agent-cli-mcp | Windows control channel | WIN-10 approval still required |  |  |
@@ -213,7 +213,7 @@ Extracted on 2026-11-11 from a `codebase-memory` index of the repository (projec
 | B3.17 | control options `--json`, `--key`, `--grant-file FILE` | grant file: private, at most 512 bytes |  |  |
 | B3.18 | control exit codes | 0 done/accepted, 2 invalid, 3 not authorized or awaiting approval, 4 unavailable, 5 timeout, 1 internal |  |  |
 | B3.19 | `mcp --stdio` [`--grant-file FILE`] | exit 0/1/2 |  |  |
-| B3.20 | `service --grant-file FILE [--config] [--env-file]` | headless owner; exit 0/1/2/3/4 |  |  |
+| B3.20 | `service --grant-file FILE [--config] [--env-file]` | headless owner; exit 0/1/2/3/4 | not built: go-microsip has no headless service; the owner is the window. A difference for the parity gate (7.4) |  |
 | B3.21 | second binary `rust-microsip-cli` | same commands, console subsystem on Windows |  |  |
 
 ### B4. MCP tools — `apps/rust-microsip/src/mcp.rs:77-223`
@@ -241,20 +241,20 @@ Extracted on 2026-11-11 from a `codebase-memory` index of the repository (projec
 
 | # | Rust item | Notes | Go counterpart | Evidence |
 | --- | --- | --- | --- | --- |
-| B5.1 | `Hello`/`Welcome`, `OwnerMode` gui/service, epoch | protocol name and schema version 1 | wire format may differ (design D10) |  |
-| B5.2 | `Request` envelope and `validate` | request id, idempotency key required for mutations, capability redacted |  |  |
-| B5.3 | 15 operations | the same set as the MCP tools (B4.1-B4.15) |  |  |
-| B5.4 | `Response`, `Status` ok/accepted/approval_required/error |  |  |  |
-| B5.5 | 18 error codes with exit codes and retryable flag | validation, grant_required, approval_denied, approval_expired, grant_expired, engine_unavailable, engine_owned_by_service, timeout, conflict, stale_epoch, result_expired, not_found, rate_limited, busy, storage_unavailable, invalid_state, unsupported, internal |  |  |
-| B5.6 | Unix transport | private runtime directory, socket 0600, peer-credential check both sides |  |  |
-| B5.7 | Windows transport | per-user named pipes (`crates/platform-windows/src/pipes.rs`) |  |  |
-| B5.8 | transport limits | 16 connections, 10/s per connection, 50/s global, 5 s reply deadline, 1 MiB message |  |  |
-| B5.9 | 13 grant scopes | read:contacts, read:history, read:devices, read:config, control:dial/answer/reject/hangup/dtmf/mute/hold/transfer/dnd |  |  |
-| B5.10 | approvals | 60 s window, at most 8 pending, pause after deny-all |  |  |
-| B5.11 | idempotency | same key and payload reports without repeating; different payload is `conflict`; earlier epoch is `stale_epoch` |  |  |
-| B5.12 | operation ledger states | awaiting_approval, executing, succeeded, failed, denied, expired, outcome_unknown |  |  |
-| B5.13 | grant issue limits | validity 1..60 minutes, call quota up to 100, capability stored only as a hash |  |  |
-| B5.14 | single-instance protocol | `activate`, `dial <target>`; acks ok/busy/invalid/service; `InstanceError` (5 variants) |  |  |
+| B5.1 | `Hello`/`Welcome`, `OwnerMode` gui/service, epoch | protocol name and schema version 1 | `control.Hello`, `Welcome`, `ModeWindow`; protocol name `go-microsip-control`, schema version 1; no service mode | `TestTheOtherApplicationIsNotAnswered`, `TestAClientReachesTheOwnerOfItsSession` |
+| B5.2 | `Request` envelope and `validate` | request id, idempotency key required for mutations, capability redacted | `control.Request`, `Validate`; `String` redacts the capability | `TestValidationBoundsInputsWithoutEchoingThem`, `TestUnknownFieldsAndOperationsAreRejected` |
+| B5.3 | 15 operations | the same set as the MCP tools (B4.1-B4.15) | `control.Operation`, the same 15 names and arguments | `TestRequestsRoundTripWithTheDocumentedShape` |
+| B5.4 | `Response`, `Status` ok/accepted/approval_required/error |  | `control.Response`, `Status` | `TestExitCodesFollowTheCLIContract` |
+| B5.5 | 18 error codes with exit codes and retryable flag | validation, grant_required, approval_denied, approval_expired, grant_expired, engine_unavailable, engine_owned_by_service, timeout, conflict, stale_epoch, result_expired, not_found, rate_limited, busy, storage_unavailable, invalid_state, unsupported, internal | `control.Code`, `ExitCode`, `Retryable`; `engine_owned_by_service` is kept in the list and never sent | `TestExitCodesFollowTheCLIContract` |
+| B5.6 | Unix transport | private runtime directory, socket 0600, peer-credential check both sides | `control.Listen`, `Dial`: `$XDG_RUNTIME_DIR/go-microsip/control.sock`, directory 0700, socket 0600, `SO_PEERCRED` at both ends, one owner by `control.lock` | `TestAnEndpointThatIsNotPrivateIsRefused`, `TestOneOwnerServesASessionAndTheNextTakesOver`, `TestConnectionsAreBoundedAndAStrangerIsNotRead`; a peer of another user is driven with the kernel's answer replaced, not with a second user |
+| B5.7 | Windows transport | per-user named pipes (`crates/platform-windows/src/pipes.rs`) | not built: task 6.3 (`control.ErrUnsupported` outside Linux) |  |
+| B5.8 | transport limits | 16 connections, 10/s per connection, 50/s global, 5 s reply deadline, 1 MiB message | the same limits; a line over 1 MiB ends the connection; the owner answers on the connection, and the client waits 6 s at most | `TestTheTransportBoundsWhatAClientCanSend`, `TestConnectionsAreBoundedAndAStrangerIsNotRead`, `TestFramingIsBoundedAndLineBased` |
+| B5.9 | 13 grant scopes | read:contacts, read:history, read:devices, read:config, control:dial/answer/reject/hangup/dtmf/mute/hold/transfer/dnd | `control.Scopes` | `TestGrantsRunOnlyWhatTheyCoverAndNeverPrompt`, `TestGrantedReadsArePagedAndHoldNoSecret` |
+| B5.10 | approvals | 60 s window, at most 8 pending, pause after deny-all | `ApprovalWindow`, `MaxPending`, `PauseAfterDenyAll`; shown by the window, which comes in sight for a request | `TestDenyAllPausesControlAndOrphansAreNotPromisedAgain`, `TestAnAgentRequestWaitsForThePersonAtTheWindow`, `make go-window-call` ("agent control") |
+| B5.11 | idempotency | same key and payload reports without repeating; different payload is `conflict`; earlier epoch is `stale_epoch` | `Owner.mutation` | `TestAPersonApprovesExactlyOnceAndReplaysNeverRepeat`, `TestKeysFromAnEarlierEpochAreStaleAndNeverRerun`, `TestAKeyPastItsRetentionIsAConflict` |
+| B5.12 | operation ledger states | awaiting_approval, executing, succeeded, failed, denied, expired, outcome_unknown | `store.OperationState` (`app.Op...`), on the Rust schema's tables | `TestControlLedgerKeysEpochsAndFinalStates`, `TestControlRowsExpireAndTheAuditIsSanitizedAndClearable` |
+| B5.13 | grant issue limits | validity 1..60 minutes, call quota up to 100, capability stored only as a hash | `Owner.Issue`, `store.InsertGrant`; no bootstrap grants (no service) | `TestGrantsRunOnlyWhatTheyCoverAndNeverPrompt`, `TestGrantsAreEpochBoundQuotaLimitedAndRevocable` |
+| B5.14 | single-instance protocol | `activate`, `dial <target>`; acks ok/busy/invalid/service; `InstanceError` (5 variants) | the toolkit's single instance carries a link's number to the running window, which asks (task 6.1); no line protocol of its own | `make go-window-call` ("links") |
 
 ### B6. Configuration keys — `crates/config/src/lib.rs:110-207, 717-782`
 
