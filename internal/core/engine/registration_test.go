@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -111,5 +112,44 @@ func TestRegistrationRecovers(t *testing.T) {
 	}
 	if r.seen.Load() < 3 {
 		t.Errorf("the registrar saw %d REGISTER requests", r.seen.Load())
+	}
+}
+
+// A TLS account whose CA bundle is configured and could not be used does not register, and nothing
+// is sent anywhere: the engine never falls back to the system's roots. Another transport is not
+// concerned.
+func TestATLSAccountDoesNotRegisterWithoutItsBundle(t *testing.T) {
+	// A listener that must stay untouched.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	touched := make(chan struct{}, 1)
+	go func() {
+		if c, err := l.Accept(); err == nil {
+			c.Close()
+			touched <- struct{}{}
+		}
+	}()
+	port := uint16(l.Addr().(*net.TCPAddr).Port)
+
+	e := Start(Options{Audio: &memory.Audio{}, Untrusted: errors.New("the bundle is not readable")})
+	defer e.Send(domain.Shutdown{})
+	account := domain.AccountSettings{Username: "1201", Domain: "127.0.0.1", Server: "127.0.0.1", Port: port, Transport: domain.TLS, Media: domain.SRTP, Expires: 60}
+	e.Send(domain.Register{Password: domain.NewSecret("x"), Settings: account})
+	if got, want := registration(t, e, 3*time.Second), (domain.RegistrationState{Status: domain.RegistrationFailed, Failure: domain.Certificate}); got != want {
+		t.Fatalf("registration %v, want %v", got, want)
+	}
+	select {
+	case <-touched:
+		t.Error("the server was contacted")
+	case <-time.After(300 * time.Millisecond):
+	}
+	// The same engine over TCP is free to try: the bundle is for TLS.
+	account.Transport, account.Media = domain.TCP, domain.PlainRTP
+	e.Send(domain.Register{Password: domain.NewSecret("x"), Settings: account})
+	if got := registration(t, e, 3*time.Second); got.Status != domain.Registering {
+		t.Errorf("a TCP account on the same engine: %v, want it to try", got)
 	}
 }

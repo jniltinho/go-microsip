@@ -388,3 +388,86 @@ func TestPhoneRefusesAnAccountOverAnInvalidFileValue(t *testing.T) {
 		t.Errorf("the database holds %v (%v) after the refused save", values, err)
 	}
 }
+
+// The same when the file holds every field, so that the edit has nothing to write: saving is still
+// refused, not reported as done.
+func TestPhoneRefusesAnAccountWhenTheFileHoldsEverything(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := "schema = 1\n[account]\ndisplay_name = \"\"\nusername = \"1001\"\nauth_username = \"\"\ndomain = \"pbx.invalid\"\nserver = \"pbx.invalid\"\nport = 5060\n" +
+		"transport = \"UDP\"\nmedia = \"rtp\"\nexpires = 300\npassword_env = \"GO_MICROSIP_SIP_PASSWORD\"\n[ui]\ntheme = \"dark\"\ndnd = false\n"
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o := Options{ConfigPath: file, Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	account := domain.AccountSettings{Username: "1001", Domain: "pbx.invalid", Server: "pbx.invalid", Port: 5060, Transport: domain.UDP, Expires: 300}
+	var invalid *config.Error
+	if err := p.SaveSettings(SettingsPatch{Account: &account}); !errors.As(err, &invalid) || invalid.Kind != config.Invalid || invalid.Field != config.Transport {
+		t.Errorf("saving the account the file holds entirely, one value unreadable: %v, want it refused by name", err)
+	}
+}
+
+// A TLS account whose configured CA bundle cannot be used never registers against the system's
+// roots: not on its own at the start, and not when the window asks. A bundle configured after the
+// start needs a restart.
+func TestPhoneDoesNotRegisterOverTLSWithoutItsBundle(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	write := func(ca string) {
+		text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1201\"\ndomain = \"127.0.0.1\"\nport = 5061\ntransport = \"tls\"\nmedia = \"srtp\"\n%s", ca)
+		if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(fmt.Sprintf("ca_file = %q\n", filepath.Join(dir, "absent-ca.pem")))
+	o := Options{ConfigPath: file, Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "GO_MICROSIP_SIP_PASSWORD": "lab"}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	refused := func(ev domain.Event) bool {
+		r, ok := ev.(domain.RegistrationChanged)
+		if ok && (r.State.Status == domain.Registering || r.State.Status == domain.Registered) {
+			t.Fatalf("the account went to %v without its CA bundle", r.State)
+		}
+		return ok && r.State.Status == domain.RegistrationFailed && r.State.Failure == domain.Certificate
+	}
+	until(t, p, "the refusal at the start", refused)
+	s := p.Settings()
+	if s.Account == nil || !s.HasPassword {
+		t.Fatalf("settings: %+v", s)
+	}
+	if err := p.Register(*s.Account, nil); err != nil { // what Menu, Register does
+		t.Fatal(err)
+	}
+	// The state is already "failed: certificate" and stays there: for a moment, nothing else
+	// (refused fails the test on "registering" or "registered").
+	for quiet := time.After(1500 * time.Millisecond); ; {
+		select {
+		case ev := <-p.Events():
+			refused(ev)
+			continue
+		case <-quiet:
+		}
+		break
+	}
+
+	// A phone started without any bundle, to which one is configured later.
+	p.Close()
+	write("")
+	later, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer later.Close()
+	write(fmt.Sprintf("ca_file = %q\n", filepath.Join(dir, "absent-ca.pem")))
+	if err := later.Register(*s.Account, nil); !errors.Is(err, ErrRestartForCA) {
+		t.Errorf("registering over TLS after the CA bundle changed: %v, want the restart asked for", err)
+	}
+}

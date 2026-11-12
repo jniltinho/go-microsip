@@ -168,6 +168,14 @@ func (a *actor) register(c domain.Register) {
 		return
 	}
 	a.dropAccount()
+	if err := a.e.opts.Untrusted; err != nil && c.Settings.Transport == domain.TLS {
+		// The bundle this account must be checked against is not there: nothing is sent, and no
+		// retry would change that.
+		a.e.opts.Log.Warn("registration refused: the configured CA bundle could not be used", "error", err)
+		a.configured = false
+		a.setRegistration(domain.RegistrationState{Status: domain.RegistrationFailed, Failure: domain.Certificate})
+		return
+	}
 	a.account = sip.Account{Settings: c.Settings, Password: c.Password, CA: a.e.opts.CA, UserAgent: a.e.opts.UserAgent, Codecs: a.e.opts.Codecs}
 	a.configured, a.attempts = true, 0
 	a.connect()

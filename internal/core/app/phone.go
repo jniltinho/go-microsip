@@ -68,6 +68,10 @@ type Refused domain.Notice
 
 func (r Refused) Error() string { return domain.Notice(r).String() }
 
+// ErrRestartForCA means the configured CA bundle is not the one the running engine was started
+// with: a TLS account registers only after a restart.
+var ErrRestartForCA = errors.New("the CA bundle of the configuration changed: restart go-microsip to register over TLS")
+
 // ErrNoStorage means the database could not be opened: settings, contacts and history are not
 // available in this session.
 var ErrNoStorage = errors.New("the database is not available")
@@ -84,6 +88,10 @@ type Phone struct {
 	events  <-chan domain.Event
 	pumped  chan struct{}
 	closing sync.Once
+
+	// caFile is the CA bundle the engine was started with ("" for none): the engine keeps it for
+	// its whole life.
+	caFile string
 
 	mu       sync.Mutex
 	password domain.Secret // typed in this session; never stored
@@ -102,20 +110,26 @@ func OpenPhone(o Options, r PhoneOptions) (*Phone, error) {
 		p.audio = noAudio{}
 	}
 	p.journal = openJournal(o, StorePath(o.base().Env))
-	cfg, err := config.Resolve(p.context())
-	var ca []byte
-	if err == nil && cfg.Config.CAFile != "" {
-		if ca, err = config.ReadCAFile(cfg.Config.CAFile, o.Files); err != nil {
-			o.warn("the CA file was not read: " + err.Error())
-			cfg = nil // a TLS account must not register without its CA bundle
+	cfg, _ := config.Resolve(p.context())
+	draft, _, loaded, _ := config.Draft(p.context())
+	options := engine.Options{Audio: p.audio, UserAgent: r.UserAgent, Log: r.Log}
+	// The CA bundle is read whether or not an account is complete yet: the window may complete a
+	// TLS account later in this session, and it must then be checked against the bundle that is
+	// configured, never against the system's roots. A bundle that cannot be used is told to the
+	// engine, which then refuses a TLS registration as a certificate failure.
+	switch {
+	case !loaded:
+		options.Untrusted = errors.New("the configuration could not be read, so its CA bundle is unknown")
+	case draft.CAFile != "":
+		p.caFile = draft.CAFile
+		if options.CA, options.Untrusted = config.ReadCAFile(draft.CAFile, o.Files); options.Untrusted != nil {
+			o.warn("the CA file was not read: " + options.Untrusted.Error())
 		}
 	}
-	options := engine.Options{Audio: p.audio, CA: ca, UserAgent: r.UserAgent, Log: r.Log}
 	if cfg != nil {
 		options.Input, options.Output = cfg.Config.Audio.InputDevice, cfg.Config.Audio.OutputDevice
 	}
 	p.engine = engine.Start(options)
-	draft, _, loaded, _ := config.Draft(p.context())
 	for _, c := range startup(draft, loaded, cfg) {
 		p.engine.Send(c)
 	}
@@ -207,6 +221,13 @@ func (p *Phone) Register(account domain.AccountSettings, password *string) error
 	}
 	if secret.Empty() {
 		return ErrNoPassword
+	}
+	if account.Transport == domain.TLS {
+		// The engine checks the server against the bundle it started with. If another one is
+		// configured by now, registering would trust the wrong roots.
+		if draft, _, loaded, _ := config.Draft(p.context()); !loaded || draft.CAFile != p.caFile {
+			return ErrRestartForCA
+		}
 	}
 	if err := p.Send(domain.Register{Settings: account, Password: secret}); err != nil {
 		return err
@@ -312,11 +333,12 @@ func (p *Phone) SaveSettings(patch SettingsPatch) error {
 		set(config.InputDevice, patch.AudioInput, before.Audio.InputDevice),
 		set(config.OutputDevice, patch.AudioOutput, before.Audio.OutputDevice),
 	)
-	if err != nil || len(edits) == 0 {
+	if err != nil {
 		return err
 	}
 	if patch.Account != nil {
-		// An account is saved only if the configuration resolves with it. Otherwise a value a
+		// An account is saved only if the configuration resolves with it, also when nothing is
+		// left to write because a file holds every field. Otherwise a value a
 		// file or the environment holds and that cannot be read would stay in the way: the edit
 		// would look saved, register from a default, and fail at the next start.
 		c := p.context()
@@ -335,6 +357,9 @@ func (p *Phone) SaveSettings(patch SettingsPatch) error {
 		if _, _, _, err := config.Draft(c); err != nil {
 			return err
 		}
+	}
+	if len(edits) == 0 {
+		return nil
 	}
 	return s.SaveConfig(edits)
 }

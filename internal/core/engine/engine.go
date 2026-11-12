@@ -30,6 +30,10 @@ type Options struct {
 	Input, Output string
 	// CA is the PEM bundle that replaces the system roots for a TLS account.
 	CA []byte
+	// Untrusted is set when a CA bundle is configured and could not be used. A TLS account then
+	// fails to register as a certificate failure, without contacting the server: it never falls
+	// back to the system roots.
+	Untrusted error
 	// UserAgent is the product name sent in the User-Agent header.
 	UserAgent string
 	// Codecs is the offer in order of preference; empty is the endpoint's default.
