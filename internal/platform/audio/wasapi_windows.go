@@ -289,7 +289,7 @@ func (s *Stream) capture(flow uint32, id string, flags uint32, ready chan<- erro
 		return nil
 	})
 	if !started {
-		ready <- err
+		ready <- captureError(err) // a denial by the privacy setting says which setting
 	} else if err != nil {
 		s.lost.Store(true) // the device was unplugged or the service stopped
 	}

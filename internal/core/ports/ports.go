@@ -11,6 +11,10 @@ import (
 // FrameSamples is one 20 ms frame of 8 kHz mono audio.
 const FrameSamples = 160
 
+// ErrMicrophoneDenied means the operating system keeps the application from the microphone: on
+// Windows, the microphone privacy setting. Its text names that setting.
+var ErrMicrophoneDenied = errors.New("Windows denies the microphone: allow it under Settings > Privacy & security > Microphone > Let desktop apps access your microphone")
+
 // ErrNoAudioService means the session offers no audio service the adapter can reach.
 var ErrNoAudioService = errors.New("no audio service is reachable")
 

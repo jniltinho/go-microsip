@@ -1,0 +1,19 @@
+=== RUN   TestCallNotificationsOnASessionBus
+--- PASS: TestCallNotificationsOnASessionBus (0.90s)
+=== RUN   TestCallerTextIsPlain
+--- PASS: TestCallerTextIsPlain (0.00s)
+PASS
+notify: the notifier passed against a notification service
+=== RUN   TestANotificationServiceThatLeftIsStartedAgain
+PASS
+--- PASS: TestANotificationServiceThatLeftIsStartedAgain (0.12s)
+PASS
+notify: a notification service that left is started again for the next call
+=== RUN   TestNoNotificationServiceIsQuiet
+--- PASS: TestNoNotificationServiceIsQuiet (0.30s)
+PASS
+notify: a session bus without a notification service is quiet
+=== RUN   TestNoNotificationServiceIsQuiet
+--- PASS: TestNoNotificationServiceIsQuiet (0.30s)
+PASS
+notify: a session without a bus is quiet

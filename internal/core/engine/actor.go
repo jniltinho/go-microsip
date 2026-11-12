@@ -13,6 +13,7 @@ import (
 	gosip "github.com/emiago/sipgo/sip"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 	"github.com/jniltinho/go-microsip/internal/core/sip"
 )
 
@@ -592,7 +593,11 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 			if err != nil && !over {
 				// The call stays up without sound; the user sees why and decides.
 				opts.Log.Warn("audio unavailable", "error", err)
-				a.notice(domain.NoticeAudioUnavailable)
+				if errors.Is(err, ports.ErrMicrophoneDenied) {
+					a.notice(domain.NoticeMicrophoneDenied) // the user can lift it: say which setting
+				} else {
+					a.notice(domain.NoticeAudioUnavailable)
+				}
 			}
 		})
 	}()

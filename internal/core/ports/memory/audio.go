@@ -20,6 +20,8 @@ type Audio struct {
 	Tone float64
 	// Unavailable makes Open fail with ports.ErrNoAudioService.
 	Unavailable bool
+	// Denied makes Open fail with ports.ErrMicrophoneDenied.
+	Denied bool
 
 	mu     sync.Mutex
 	opened []*Stream
@@ -39,6 +41,9 @@ func (a *Audio) Outputs() ([]ports.Device, error) {
 func (a *Audio) Open(input, output string) (ports.MediaIO, error) {
 	if a.Unavailable {
 		return nil, ports.ErrNoAudioService
+	}
+	if a.Denied {
+		return nil, ports.ErrMicrophoneDenied
 	}
 	s := &Stream{tone: a.Tone, Input: input, Output: output}
 	a.mu.Lock()

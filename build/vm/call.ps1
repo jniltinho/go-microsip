@@ -129,5 +129,22 @@ else {
         } catch { "desktop: call: ${what}: NOT VERIFIED: the notification history was not read after the call: $($_.Exception.Message)" }
     }
 }
+
+# The PBX calls again and gives up after six seconds (pbx.sh): nobody answers, and Windows is left
+# with a notification that says so.
+$what = 'a call for 1002 that the caller gives up'
+if (-not (Until '"direction":"incoming","phase":"ringing"' 90)) { Fail "call: ${what}: nothing rang: $(Status)" }
+elseif (-not (Until '"call":null' 30)) { Fail "call: ${what}: the call did not end by itself: $(Status)" }
+else {
+    "desktop: call: ${what}: it rang in the window and ended with nobody answering"
+    Start-Sleep -Seconds 3
+    Shot 'incoming-3-missed'
+    try {
+        $texts = @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory('go-microsip') | ForEach-Object { $_.Content.GetXml() })
+        if (($texts.Count -eq 1) -and ($texts[0] -match '<text>Missed call</text>') -and ($texts[0] -notmatch '<action')) {
+            "desktop: call: ${what}: Windows holds one notification of go-microsip, 'Missed call', with no button"
+        } else { Fail "call: ${what}: Windows holds $($texts.Count) notification(s) of go-microsip, want one missed call: $($texts -join ' | ')" }
+    } catch { Fail "call: ${what}: the notification history was not read: $($_.Exception.Message)" }
+}
 Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force
 exit $script:failed

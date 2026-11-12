@@ -60,6 +60,16 @@ ring)
 				exit 1
 			fi
 			echo "vm-lab: the PBX called $2"
+			# A second call, once the first is over, that the PBX gives up after six seconds: a
+			# call nobody answered.
+			up() { pbx "core show channels concise" | grep -q "^PJSIP/$2-"; }
+			for _ in $(seq 60); do up && break; sleep 1; done
+			for _ in $(seq 300); do up || break; sleep 1; done
+			sleep 4
+			pbx "channel originate PJSIP/$2 application Echo" >/dev/null
+			sleep 6
+			pbx "channel request hangup all" >/dev/null
+			echo "vm-lab: the PBX called $2 again and gave up after six seconds"
 			exit 0
 		fi
 		sleep 1

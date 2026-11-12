@@ -91,7 +91,8 @@ export type Notice =
   | "audio_unavailable"
   | "overloaded"
   | "engine_failed"
-  | "microphone_lost";
+  | "microphone_lost"
+  | "microphone_denied";
 export const NOTICES: readonly Notice[] = [
   "busy",
   "not_registered",
@@ -101,6 +102,7 @@ export const NOTICES: readonly Notice[] = [
   "overloaded",
   "engine_failed",
   "microphone_lost",
+  "microphone_denied",
 ];
 
 /** An agent (CLI/MCP) request waiting for the person at the window. */

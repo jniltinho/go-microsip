@@ -214,3 +214,39 @@ func TestTheRingbackSoundsThroughSessionProgress(t *testing.T) {
 	}
 	soon(t, "the ringback's end", back.Closed)
 }
+
+// A call whose sound cannot be opened stays up and says why: a microphone that the operating
+// system denies is told apart from sound devices that are not there, so the user is sent to the
+// setting that grants it.
+func TestACallWithoutSoundSaysWhy(t *testing.T) {
+	for _, c := range []struct {
+		sound *memory.Audio
+		want  domain.Notice
+	}{
+		{&memory.Audio{Denied: true}, domain.NoticeMicrophoneDenied},
+		{&memory.Audio{Unavailable: true}, domain.NoticeAudioUnavailable},
+	} {
+		o, _ := options(t, lab(t, 200))
+		p, err := OpenPhone(o, PhoneOptions{Audio: c.sound})
+		if err != nil {
+			t.Fatal(err)
+		}
+		until(t, p, "registration", registered)
+		target, _ := domain.ParseDialTarget("1002")
+		if err := p.Send(domain.Dial{Target: target}); err != nil {
+			t.Fatal(err)
+		}
+		established := false
+		until(t, p, "the notice "+c.want.String(), func(ev domain.Event) bool {
+			if call, ok := ev.(domain.CallChanged); ok {
+				established = call.Call.Phase.Kind == domain.Established
+			}
+			n, ok := ev.(domain.Noticed)
+			return ok && n.Notice == c.want
+		})
+		if !established {
+			t.Errorf("%s: the call is not up", c.want)
+		}
+		p.Close()
+	}
+}

@@ -674,6 +674,8 @@ export const noticeText = (notice: Notice) =>
     overloaded: "Busy; the action was dropped, try again",
     engine_failed: "The phone engine stopped; restart the application",
     microphone_lost: "The microphone stopped; the call continues without it",
+    microphone_denied:
+      "Windows denies the microphone: allow it in Settings > Privacy & security > Microphone; the call continues without local audio",
   })[notice] ?? "The phone engine stopped; restart the application";
 
 /** Visible label of a history outcome. */
