@@ -29,7 +29,7 @@ GO_GUI     := GO_DOCKER_FLAGS="$(GO_GUI_FLAGS)" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
 	go-frontend-test go-offline-skins go-keyring go-notify go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
-	go-vm go-freepbx go-shell
+	go-vm go-measure go-freepbx go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
 	docker build -t $(GO_IMAGE) -f build/linux.Dockerfile build
@@ -127,6 +127,14 @@ go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 
 	@# The Rust candidate's AppImage, when one was built here: the VMs run it beside go-microsip.
 	@cp -f $(firstword $(wildcard dist/rust-microsip-*.AppImage)) $(GO_DIST)/g0/rust-microsip.AppImage 2>/dev/null || rm -f $(GO_DIST)/g0/rust-microsip.AppImage
 	LAB=$(GO_VM_LAB) build/vm/run.sh $(GO_VERSION) "$(abspath $(GO_VM_OUT))" $(or $(SECONDS),300) $(GO_VMS)
+
+# Start-up time and memory of go-microsip and of the Rust candidate, when its artifacts were built
+# here, in the desktop VMs as they are (task 7.3): bring them up first (make go-vm KEEP=1).
+go-measure: ## Go: start-up and memory beside the Rust candidate in the kept desktop VMs
+	@cp -f $(firstword $(wildcard dist/rust-microsip-*.AppImage)) $(GO_DIST)/g0/rust-microsip.AppImage
+	@cp -f dist/windows/rust-microsip.exe $(GO_DIST)/g0/rust-microsip.exe
+	cd build/vm && for vm in ubuntu2604 debian13; do vagrant ssh $$vm -c "/vagrant/measure.sh $(GO_VERSION) 10" | grep '^measure:'; done
+	cd build/vm && vagrant winrm windows11 -s powershell -c 'C:\vagrant\measure.ps1 -Version $(GO_VERSION) -Runs 10' | grep '^measure:'
 
 # FreePBX 17 in a VM, installed by Sangoma's installer (task 7.1): the lab's scenarios against it.
 go-freepbx: ## Go: registration, calls, DTMF, hold and transfer against FreePBX 17 in a lab VM (KEEP=1 keeps the VMs)

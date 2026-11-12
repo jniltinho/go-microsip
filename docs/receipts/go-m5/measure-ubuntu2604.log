@@ -1,0 +1,12 @@
+measure: Ubuntu 26.04 LTS, ubuntu:GNOME on wayland, 2 processors, 3890 MB
+measure: go-microsip go-microsip 0.3.0-m3 (cf3e8ef0f488), 11741688 bytes
+measure: Rust candidate rust-microsip 0.1.0-rc.3, 12581368 bytes
+measure: go-microsip: first start with the file cache dropped: 136 ms to the control socket, 206 ms to an answered status, 986 ms to the first drawn page
+measure: go-microsip: to the control socket: median 68 ms, least 59 ms, most 74 ms, 10 starts
+measure: go-microsip: to an answered status: median 138 ms, least 123 ms, most 160 ms, 10 starts
+measure: go-microsip: to the first drawn page: median 755 ms, least 740 ms, most 768 ms, 10 starts
+measure: go-microsip: memory 20 s after the start: 347 MB proportional in 9 processes, 281 MB resident in the main one
+measure: rust-microsip: first start with the file cache dropped: 66 ms to the control socket, 236 ms to an answered status
+measure: rust-microsip: to the control socket: median 31 ms, least 29 ms, most 44 ms, 10 starts
+measure: rust-microsip: to an answered status: median 124 ms, least 116 ms, most 134 ms, 10 starts
+measure: rust-microsip: memory 20 s after the start: 75 MB proportional in 2 processes, 138 MB resident in the main one
