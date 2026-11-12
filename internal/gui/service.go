@@ -26,6 +26,8 @@ type App struct {
 	quit        func()
 	// dark reports the desktop's dark preference; nil when it cannot be told.
 	dark func() bool
+	// attention brings the window in sight (it may be hidden in the tray); nil does nothing.
+	attention func()
 
 	mu           sync.Mutex
 	ready        func()
@@ -88,11 +90,15 @@ func (a *App) send(c domain.Command) error {
 // subscribes later needs to catch up. It returns when the engine has stopped.
 func (a *App) forward() {
 	for ev := range a.phone.Events() {
+		ringing := false
 		a.mu.Lock()
 		switch ev := ev.(type) {
 		case domain.RegistrationChanged:
 			a.registration = ev
 		case domain.CallChanged:
+			// A call that starts ringing here must be answerable: the window comes out of the tray.
+			ringing = ev.Call.Direction == domain.Incoming && ev.Call.Phase.Kind == domain.Ringing &&
+				(a.call == nil || a.call.ID != ev.Call.ID)
 			a.call = nil
 			if !ev.Call.Phase.IsFinal() {
 				a.call = &ev.Call
@@ -105,6 +111,9 @@ func (a *App) forward() {
 		}
 		quit := a.stopped && a.quitting
 		a.mu.Unlock()
+		if ringing && a.attention != nil {
+			a.attention()
+		}
 		if quit {
 			a.quit() // the page asked for the end, and the engine has ended
 		}

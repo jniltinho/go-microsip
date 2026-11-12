@@ -796,11 +796,21 @@ func callThroughTheWindow(t *testing.T, bin, server, user, settings string, secu
 		t.Fatal("the caller's softphone did not stop")
 	}
 
-	// It calls again, and Escape refuses the call.
+	// It calls again while the window is out of sight (minimized here; hidden in the tray on a
+	// desktop that has one): the window comes back by itself, and Escape refuses the call.
+	inSight := func() bool {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		return slices.Contains(strings.Fields(string(out)), w.id)
+	}
+	w.xdotool("windowminimize", "--sync", w.id)
+	if inSight() {
+		t.Error("the window is still in sight after it was minimized: the next check would prove nothing")
+	}
 	_, refused := other()
 	w.until(30*time.Second, "the second incoming call shown", func() bool {
 		return w.call.Phase == "ringing" && w.call.Direction == "incoming" && w.shows("Incoming call")
 	})
+	w.until(5*time.Second, "the window back in sight for the incoming call", inSight)
 	w.keys("Escape")
 	w.until(15*time.Second, "the refused call ended", func() bool { return w.call.Phase == "ended" && shownPhase(w.page.Text) == "" })
 	if w.call.EndReason != "rejected" {

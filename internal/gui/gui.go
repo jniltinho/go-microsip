@@ -134,6 +134,7 @@ func Run(o Options) error {
 	var leaving atomic.Bool
 	quit := func() { leaving.Store(true); ui.Quit() }
 	svc.quit = quit
+	svc.attention = reveal
 	// The System skin follows the desktop. WebKitGTK in a plain GTK window does not pass the
 	// desktop's dark preference on to the page, so the page is told, at once and on every change.
 	svc.dark = ui.Env.IsDarkMode
