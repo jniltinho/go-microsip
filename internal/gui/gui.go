@@ -141,7 +141,10 @@ func Run(o Options) error {
 	if !o.SelfTest {
 		// The phone holds the instance lock of the database until the window is gone: calls are
 		// ended and the account unregistered, within the engine's bound, before Run returns.
-		phone, err := app.OpenPhone(o.Core, app.PhoneOptions{Audio: o.Audio, UserAgent: o.UserAgent})
+		// The engine's warnings go to the standard error (the desktop's journal): why a registration
+		// or a call failed. It never logs a secret.
+		warnings := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		phone, err := app.OpenPhone(o.Core, app.PhoneOptions{Audio: o.Audio, UserAgent: o.UserAgent, Log: warnings})
 		if err != nil {
 			svc.unavailable = err.Error() // the window says so
 		} else {

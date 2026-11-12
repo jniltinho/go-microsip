@@ -420,6 +420,7 @@ func (a *actor) dial(target domain.DialTarget) {
 				return
 			}
 			if err != nil {
+				a.e.opts.Log.Warn("outgoing call failed", "error", err) // a SIP status or a transport error: no secret
 				a.end(c, dialFailure(ctx, c, err))
 				return
 			}

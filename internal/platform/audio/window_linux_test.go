@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -45,10 +46,12 @@ type tracedCall struct {
 type tracedPage struct {
 	Text   string `json:"text"`
 	Images int    `json:"images"`
-	Skin   string `json:"skin"`   // the skin chosen in the settings
-	Theme  string `json:"theme"`  // the skin drawn: "system" resolved to light or dark
-	Height int    `json:"height"` // of the page's visible part
-	Width  int    `json:"width"`
+	Skin   string `json:"skin"`  // the skin chosen in the settings
+	Theme  string `json:"theme"` // the skin drawn: "system" resolved to light or dark
+	// Fonts are the bundled families the page has loaded to draw itself.
+	Fonts  []string `json:"fonts"`
+	Height int      `json:"height"` // of the page's visible part
+	Width  int      `json:"width"`
 	// Scale is the device pixels per CSS pixel; Overflows and Clipped say whether the page is wider
 	// than its window and how many of its controls run off its side.
 	Scale     float64 `json:"scale"`
@@ -363,6 +366,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 		})
 	}
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
+	t.Run("every skin", func(t *testing.T) { skinsInTheWindow(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
 	for _, skin := range []string{"light", "dark", "xp", "macos", "ubuntu", "win98", "matrix"} {
@@ -377,6 +381,74 @@ func TestCallThroughTheWindow(t *testing.T) {
 				windowAtScale(t, bin, server, passwords["1002"], skin, desktop.name, append(desktop.env, "GO_MICROSIP_UI_THEME="+skin))
 			})
 		}
+	}
+}
+
+// Every skin in one window, as a person goes through them: chosen in the settings, then a call to
+// the echo dialed and hung up in it. The page draws the skin with its bundled font, and the call
+// is the engine's in each. (The build image has no Ubuntu font, so that skin loads Inter.)
+func skinsInTheWindow(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	cmd, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	defer func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		select {
+		case <-exited:
+		case <-time.After(15 * time.Second):
+			t.Error("the window did not exit after the termination signal")
+		}
+		if !w.unregistered(15 * time.Second) {
+			t.Error("the window did not unregister after the termination signal")
+		}
+	}()
+	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered") })
+	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
+		out, _ := exec.Command("xdotool", "search", "--onlyvisible", "--name", "^go-microsip$").Output()
+		if ids := strings.Fields(string(out)); len(ids) > 0 {
+			w.id = ids[len(ids)-1]
+		} else if time.Now().After(deadline) {
+			t.Fatal("the window was not found on the display")
+		}
+	}
+	for _, skin := range []struct{ id, label, font string }{
+		{"light", "Light", "Inter"},
+		{"dark", "Dark", "Inter"},
+		{"xp", "Windows XP", "DejaVu Sans"},
+		{"macos", "macOS", "Inter"},
+		{"ubuntu", "Ubuntu", "Inter"},
+		{"win98", "Windows 98", "Liberation Sans"},
+		{"matrix", "Matrix", "JetBrains Mono"},
+	} {
+		w.click("Menu")
+		w.click("Settings")
+		w.choose(skin.label)
+		w.until(10*time.Second, "the "+skin.label+" skin drawn in "+skin.font, func() bool {
+			return w.page.Skin == skin.id && w.page.Theme == skin.id && slices.Contains(w.page.Fonts, skin.font)
+		})
+		w.keys("Escape") // leaves the settings
+		w.keys("ctrl+l", "6", "0", "0", "Return")
+		w.until(30*time.Second, "the call connected in "+skin.label, func() bool {
+			return w.call.Phase == "established" && w.shows("Connected", "600") && w.page.Theme == skin.id
+		})
+		if w.page.Overflows || w.page.Clipped != 0 {
+			t.Errorf("the call in %s: the page is wider than its window (%v) and %d controls run off its side", skin.label, w.page.Overflows, w.page.Clipped)
+		}
+		w.shot("skin-" + skin.id + "-call")
+		w.keys("Escape") // hangs up
+		w.until(10*time.Second, "the call ended in "+skin.label, func() bool {
+			return w.call.Phase == "ended" && shownPhase(w.page.Text) == ""
+		})
+		if w.call.EndReason != "normal" {
+			t.Errorf("in %s the call ended as %q, want normal", skin.label, w.call.EndReason)
+		}
+		w.click("Clear number") // the number stays in the field for a redial: the next call starts clean
 	}
 }
 

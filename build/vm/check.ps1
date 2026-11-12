@@ -27,7 +27,10 @@ function Invoke-Desktop([string]$Name, [string[]]$Lines, [int]$Timeout) {
     $log = "$work\$Name.log"
     Remove-Item $rc, $log -ErrorAction SilentlyContinue
     $bat = "$work\$Name.cmd"
-    $body = @('@echo off') + $Lines[0..($Lines.Count - 2)] + @("$($Lines[-1]) > `"$log`" 2>&1", "echo %errorlevel% > `"$rc`"")
+    # The lines before the last one run as they are; a single line has none (0..-1 would name it twice).
+    $head = @()
+    if ($Lines.Count -gt 1) { $head = $Lines[0..($Lines.Count - 2)] }
+    $body = @('@echo off') + $head + @("$($Lines[-1]) > `"$log`" 2>&1", "echo %errorlevel% > `"$rc`"")
     Set-Content -Encoding ascii $bat $body
     # Through cmd: schtasks warns on stderr about the start time, which PowerShell would raise.
     cmd /c "schtasks /create /tn g0-$Name /tr `"$bat`" /sc once /st 00:00 /ru vagrant /it /rl highest /f >nul 2>&1"
@@ -71,5 +74,13 @@ Get-Content "$work\selftest.log" -ErrorAction SilentlyContinue | Where-Object { 
 if ($script:Samples -eq 0) { 'vm-check: listening ports: the softphone was not seen running, so not checked' }
 elseif ($script:Listening.Count -gt 0) { "vm-check: listening ports: the softphone listens on $($script:Listening.Keys -join ', ')"; $failed = "$failed listening" }
 else { "vm-check: listening ports: none in $($script:Samples) looks at the running softphone" }
+
+# 4. Every skin on WebView2: the window started in each one draws it with its bundled font. A
+# picture of each is left beside the artifacts (C:\dist\vm).
+New-Item -ItemType Directory -Force 'C:\dist\vm' | Out-Null
+$code = Invoke-Desktop 'skins' @("powershell -NoProfile -ExecutionPolicy Bypass -File C:\vagrant\skins.ps1 -Exe `"$work\go-microsip.exe`" -Work `"$work`" -Shots C:\dist\vm") 900
+Get-Content "$work\skins.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^skin:' } | ForEach-Object { "vm-check: $_" }
+if ($code -ne 0) { "vm-check: skins: FAILED (exit $code)"; Get-Content "$work\skins.log" -Tail 8 -ErrorAction SilentlyContinue; $failed = "$failed skins" }
+else { 'vm-check: the seven skins drawn on WebView2, each with its bundled font' }
 if ($failed) { "vm-check: FAIL $($os.Caption): $failed"; exit 1 }
 "vm-check: PASS $($os.Caption)"

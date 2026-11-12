@@ -36,6 +36,8 @@ func EngineScenarios() []Scenario {
 		Scenario{"engine/dtmf/1001", engineDTMF("1001", "123", toneLab)},
 		Scenario{"engine/dtmf/1201", engineDTMF("1201", "123", toneLab)},
 		Scenario{"engine/dtmf/wrong-digits-control", engineDTMF("1001", "999", toneReject)},
+		Scenario{"engine/redial/1001", engineRedial("1001")},
+		Scenario{"engine/redial/1201", engineRedial("1201")},
 		Scenario{"engine/reject", engineReject},
 		Scenario{"engine/dnd", engineDND},
 		Scenario{"engine/busy", engineBusy},
@@ -313,6 +315,34 @@ func engineEcho(user string, codec media.Codec) func(context.Context, *Lab) (map
 		p.e.Send(domain.Hangup{Call: c.ID})
 		if _, err := p.ended(ctx, domain.EndNormal); err != nil {
 			return data, err
+		}
+		return data, stopAll(p)
+	}
+}
+
+// engineRedial places three calls one after the other from the same registration, each hung up as
+// soon as the echo is heard: a softphone is redialed moments after a call ends.
+func engineRedial(user string) func(context.Context, *Lab) (map[string]any, error) {
+	return func(ctx context.Context, l *Lab) (map[string]any, error) {
+		p, err := l.phone(ctx, user, toneA)
+		if err != nil {
+			return nil, err
+		}
+		defer p.close()
+		data := map[string]any{"calls": 0}
+		for n := 1; n <= 3; n++ {
+			c, err := p.dial(ctx, "600")
+			if err != nil {
+				return data, fmt.Errorf("call %d: %w", n, err)
+			}
+			if h := listen(time.Second, p)[0]; !h.has(toneA) {
+				return data, fmt.Errorf("call %d: the microphone's tone did not come back from the echo", n)
+			}
+			p.e.Send(domain.Hangup{Call: c.ID})
+			if _, err := p.ended(ctx, domain.EndNormal); err != nil {
+				return data, fmt.Errorf("call %d: %w", n, err)
+			}
+			data["calls"] = n
 		}
 		return data, stopAll(p)
 	}
