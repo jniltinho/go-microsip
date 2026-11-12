@@ -229,7 +229,7 @@ Not covered in 6.6: the documented commands are not each run on the built binary
 
 What the task asks, and what was done on the artifacts `0.3.0-m3` of commit `cf3e8ef` (`make go-dist`, `dirty false`, checksums verified).
 
-**Driving the artifacts.** The task names `agent-desktop`. As for 4.7 and 5.8, the AppImage was driven in the lab with `xdotool` on a private display, where the test is also the notification service and the tray host, and the `.exe` in the Windows VM with the keyboard and Windows' own UI automation from PowerShell: neither environment has `agent-desktop`, and nothing is installed in the Windows guest. That substitution is the owner's to accept for this task; it is not accepted yet.
+**Driving the artifacts.** The task names `agent-desktop`. As for 4.7 and 5.8, the AppImage was driven in the lab with `xdotool` on a private display, where the test is also the notification service and the tray host, and the `.exe` in the Windows VM with the keyboard and Windows' own UI automation from PowerShell: neither environment has `agent-desktop`, and nothing is installed in the Windows guest. The owner accepted that substitution for this task on 2026-11-12.
 
 | Step | AppImage, in the lab (`make go-appimage-call`) | `.exe`, in the Windows 11 VM (`make go-vm GO_VMS=windows11 GO_VM_LAB=1`) |
 | --- | --- | --- |
@@ -248,7 +248,7 @@ What the task asks, and what was done on the artifacts `0.3.0-m3` of commit `cf3
 
 ## Status
 
-48 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 with 6 of 7, M5 with 1 of 10 (7.1, [receipt](go-m5-freepbx-2026-11-12.md)).
+49 of 61 tasks checked: section 1 complete (5), G0 with 8 of 11 (2.1, 2.8 and 2.10 open), M1 complete (12), M2 complete (8), M3 complete (8), M4 complete (7), M5 with 1 of 10 (7.1, [receipt](go-m5-freepbx-2026-11-12.md)).
 
 - **6.1 is checked** on the lab evidence above: a second start with a link, the exit during a call (asked for, and on a termination signal) and a PBX that stopped answering, each with the built window. What "Not covered in 6.1" lists is left to the manual checklist of task 7.2.
 - **6.2 is checked**: each service is driven with and without it in the lab (GNOME Keyring on a private bus, the test itself as the notification service and as the tray host; a bus with none of them), where no password reaches a file or the database; and on the default desktops of the two supported distributions the services they bring are asked with the same adapters: one desktop with a tray host and one without, both with a notification service, both with a keyring that is missing or locked and then unlocked. What "Not covered in 6.2" lists stays open for 7.2.
@@ -256,7 +256,7 @@ What the task asks, and what was done on the artifacts `0.3.0-m3` of commit `cf3
 - **6.4 is checked**: the tests of `crates/control` are ported and pass, with those of the Rust owner and of its ledger; the built window serves the contract and a call asked for waits for the person; the two applications ran side by side in both supported desktops without sharing a lock, a socket or a file. The headless service was left out of it and came with 6.5.
 - **6.5 is checked**: the control commands, the MCP server with the Rust tool set and rules, and the headless service; an unapproved call from the built command line and from the built MCP server waits for Allow in the built window and is audited, and the tools that need a grant are refused without one. What "Not covered in 6.5" lists stays open.
 - **6.6 is checked**: the command line, the MCP server and the service are documented for go-microsip, the README has the platform notes, and a test runs or checks every command the two documents write.
-- **6.7 is not checked**: everything it asks was run on the artifacts of commit `cf3e8ef` and passes, except that the artifacts were driven with `xdotool` and PowerShell instead of `agent-desktop` (above), which waits for the owner, and that the Windows run as a whole fails on the emulated sound card, as every run there.
+- **6.7 is checked**: everything it asks was run on the artifacts of commit `cf3e8ef` and passes, with the artifacts driven by `xdotool` and PowerShell instead of `agent-desktop`, which the owner accepted on 2026-11-12. The Windows run as a whole still fails on the emulated sound card, as every run there, and the Debian VM on its sound; both go to the manual checklist of 7.2. M4 is closed.
 
 Independent review: Codex round 6 found the M4 work in its extract sound with two minor changes; they were made and are not reviewed ([record](../reviews/migrate-to-go-wails-m3/README.md)). Agent control (6.4 to 6.6) had its first Codex round, which found it unsound for one major finding (a revocation the database refused was reported as done) and nine minor ones; all ten were answered ([record](../reviews/migrate-to-go-wails-m4/README.md)), and no round has reviewed the answers or the Windows work of 6.3 yet. A review is not call evidence.
 
