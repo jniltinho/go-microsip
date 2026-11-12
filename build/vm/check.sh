@@ -18,6 +18,9 @@ if apt-mark showmanual | grep -qxE 'libgtk-4-1|libwebkitgtk-6.0-4'; then
 	exit 1
 fi
 
+# A VM kept up between runs (KEEP=1) still shows the window the run before left open: it is ended,
+# or this run's window would hand over to it and end.
+pkill -x go-microsip 2>/dev/null || :
 work=$(mktemp -d)
 cp "$appimage" "$work/app.AppImage"
 chmod +x "$work/app.AppImage"
@@ -59,6 +62,12 @@ done
 sleep 10 # the shell finishes starting
 eval "$(tr '\0' '\n' <"/proc/$session/environ" | grep -E '^(DISPLAY|XAUTHORITY|WAYLAND_DISPLAY|XDG_SESSION_TYPE|XDG_CURRENT_DESKTOP|DBUS_SESSION_BUS_ADDRESS)=' | sed "s/^/export /")"
 echo "vm-check: desktop session: $XDG_CURRENT_DESKTOP on $XDG_SESSION_TYPE, $(gnome-shell --version)"
+# A VM kept up between runs locks its screen when idle, and a locked GNOME turns its extensions
+# off, Ubuntu's tray host among them: the session is unlocked and kept from locking.
+sudo loginctl unlock-sessions 2>/dev/null || :
+gsettings set org.gnome.desktop.session idle-delay 0
+gsettings set org.gnome.desktop.screensaver lock-enabled false
+sleep 3
 
 # The shipped AppImage must open its window: as it starts by default, or with --safe-gpu, which a VM
 # without 3D acceleration may need. The cgo window backend is tried only to tell a backend problem
@@ -105,6 +114,12 @@ follows() { # <desktop color scheme> <skin the page must draw>: prints the milli
 	echo $((($(date +%s%N) - start) / 1000000))
 }
 gsettings set org.gnome.desktop.interface color-scheme default
+# The icons the desktop's tray host holds, when the desktop has one (step 5).
+tray() {
+	gdbus call --session --dest org.kde.StatusNotifierWatcher --object-path /StatusNotifierWatcher \
+		--method org.freedesktop.DBus.Properties.Get org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems 2>/dev/null
+}
+tray_before=$(tray) || tray_before="no tray host"
 GO_MICROSIP_UI_THEME=system XDG_DATA_HOME="$work/data" XDG_CONFIG_HOME="$work/config" \
 	"$work/app.AppImage" --ui-trace "$trace" >"$work/system.log" 2>&1 &
 system=$!
@@ -121,7 +136,49 @@ else
 	failed="$failed system-skin"
 fi
 gsettings set org.gnome.desktop.interface color-scheme default
+
+# 5. The desktop's own services (task 6.2), with nothing installed for them. The tray: on a desktop
+# with a tray host the window running above has put its icon there; on one without, there is none
+# to put it in.
+if [ "$tray_before" = "no tray host" ]; then
+	echo "vm-check: tray: this desktop has no tray host: the window has no tray icon"
+elif tray_now=$(tray) && [ "$tray_now" != "$tray_before" ]; then
+	echo "vm-check: tray: the desktop's tray host holds the window's icon: $tray_now (before the window: $tray_before)"
+else
+	echo "vm-check: tray: FAILED: the desktop has a tray host and the window's icon is not in it ($tray_before)"
+	failed="$failed tray"
+fi
 kill "$system" 2>/dev/null || :
+pkill -x go-microsip 2>/dev/null || : # the AppImage's runtime does not pass the signal on
+# The notification service: a call's notification is shown and taken away.
+if GO_MICROSIP_NOTIFY_TEST=desktop /dist/g0/notify.test -test.v -test.run TestTheDesktopsNotificationServiceShowsACall >"$work/notify.log" 2>&1; then
+	:
+else
+	failed="$failed notifications"
+fi
+grep -E 'desktop_linux_test|^(--- |FAIL|panic)' "$work/notify.log" | sed 's/^/vm-check: notifications: /'
+# The keyring: first as the session has it. A user logged in without a password has no login
+# keyring, so the answer is expected to be that there is none to store in. Then the session's own
+# keyring daemon is started again with the login password, which is what a login with a password
+# does: stored, replaced, removed, and locked without a prompt left open.
+if GO_MICROSIP_KEYRING_TEST=desktop /dist/g0/keyring.test -test.v -test.run TestTheDesktopsKeyringAsFound >"$work/keyring.log" 2>&1; then
+	:
+else
+	failed="$failed keyring-as-found"
+fi
+grep -E 'desktop_linux_test|^(--- |FAIL|panic)' "$work/keyring.log" | sed 's/^/vm-check: keyring: /'
+pkill -x gnome-keyring-d 2>/dev/null || :
+sleep 1
+printf '%s' vagrant | gnome-keyring-daemon --unlock --daemonize >/dev/null 2>&1 || :
+sleep 2
+if GO_MICROSIP_KEYRING_TEST=keyring /dist/g0/keyring.test -test.v -test.run 'TestKeyringStoresReplacesAndDeletes' >"$work/keyring.log" 2>&1 &&
+	GO_MICROSIP_KEYRING_TEST=keyring /dist/g0/keyring.test -test.v -test.run 'TestALockedKeyringIsReportedAndNotPrompted' >>"$work/keyring.log" 2>&1; then
+	grep -E '^--- ' "$work/keyring.log" | sed 's/^/vm-check: keyring: /'
+	echo "vm-check: keyring: started with the login password, the desktop's keyring stores, replaces and removes a password, and says so when it is locked"
+else
+	grep -E '_test.go|^(--- |FAIL|panic)' "$work/keyring.log" | sed 's/^/vm-check: keyring: /'
+	failed="$failed keyring"
+fi
 # Leave the application open for the screenshot the host takes of the VM's screen.
 (setsid "$work/app.AppImage" >/dev/null 2>&1 &)
 sleep 6

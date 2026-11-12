@@ -115,6 +115,8 @@ GO_VMS    ?= ubuntu2604 debian13 windows11
 GO_VM_OUT ?= artifacts/go-vm
 go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 debian13 windows11", SECONDS=300)
 	$(GO) sh -c 'mkdir -p $(GO_DIST)/g0 && CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/audio.test ./internal/platform/audio && \
+		CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/notify.test ./internal/platform/notify && \
+		CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/keyring.test ./internal/platform/keyring && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/audio.test.exe ./internal/platform/audio && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/lock.test.exe ./internal/platform/lock && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/keyring.test.exe ./internal/platform/keyring'
