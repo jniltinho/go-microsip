@@ -2213,6 +2213,10 @@ func agentAccessForm(t *testing.T, bin, server, password string) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("the softphone did not end on a termination signal")
 	}
+	// An AppImage's launcher ends before its softphone has left the PBX: the next one waits.
+	if !w.unregistered(15 * time.Second) {
+		t.Error("the softphone did not report that it had stopped")
+	}
 	trail := auditTrail(t, dir)
 	if !slices.Contains(trail, "grant issued 1 scopes, 15 min") || !slices.Contains(trail, "grant revoked -") {
 		t.Errorf("the audit trail: %s", strings.Join(trail, "; "))
