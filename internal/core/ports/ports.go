@@ -78,6 +78,10 @@ type Locker interface {
 // ErrNoSecretService means the session offers no keyring this adapter can use.
 var ErrNoSecretService = errors.New("no secret service is reachable")
 
+// ErrSecretsTimeout means the keyring did not answer in time. For a read, there is no password to
+// use. For a write, whether the keyring took it is not known: the request may have reached it.
+var ErrSecretsTimeout = errors.New("the keyring did not answer in time")
+
 // Secrets is the user's keyring: passwords are stored there and nowhere else, under a reference
 // that is not secret and is what the database keeps.
 type Secrets interface {

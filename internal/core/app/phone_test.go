@@ -803,3 +803,67 @@ func TestThePasswordKeptIsTheOneOfTheLastRegistration(t *testing.T) {
 		}
 	}
 }
+
+// lateKeyring is a keyring that says its time is up on every write, having taken it or not.
+type lateKeyring struct {
+	memory.Keyring
+	takes bool
+}
+
+func (k *lateKeyring) Set(ref, password string) error {
+	if k.takes {
+		_ = k.Keyring.Set(ref, password)
+	}
+	return ports.ErrSecretsTimeout
+}
+
+// A write the keyring did not answer in time may or may not have been taken. The session goes on
+// with the password, the warning says the outcome is not known, and the reference is recorded
+// either way: the next start finds the password if the keyring took it, and asks if it did not.
+// Nothing is left in the keyring under a reference the database does not know.
+func TestAKeyringThatAnswersLateLeavesNothingAstray(t *testing.T) {
+	port := registrar(t)
+	for _, takes := range []bool{true, false} {
+		dir := t.TempDir()
+		file := filepath.Join(dir, "config.toml")
+		text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1001\"\ndomain = \"127.0.0.1\"\nport = %d\ntransport = \"tcp\"\nexpires = 60\n", port)
+		if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		keyring := &lateKeyring{takes: takes}
+		var warnings []string
+		o := Options{ConfigPath: file, Files: own{}, Locks: &memory.Locks{}, Secrets: keyring,
+			Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}, Warn: func(m string) { warnings = append(warnings, m) }}
+		p, err := OpenPhone(o, PhoneOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		account := *p.Settings().Account
+		password := "fictional-late-password"
+		if err := p.Register(account, &password); err != nil {
+			t.Fatal(err)
+		}
+		until(t, p, "registration for the session", registered)
+		p.Close()
+		if len(warnings) != 1 || !strings.Contains(warnings[0], "not known") || strings.Contains(warnings[0], password) {
+			t.Errorf("takes=%v: warnings %v, want one that says the outcome is not known", takes, warnings)
+		}
+		p, err = OpenPhone(o, PhoneOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := p.Settings().HasPassword; got != takes {
+			t.Errorf("takes=%v: a password at the next start: %v", takes, got)
+		}
+		if takes {
+			until(t, p, "registration at the next start with the password the keyring took", registered)
+		}
+		p.Close()
+		// Every entry of the keyring is one the database names.
+		for ref := range keyring.Entries() {
+			if report := Doctor(o); !report.PasswordPresent {
+				t.Errorf("takes=%v: the keyring holds %q, which nothing refers to", takes, ref)
+			}
+		}
+	}
+}

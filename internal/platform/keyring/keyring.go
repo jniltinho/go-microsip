@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"unicode"
+
+	"github.com/jniltinho/go-microsip/internal/core/ports"
 )
 
 // application marks go-microsip's entries in the keyring.
@@ -20,8 +22,9 @@ var (
 	// ErrLocked: the keyring is locked. Unlocking it needs the desktop's own prompt, which is
 	// never started from here: the password then lives for the session only.
 	ErrLocked = errors.New("the keyring is locked; unlock it in the desktop's keyring and try again")
-	// ErrTimeout: the keyring did not answer in time.
-	ErrTimeout = errors.New("the keyring did not answer in time")
+	// ErrTimeout: the keyring did not answer in time. After a write that ends so, whether the
+	// keyring took it is not known.
+	ErrTimeout = ports.ErrSecretsTimeout
 	// ErrInvalidRef: the reference is empty, too long or holds a control character.
 	ErrInvalidRef = errors.New("invalid keyring reference")
 )

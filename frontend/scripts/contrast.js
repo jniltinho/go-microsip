@@ -40,12 +40,16 @@
     for (let e = el; e; e = e.parentElement) a *= Number(getComputedStyle(e).opacity);
     return a;
   };
-  const over = (fg, bg, a) => ({
-    r: fg.r * a + bg.r * (1 - a),
-    g: fg.g * a + bg.g * (1 - a),
-    b: fg.b * a + bg.b * (1 - a),
-    a: 1,
-  });
+  // A color that is itself partly or wholly transparent shows that much less.
+  const over = (fg, bg, opacity) => {
+    const a = opacity * (fg.a ?? 1);
+    return {
+      r: fg.r * a + bg.r * (1 - a),
+      g: fg.g * a + bg.g * (1 - a),
+      b: fg.b * a + bg.b * (1 - a),
+      a: 1,
+    };
+  };
   // What a shape of an icon paints: its stroke or its fill, whichever shows more, with the
   // opacity it ends up with; null when it paints nothing (hidden, no paint, a paint or a line
   // of no opacity or width).

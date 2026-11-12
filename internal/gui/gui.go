@@ -151,7 +151,10 @@ func Run(o Options) error {
 	svc.emit = func(ev UIEvent) { ui.Event.Emit(EventName, ev) }
 	// Once the application is leaving, the close button no longer hides the window or asks the page.
 	var leaving atomic.Bool
-	quit := sync.OnceFunc(func() { leaving.Store(true); ui.Quit() }) // asked for more than once
+	// Quitting is asked of the toolkit's main loop, which is waited for: it is asked from a
+	// goroutine of its own, so that what asks (the engine's event forwarder, when the engine has
+	// stopped) never waits for a loop that has already ended for another reason.
+	quit := sync.OnceFunc(func() { leaving.Store(true); go ui.Quit() }) // asked for more than once
 	svc.quit = quit
 	// Showing the window is asked of the toolkit's main loop and waited for there, so it is not
 	// done by what forwards the engine's events, for the same reason as the tray's menu below.

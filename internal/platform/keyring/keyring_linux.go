@@ -41,14 +41,19 @@ type link struct {
 	ctx  context.Context
 }
 
-// open connects to the session bus. The connection is the process's shared one and is not closed.
-func open() (*link, context.CancelFunc, error) {
+// open connects to the session bus, for an operation whose time is ctx's. The connection is the
+// process's shared one and is not closed. Every call of the operation is made with ctx, and the
+// bus library sends nothing for a context that is over: an operation that outlives its time can
+// no longer write.
+func open(ctx context.Context) (*link, error) {
 	conn, err := dbus.SessionBus()
 	if err != nil {
-		return nil, nil, ports.ErrNoSecretService
+		return nil, ports.ErrNoSecretService
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-	return &link{conn: conn, ctx: ctx}, cancel, nil
+	if ctx.Err() != nil {
+		return nil, ErrTimeout // connecting took the operation's whole time
+	}
+	return &link{conn: conn, ctx: ctx}, nil
 }
 
 func (l *link) call(path dbus.ObjectPath, method string, args ...any) *dbus.Call {
@@ -105,23 +110,37 @@ func (l *link) search(owner, ref string) (unlocked, locked []dbus.ObjectPath, er
 	return unlocked, locked, failure(err)
 }
 
-// within runs one operation on the keyring and waits for it no longer than callTimeout, the
-// connection to the session bus included: a bus that accepts a connection and then says nothing
-// must not hold the window. An operation that is given up on ends by itself, later.
-func within[T any](op func() (T, error)) (T, error) {
+// within runs one operation on the keyring within callTimeout, connecting to the session bus
+// included: a bus that accepts a connection and then says nothing must not hold the window.
+func within[T any](op func(context.Context) (T, error)) (T, error) {
+	return withinFor(callTimeout, op)
+}
+
+// withinFor gives the operation a context that ends after d and waits for it no longer than
+// that. An operation that is given up on finds its context over: whatever it had not yet sent, it
+// can no longer send, so it cannot write after the caller was told the time was up. What it had
+// already sent may still be taken by the keyring: for a write, that outcome is not known.
+func withinFor[T any](d time.Duration, op func(context.Context) (T, error)) (T, error) {
 	type result struct {
 		value T
 		err   error
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), d)
 	done := make(chan result, 1)
 	go func() {
-		value, err := op()
+		defer cancel()
+		value, err := op(ctx)
 		done <- result{value, err}
 	}()
 	select {
 	case r := <-done:
 		return r.value, r.err
-	case <-time.After(callTimeout):
+	case <-ctx.Done():
+		select {
+		case r := <-done: // it finished as its time ran out
+			return r.value, r.err
+		default:
+		}
 		var none T
 		return none, ErrTimeout
 	}
@@ -135,30 +154,29 @@ type found struct {
 
 // Get returns the password stored under ref; ok is false when there is none.
 func (Store) Get(ref string) (password string, ok bool, err error) {
-	f, err := within(func() (found, error) { return get(application, ref) })
+	f, err := within(func(ctx context.Context) (found, error) { return get(ctx, application, ref) })
 	return f.password, f.ok, err
 }
 
 // Get reads the password the Rust application stored under ref. Its entries are only ever read.
 func (Legacy) Get(ref string) (password string, ok bool, err error) {
-	f, err := within(func() (found, error) { return get(legacyApplication, ref) })
+	f, err := within(func(ctx context.Context) (found, error) { return get(ctx, legacyApplication, ref) })
 	return f.password, f.ok, err
 }
 
-func get(owner, ref string) (found, error) {
-	password, ok, err := read(owner, ref)
+func get(ctx context.Context, owner, ref string) (found, error) {
+	password, ok, err := read(ctx, owner, ref)
 	return found{password, ok}, err
 }
 
-func read(owner, ref string) (password string, ok bool, err error) {
+func read(ctx context.Context, owner, ref string) (password string, ok bool, err error) {
 	if err := validRef(ref); err != nil {
 		return "", false, err
 	}
-	l, done, err := open()
+	l, err := open(ctx)
 	if err != nil {
 		return "", false, err
 	}
-	defer done()
 	unlocked, locked, err := l.search(owner, ref)
 	switch {
 	case err != nil:
@@ -182,19 +200,18 @@ func read(owner, ref string) (password string, ok bool, err error) {
 
 // Set stores or replaces the password under ref in the default collection.
 func (Store) Set(ref, password string) error {
-	_, err := within(func() (struct{}, error) { return struct{}{}, store(ref, password) })
+	_, err := within(func(ctx context.Context) (struct{}, error) { return struct{}{}, store(ctx, ref, password) })
 	return err
 }
 
-func store(ref, password string) error {
+func store(ctx context.Context, ref, password string) error {
 	if err := validRef(ref); err != nil {
 		return err
 	}
-	l, done, err := open()
+	l, err := open(ctx)
 	if err != nil {
 		return err
 	}
-	defer done()
 	session, err := l.session()
 	if err != nil {
 		return err
@@ -218,19 +235,18 @@ func store(ref, password string) error {
 
 // Delete removes every entry stored under ref; none is not an error.
 func (Store) Delete(ref string) error {
-	_, err := within(func() (struct{}, error) { return struct{}{}, remove(ref) })
+	_, err := within(func(ctx context.Context) (struct{}, error) { return struct{}{}, remove(ctx, ref) })
 	return err
 }
 
-func remove(ref string) error {
+func remove(ctx context.Context, ref string) error {
 	if err := validRef(ref); err != nil {
 		return err
 	}
-	l, done, err := open()
+	l, err := open(ctx)
 	if err != nil {
 		return err
 	}
-	defer done()
 	unlocked, locked, err := l.search(application, ref)
 	if err != nil {
 		return err

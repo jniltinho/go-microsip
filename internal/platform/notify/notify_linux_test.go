@@ -122,9 +122,18 @@ func TestCallNotificationsOnASessionBus(t *testing.T) {
 	if a := action("the Answer of call 7"); a != (ports.CallNoticeAction{Call: 7, Answer: true}) {
 		t.Errorf("Answer of call 7 came back as %+v", a)
 	}
-	// Not ours: another notification's button, and a button we never offered.
+	// Not ours: another notification's button, a button we never offered, and a button of ours
+	// "pressed" by another process of the session, which is not the notification service.
 	fake.press(999, "answer")
 	fake.press(first.id, "default")
+	other, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if err := other.Emit(path, dest+".ActionInvoked", first.id, "answer"); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case a := <-d.Actions():
 		t.Errorf("an action nobody asked for: %+v", a)

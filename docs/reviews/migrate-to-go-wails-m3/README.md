@@ -10,6 +10,7 @@ The scope is wider than the skins: the tray, the close button and the local addr
 | 2 | `fa9e3bd` | UNSOUND: of the ten, 4 resolved and 6 partially; 5 new major, 5 new minor | [codex-round2.md](codex-round2.md) |
 | 3 | `9792f85` | UNSOUND: N1 to N10 resolved (N3 as a recorded limit); 3 new major, 6 new minor | [codex-round3.md](codex-round3.md) |
 | 4 | `4a5bd14` | UNSOUND for M3 and for the M4 work: round 3's nine resolved (8 in part, on purpose; 9 in part); 4 new major, 3 new minor | [codex-round4.md](codex-round4.md) |
+| 5 | `5b04681` | **M3: SOUND WITH CHANGES** (one minor finding). M4 work: UNSOUND (1 major, 2 minor). Round 4's seven resolved, the third in part | [codex-round5.md](codex-round5.md) |
 
 ## What was done about round 1
 
@@ -74,3 +75,14 @@ From this round on the verdict is given twice, for M3 and for the M4 work carrie
 | 5 | M4 | The keyring's five seconds did not cover connecting to the session bus | Fixed. The whole operation, connecting included, is given up after five seconds. `make go-keyring` adds a bus that accepts the connection and never answers: the caller is let go after 5.0 s. |
 | 6 | M3 | An icon whose stroke is transparent (`stroke-opacity: 0`) passed both audits | Fixed. An icon is judged by what its shapes paint: stroke or fill, the paint's own alpha, its opacity, the line's width, the shape's and the icon's opacity. The contrast audit uses that paint and that opacity. One more control: ten. |
 | 7 | M3 | The request log's check looked for the page's address anywhere in a line | Fixed. The address of each request is taken out and compared by how it starts; the script first checks itself with a foreign address that carries the page's own in its query. |
+
+## What was done about round 5
+
+Round 5 is the first that finds milestone M3's work and its evidence sound, with one minor change; the M4 work in the extract is still unsound, for the keyring's time limit.
+
+| # | For | Finding | Response |
+| --- | --- | --- | --- |
+| 1 | M4, major | A keyring write that the caller had given up on could still be sent later and replace a password saved after it; a first write that timed out could leave a password under a reference nothing knew | Fixed. An operation has one time, from before it connects: its context. Every call is made with it, and the bus library sends nothing for a context that is over, so what was not sent by then is never sent (`TestAnOperationGivenUpOnFindsItsTimeOver`). What was already sent may still be taken: that outcome is not known, and is said so, not as "for this session only". The reference is recorded all the same, so nothing stays in the keyring unnamed, and the next start finds the password or asks (`TestAKeyringThatAnswersLateLeavesNothingAstray`, both ways). A write sent before another one is taken before it by the keyring, so the later registration's password is the one that stays. |
+| 2 | M4, minor | A button of a call's notification was taken from any sender on the bus | Fixed. A button counts only from the bus name that owns the notification service, asked before each request; a service that was replaced does not know the earlier notifications. `make go-notify` has another connection of the session "press" a real notification's Answer: nothing happens. |
+| 3 | M4, minor | The event forwarder still asked the toolkit to quit and waited for its main loop | Fixed. Quitting is asked from a goroutine of its own. The overlap the report describes (a quit already on its way when a termination signal ends the loop) is not driven by a test. |
+| 4 | M3, minor | A foreground color that is itself transparent passed the contrast and ring audits | Fixed. The color's own alpha counts in what is drawn (icons already brought theirs). One more control, a ring of a transparent color: eleven. |

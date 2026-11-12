@@ -236,7 +236,12 @@ func (p *Phone) keep(secret domain.Secret) {
 		}
 		ref = "go-microsip/" + hex.EncodeToString(id) // not a secret, and says nothing of the account
 	}
-	if err := p.o.Secrets.Set(ref, secret.Reveal()); err != nil {
+	switch err := p.o.Secrets.Set(ref, secret.Reveal()); {
+	case errors.Is(err, ports.ErrSecretsTimeout):
+		// The request may have reached the keyring. Its reference is recorded all the same: the
+		// next start then finds the password if the keyring took it, and asks if it did not.
+		p.o.warn("the keyring did not answer in time: whether it kept the password is not known; it is used for this session")
+	case err != nil:
 		p.o.warn("the password is kept for this session only: " + err.Error())
 		return
 	}

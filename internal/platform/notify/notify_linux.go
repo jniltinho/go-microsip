@@ -26,7 +26,23 @@ func (d *Desktop) serve() {
 		buttons bool
 		signals chan *dbus.Signal
 		shown   = map[uint64]uint32{} // call -> notification
+		owner   string                // the notification service's own name on the bus
 	)
+	// serving asks the bus who the notification service is now. A button counts only when it
+	// comes from that one: any process of the session can send a signal that looks like it. A
+	// service that was replaced does not know the notifications of the one before.
+	serving := func() bool {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		var now string
+		if err := conn.BusObject().CallWithContext(ctx, "org.freedesktop.DBus.GetNameOwner", 0, dest).Store(&now); err != nil {
+			return false
+		}
+		if now != owner {
+			owner, shown = now, map[uint64]uint32{}
+		}
+		return true
+	}
 	connect := func() bool {
 		if conn != nil {
 			return true
@@ -63,7 +79,7 @@ func (d *Desktop) serve() {
 	for {
 		select {
 		case r := <-d.requests:
-			if !connect() {
+			if !connect() || !serving() {
 				continue
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
@@ -91,8 +107,8 @@ func (d *Desktop) serve() {
 			}
 			cancel()
 		case s := <-signals:
-			if s == nil || len(s.Body) < 2 {
-				continue
+			if s == nil || len(s.Body) < 2 || s.Sender != owner {
+				continue // not from the notification service that showed ours
 			}
 			id, _ := s.Body[0].(uint32)
 			call, known := callOf(id)
