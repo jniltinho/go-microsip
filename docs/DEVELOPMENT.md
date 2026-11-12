@@ -91,6 +91,15 @@ make go-vm
 included. The Windows guest's emulated sound card has no host backend, so its sound threshold is
 expected to fail there (task 2.8); its window check is the one that counts.
 
+`GO_VM_LAB=1` also places calls from the Windows guest: an auxiliary VM runs the Asterisk lab on
+a network that only the VMs are on (see the lab's `README`). FreePBX 17 interoperability is a
+target of its own, with a VM that Sangoma's installer sets up (first run: about a quarter of
+an hour) and the lab's scenarios run against it from the auxiliary VM:
+
+```sh
+make go-freepbx            # KEEP=1 keeps the two VMs up for the next run
+```
+
 The command line is Cobra. Status 0 is done, 1 failed, 2 invalid usage; `run` exits 130 or 143
 after a signal.
 

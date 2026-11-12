@@ -1,0 +1,16 @@
+freepbx: FW Console - FreePBX Utility 17.0.33.4
+freepbx: Asterisk 22.11.0
+freepbx: Debian GNU/Linux 12 (bookworm)
+freepbx: transport 0.0.0.0-udp udp 0.0.0.0:5060
+freepbx: extensions 1001 and 1002, the lab's routes 600 to 602, reachable on eth1 by 192.168.77.10
+freepbx: the listed client reaches FreePBX
+freepbx: a VM of the lab's network that is not listed gets no connection
+freepbx: PASS register/1001 
+freepbx: PASS engine/echo/1001/PCMA 
+freepbx: PASS engine/echo/1001/PCMU 
+freepbx: PASS engine/pair/1001-1002 
+freepbx: PASS engine/hold-mute/1001-1002 
+freepbx: PASS engine/transfer/1001-1002 
+freepbx: PASS engine/dtmf/1001 
+freepbx: PASS engine/dtmf/wrong-digits-control 
+freepbx: 8 scenarios, 0 failed

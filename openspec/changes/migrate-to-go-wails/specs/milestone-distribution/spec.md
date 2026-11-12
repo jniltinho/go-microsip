@@ -44,10 +44,10 @@ The AppImage SHALL run on a clean Ubuntu 26.04 or later and on a clean Debian 13
 - **THEN** the window opens and a lab call has two-way audio
 
 ### Requirement: Isolated test matrix
-Call tests SHALL use only disposable PBXs with fictional extensions on an isolated network — the project's Asterisk lab and a FreePBX container for interoperability — and disposable VMs for desktop checks. Tests SHALL NOT use production PBXs, real credentials, personal settings or the installed reference application.
+Call tests SHALL use only disposable PBXs with fictional extensions on an isolated network — the project's Asterisk lab and a disposable FreePBX installation for interoperability — and disposable VMs for desktop checks. Tests SHALL NOT use production PBXs, real credentials, personal settings or the installed reference application.
 
 #### Scenario: Interoperability call
-- **WHEN** the candidate registers to the FreePBX container and to the Asterisk lab
+- **WHEN** the candidate registers to the FreePBX installation and to the Asterisk lab
 - **THEN** a two-way call with DTMF, hold and blind transfer succeeds on both and the receipt records PBX, transport and codec
 
 #### Scenario: Teardown

@@ -29,7 +29,7 @@ GO_GUI     := GO_DOCKER_FLAGS="$(GO_GUI_FLAGS)" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
 	go-frontend-test go-offline-skins go-keyring go-notify go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
-	go-vm go-shell
+	go-vm go-freepbx go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
 	docker build -t $(GO_IMAGE) -f build/linux.Dockerfile build
@@ -127,6 +127,11 @@ go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 
 	@# The Rust candidate's AppImage, when one was built here: the VMs run it beside go-microsip.
 	@cp -f $(firstword $(wildcard dist/rust-microsip-*.AppImage)) $(GO_DIST)/g0/rust-microsip.AppImage 2>/dev/null || rm -f $(GO_DIST)/g0/rust-microsip.AppImage
 	LAB=$(GO_VM_LAB) build/vm/run.sh $(GO_VERSION) "$(abspath $(GO_VM_OUT))" $(or $(SECONDS),300) $(GO_VMS)
+
+# FreePBX 17 in a VM, installed by Sangoma's installer (task 7.1): the lab's scenarios against it.
+go-freepbx: ## Go: registration, calls, DTMF, hold and transfer against FreePBX 17 in a lab VM (KEEP=1 keeps the VMs)
+	$(GO) sh -c 'mkdir -p $(GO_DIST)/g0 && CGO_ENABLED=0 go build -trimpath -o $(GO_DIST)/g0/g0lab ./internal/g0/cmd/g0lab'
+	build/vm/interop.sh "$(abspath artifacts/go-freepbx)"
 
 go-shell: ## Go: interactive shell in the build container
 	GO_DOCKER_FLAGS=-it $(GO) bash
