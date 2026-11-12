@@ -91,9 +91,9 @@ go-appimage-call: ## Go: the same call placed from the AppImage that go-dist lef
 go-lab: ## Go: the SIP/SRTP probes and the engine scenarios against the disposable Asterisk lab (SCENARIO=prefix)
 	sh docker/asterisk/go-g0.sh $(SCENARIO)
 
-go-licenses: go-frontend ## Go: third-party notices of the binary and the embedded frontend
+go-licenses: go-frontend ## Go: third-party notices of the binary and the embedded frontend, and their bill of materials (CycloneDX)
 	mkdir -p $(GO_DIST)
-	$(GO) scripts/go-licenses.sh $(GO_DIST)/THIRD_PARTY_NOTICES.txt
+	$(GO) scripts/go-licenses.sh $(GO_DIST)/THIRD_PARTY_NOTICES.txt $(GO_DIST)/sbom.cdx.json $(GO_VERSION)
 
 # The AppImage: the binary, its desktop entry, icon and notices; GTK 4 and WebKitGTK 6.0 come from
 # the system.
@@ -105,7 +105,7 @@ go-windows: go-frontend go-licenses ## Go: the Windows amd64 .exe and .zip
 	$(GO) build/windows/package.sh $(GO_DIST) $(GO_NAME) "$(GO_LDFLAGS)"
 
 # dist/go/: every artifact of this commit, with SHA256SUMS and a manifest. Run at each milestone.
-go-dist: go-appimage go-windows ## Go: Linux binary, AppImage, Windows .exe and .zip, notices, SHA256SUMS
+go-dist: go-appimage go-windows ## Go: Linux binary, AppImage, Windows .exe and .zip, notices, SBOM, SHA256SUMS
 	cp $(GO_BIN) $(GO_DIST)/$(GO_NAME)-linux-amd64
 	build/dist-manifest.sh $(GO_DIST) $(GO_NAME) $(GO_VERSION) $(GO_COMMIT) $(GO_WINDOW) $(GO_IMAGE)
 

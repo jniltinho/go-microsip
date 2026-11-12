@@ -44,7 +44,7 @@ License: GPL-3+
  License version 3 can be found in the file
  `/usr/share/common-licenses/GPL-3'.
 
---- The Apache License, Version 2.0, in full (Debian: /usr/share/common-licenses/Apache-2.0)
+==== The Apache License, Version 2.0, in full (Debian: /usr/share/common-licenses/Apache-2.0) ====
 
 
                                  Apache License
