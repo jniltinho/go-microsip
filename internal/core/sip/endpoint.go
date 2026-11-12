@@ -82,10 +82,10 @@ type Endpoint struct {
 	// product is what the User-Agent header of a request says.
 	product string
 	// local is the address the endpoint is bound to, or "0.0.0.0".
-	local string
-	dg      *diago.Diago
-	cancel  context.CancelFunc
-	log     *slog.Logger
+	local  string
+	dg     *diago.Diago
+	cancel context.CancelFunc
+	log    *slog.Logger
 
 	// mu guards the binding. The library's registration is not safe for a renewal and another
 	// request at once, so halt stops the renewal loop before anything else touches it.
