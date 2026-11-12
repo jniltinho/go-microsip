@@ -325,20 +325,16 @@ export class UiState {
         // The number is shown as text and dialed only through the same checks as a typed one.
         const asked = parseDialTarget(action.number);
         if (!asked.ok) return this.setNotice("The link is not valid", now);
-        // A question on the screen stays the question that is answered: a yes must not come to
-        // mean another number, or another action, than the one that was read.
-        if (this.confirm)
-          return this.setNotice("A link was ignored: answer the question on the screen first", now);
         // The question is shown over whatever is open: a form being filled in is left as it is.
-        this.confirm = { kind: "dial", number: asked.value };
+        this.ask({ kind: "dial", number: asked.value }, now);
         return;
       }
       case "deleteCall":
       case "deleteContact":
-        this.confirm = { kind: action.type, id: action.id };
+        this.ask({ kind: action.type, id: action.id }, now);
         return;
       case "clearHistory":
-        this.confirm = { kind: "clearHistory" };
+        this.ask({ kind: "clearHistory" }, now);
         return;
       case "newContact":
         this.closeView();
@@ -402,7 +398,7 @@ export class UiState {
         await this.send({ type: "unregister" }, now);
         return;
       case "quit":
-        if (this.call && !this.quitting) this.confirm = { kind: "quit" };
+        if (this.call && !this.quitting) this.ask({ kind: "quit" }, now);
         else await this.quitIfIdle(now);
         return;
       case "quitNow":
@@ -423,6 +419,17 @@ export class UiState {
   }
 
   /**
+   * Puts a question on the screen, unless one is there. The question that was read is the one a
+   * yes answers, whatever arrives meanwhile: a link, the close button, a late answer of the
+   * engine. What is not asked is said in a notice.
+   */
+  private ask(question: Confirm, now: number) {
+    if (!this.confirm) this.confirm = question;
+    else if (JSON.stringify(this.confirm) !== JSON.stringify(question))
+      this.setNotice("Answer the question on the screen first", now);
+  }
+
+  /**
    * Quit without a question, as far as this page knows of no call. The engine decides: it stops
    * only if it has none, and a call this page has not heard of yet comes back as "busy", which is
    * when the question is asked after all.
@@ -434,7 +441,8 @@ export class UiState {
       await this.engine.send({ type: "quit" });
     } catch (refused) {
       this.quitting = false;
-      if (refused === "busy") this.confirm = { kind: "quit" };
+      // The engine's answer may come after another question was put on the screen.
+      if (refused === "busy") this.ask({ kind: "quit" }, now);
       else this.applyEvent({ type: "notice", notice: refused as Notice }, now);
     }
   }

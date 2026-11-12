@@ -1,4 +1,4 @@
-package secrets
+package keyring
 
 import (
 	"errors"
@@ -61,7 +61,7 @@ func failure(err error) error {
 }
 
 // Get returns the password stored under ref; ok is false when there is none.
-func (Keyring) Get(ref string) (password string, ok bool, err error) {
+func (Store) Get(ref string) (password string, ok bool, err error) {
 	name, err := target(ref)
 	if err != nil {
 		return "", false, err
@@ -78,7 +78,7 @@ func (Keyring) Get(ref string) (password string, ok bool, err error) {
 }
 
 // Set stores or replaces the password under ref.
-func (Keyring) Set(ref, password string) error {
+func (Store) Set(ref, password string) error {
 	name, err := target(ref)
 	if err != nil {
 		return err
@@ -96,7 +96,7 @@ func (Keyring) Set(ref, password string) error {
 }
 
 // Delete removes the entry; removing one that does not exist is not an error.
-func (Keyring) Delete(ref string) error {
+func (Store) Delete(ref string) error {
 	name, err := target(ref)
 	if err != nil {
 		return err

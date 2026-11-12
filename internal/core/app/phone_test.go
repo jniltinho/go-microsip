@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -733,5 +734,72 @@ func TestATypedPasswordIsKeptInTheKeyringForTheNextStart(t *testing.T) {
 	quiet(p)
 	if p.Settings().HasPassword {
 		t.Error("a password at the next start without a keyring")
+	}
+}
+
+// slowKeyring is a keyring whose first write waits until it is let go.
+type slowKeyring struct {
+	memory.Keyring
+	first   sync.Once
+	started chan struct{} // closed when the first write has begun
+	release chan struct{} // closed to let it finish
+}
+
+func (k *slowKeyring) Set(ref, password string) error {
+	k.first.Do(func() {
+		close(k.started)
+		<-k.release
+	})
+	return k.Keyring.Set(ref, password)
+}
+
+// Two registrations one after the other, the first one's keyring write slow: the password that
+// stays is the second one's. The second waits for the first to be whole instead of passing it.
+func TestThePasswordKeptIsTheOneOfTheLastRegistration(t *testing.T) {
+	port := registrar(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1001\"\ndomain = \"127.0.0.1\"\nport = %d\ntransport = \"tcp\"\nexpires = 60\n", port)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	keyring := &slowKeyring{started: make(chan struct{}), release: make(chan struct{})}
+	o := Options{ConfigPath: file, Files: own{}, Locks: &memory.Locks{}, Secrets: keyring,
+		Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}}
+	p, err := OpenPhone(o, PhoneOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	account := *p.Settings().Account
+	first, second := "fictional-first-password", "fictional-second-password"
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	go func() { firstDone <- p.Register(account, &first) }()
+	<-keyring.started // the first registration is at its keyring write
+	go func() { secondDone <- p.Register(account, &second) }()
+	select {
+	case err := <-secondDone:
+		t.Fatalf("the second registration finished (%v) while the first was still writing its password", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(keyring.release)
+	for name, done := range map[string]chan error{"first": firstDone, "second": secondDone} {
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("the %s registration: %v", name, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("the %s registration did not finish", name)
+		}
+	}
+	entries := keyring.Entries()
+	if len(entries) != 1 {
+		t.Fatalf("the keyring holds %d entries", len(entries))
+	}
+	for _, kept := range entries {
+		if kept != second {
+			t.Error("the keyring kept the first registration's password, not the last one's")
+		}
 	}
 }

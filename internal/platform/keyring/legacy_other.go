@@ -1,6 +1,6 @@
 //go:build !linux
 
-package secrets
+package keyring
 
 import "github.com/jniltinho/go-microsip/internal/core/ports"
 

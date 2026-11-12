@@ -1,4 +1,4 @@
-package secrets
+package keyring
 
 import (
 	"errors"
@@ -11,10 +11,10 @@ import (
 // A locked keyring is never unlocked from here (that needs the desktop's own prompt): reading and
 // storing say it is locked, and the prompt the keyring offers is dismissed.
 func TestALockedKeyringIsReportedAndNotPrompted(t *testing.T) {
-	if os.Getenv("GO_MICROSIP_SECRETS_TEST") != "keyring" {
-		t.Skip("set GO_MICROSIP_SECRETS_TEST=keyring in a session with an unlocked keyring (make go-secrets)")
+	if os.Getenv("GO_MICROSIP_KEYRING_TEST") != "keyring" {
+		t.Skip("set GO_MICROSIP_KEYRING_TEST=keyring in a session with an unlocked keyring (make go-keyring)")
 	}
-	var k Keyring
+	var k Store
 	const ref = testRef + "-locked"
 	if err := k.Set(ref, "fictional-password"); err != nil {
 		t.Fatal(err)

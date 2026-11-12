@@ -1,6 +1,6 @@
 //go:build !linux && !windows
 
-package secrets
+package keyring
 
 import "github.com/jniltinho/go-microsip/internal/core/ports"
 
@@ -8,10 +8,10 @@ import "github.com/jniltinho/go-microsip/internal/core/ports"
 // the session. Add the adapter with the platform's build.
 
 // Get reports that there is no keyring.
-func (Keyring) Get(string) (string, bool, error) { return "", false, ports.ErrNoSecretService }
+func (Store) Get(string) (string, bool, error) { return "", false, ports.ErrNoSecretService }
 
 // Set reports that there is no keyring.
-func (Keyring) Set(string, string) error { return ports.ErrNoSecretService }
+func (Store) Set(string, string) error { return ports.ErrNoSecretService }
 
 // Delete reports that there is no keyring.
-func (Keyring) Delete(string) error { return ports.ErrNoSecretService }
+func (Store) Delete(string) error { return ports.ErrNoSecretService }

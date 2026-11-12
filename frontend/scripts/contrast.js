@@ -46,8 +46,34 @@
     b: fg.b * a + bg.b * (1 - a),
     a: 1,
   });
+  // What a shape of an icon paints: its stroke or its fill, whichever shows more, with the
+  // opacity it ends up with; null when it paints nothing (hidden, no paint, a paint or a line
+  // of no opacity or width).
+  const paint = (shape) => {
+    const s = getComputedStyle(shape);
+    if (s.display === "none" || s.visibility === "hidden") return null;
+    const stroke = parse(s.stroke);
+    const fill = parse(s.fill);
+    const strokeA =
+      stroke && parseFloat(s.strokeWidth) > 0 ? stroke.a * Number(s.strokeOpacity) : 0;
+    const fillA = fill ? fill.a * Number(s.fillOpacity) : 0;
+    const [color, a] = strokeA >= fillA ? [stroke, strokeA] : [fill, fillA];
+    return a > 0 && Number(s.opacity) > 0 ? { color, a: a * Number(s.opacity) } : null;
+  };
+  // An icon is its shapes: the one that shows most is what is seen of it. null: nothing is.
+  const icon = (svg) => {
+    let best = null;
+    for (const shape of svg.querySelectorAll(
+      "path, circle, rect, line, polyline, polygon, ellipse",
+    )) {
+      const p = paint(shape);
+      if (p && (!best || p.a > best.a)) best = p;
+    }
+    const a = best ? best.a * alpha(svg) : 0;
+    return a > 0 ? { color: best.color, a } : null;
+  };
   // For focus.js and the state check, which use the same arithmetic.
-  window.__aaa = { parse, ratio, backgrounds, alpha, over };
+  window.__aaa = { parse, ratio, backgrounds, alpha, over, icon };
   const modal = document.querySelector("dialog[open]");
   const failures = new Set();
   const shown = (el) => {
@@ -75,15 +101,8 @@
   }
   for (const el of document.querySelectorAll("svg")) {
     if (!shown(el)) continue;
-    // An icon is its shapes: the most visible one is what is seen of it.
-    const shape = Math.max(
-      0,
-      ...[...el.querySelectorAll("path, circle, rect, line")].map((p) => {
-        const s = getComputedStyle(p);
-        return s.display === "none" || s.visibility === "hidden" ? 0 : Number(s.opacity);
-      }),
-    );
-    const low = worst(parse(getComputedStyle(el).stroke), backgrounds(el), alpha(el) * shape);
+    const drawn = icon(el);
+    const low = drawn ? worst({ ...drawn.color, a: 1 }, backgrounds(el), drawn.a) : 1;
     if (low < 3)
       failures.add(`${low.toFixed(2)} icon in "${el.parentElement.innerText.trim().slice(0, 20)}"`);
   }

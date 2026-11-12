@@ -1,4 +1,4 @@
-package secrets
+package keyring
 
 import (
 	"context"
@@ -105,15 +105,52 @@ func (l *link) search(owner, ref string) (unlocked, locked []dbus.ObjectPath, er
 	return unlocked, locked, failure(err)
 }
 
+// within runs one operation on the keyring and waits for it no longer than callTimeout, the
+// connection to the session bus included: a bus that accepts a connection and then says nothing
+// must not hold the window. An operation that is given up on ends by itself, later.
+func within[T any](op func() (T, error)) (T, error) {
+	type result struct {
+		value T
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		value, err := op()
+		done <- result{value, err}
+	}()
+	select {
+	case r := <-done:
+		return r.value, r.err
+	case <-time.After(callTimeout):
+		var none T
+		return none, ErrTimeout
+	}
+}
+
+// found is what a read gives.
+type found struct {
+	password string
+	ok       bool
+}
+
 // Get returns the password stored under ref; ok is false when there is none.
-func (Keyring) Get(ref string) (password string, ok bool, err error) { return get(application, ref) }
+func (Store) Get(ref string) (password string, ok bool, err error) {
+	f, err := within(func() (found, error) { return get(application, ref) })
+	return f.password, f.ok, err
+}
 
 // Get reads the password the Rust application stored under ref. Its entries are only ever read.
 func (Legacy) Get(ref string) (password string, ok bool, err error) {
-	return get(legacyApplication, ref)
+	f, err := within(func() (found, error) { return get(legacyApplication, ref) })
+	return f.password, f.ok, err
 }
 
-func get(owner, ref string) (password string, ok bool, err error) {
+func get(owner, ref string) (found, error) {
+	password, ok, err := read(owner, ref)
+	return found{password, ok}, err
+}
+
+func read(owner, ref string) (password string, ok bool, err error) {
 	if err := validRef(ref); err != nil {
 		return "", false, err
 	}
@@ -144,7 +181,12 @@ func get(owner, ref string) (password string, ok bool, err error) {
 }
 
 // Set stores or replaces the password under ref in the default collection.
-func (Keyring) Set(ref, password string) error {
+func (Store) Set(ref, password string) error {
+	_, err := within(func() (struct{}, error) { return struct{}{}, store(ref, password) })
+	return err
+}
+
+func store(ref, password string) error {
 	if err := validRef(ref); err != nil {
 		return err
 	}
@@ -175,7 +217,12 @@ func (Keyring) Set(ref, password string) error {
 }
 
 // Delete removes every entry stored under ref; none is not an error.
-func (Keyring) Delete(ref string) error {
+func (Store) Delete(ref string) error {
+	_, err := within(func() (struct{}, error) { return struct{}{}, remove(ref) })
+	return err
+}
+
+func remove(ref string) error {
 	if err := validRef(ref); err != nil {
 		return err
 	}

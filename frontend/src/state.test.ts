@@ -30,7 +30,14 @@ class Fake {
   sent: string[] = [];
   saved: string[] = [];
   fail: Notice | null = null;
+  /** The answer to the next command, when the engine is to take its time over it. */
+  hold: Promise<void> | null = null;
   send = (c: Command) => {
+    if (this.hold) {
+      const held = this.hold;
+      this.hold = null;
+      return held;
+    }
     if (this.fail) return Promise.reject(this.fail);
     const { type, ...rest } = c.type === "register" ? { ...c, password: "[REDACTED]" } : c;
     this.sent.push(`${type}(${Object.values(rest).map(String).join(", ")})`);
@@ -422,7 +429,7 @@ test("a link asks before it calls", async () => {
     { type: "askDial", number: "1003" },
   ]);
   expect(st.confirm).toEqual({ kind: "dial", number: "1002" });
-  expect(st.notice(0)).toBe("A link was ignored: answer the question on the screen first");
+  expect(st.notice(0)).toBe("Answer the question on the screen first");
   await run(st, ["confirm"]);
   expect(b.take()).toEqual(["dial(1002)"]);
   // Nor does it replace another question: a delete that waits for its answer stays a delete.
@@ -432,6 +439,25 @@ test("a link asks before it calls", async () => {
     { type: "askDial", number: "1003" },
   ]);
   expect(st.confirm).toEqual({ kind: "deleteContact", id: 4 });
+  // The close button while a link's question is on the screen: the question stays.
+  [st, b] = fresh();
+  call(st, snap(1, "outgoing", "established", 1));
+  await run(st, [{ type: "askDial", number: "1002" }, "quit"]);
+  expect(st.confirm).toEqual({ kind: "dial", number: "1002" });
+  // The engine's late "busy" to a quit asked before the link arrived: the question stays the
+  // link's, and its yes dials; it does not become "Hang up and quit".
+  [st, b] = fresh();
+  let refuse: (why: Notice) => void = () => {};
+  b.hold = new Promise<void>((_, reject) => (refuse = reject));
+  const quit = st.dispatch({ type: "quit" }, 0); // waits for the engine
+  await run(st, [{ type: "askDial", number: "1002" }]);
+  expect(st.confirm).toEqual({ kind: "dial", number: "1002" });
+  refuse("busy");
+  await quit;
+  expect([st.confirm, st.quitting]).toEqual([{ kind: "dial", number: "1002" }, false]);
+  expect(st.notice(0)).toBe("Answer the question on the screen first");
+  await run(st, ["confirm"]);
+  expect(b.take()).toEqual(["dial(1002)"]);
   // A form being filled in is left as it is by the question, and by Cancel.
   [st, b] = fresh();
   await run(st, ["newContact"]);

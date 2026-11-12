@@ -153,7 +153,9 @@ func Run(o Options) error {
 	var leaving atomic.Bool
 	quit := sync.OnceFunc(func() { leaving.Store(true); ui.Quit() }) // asked for more than once
 	svc.quit = quit
-	svc.attention = reveal
+	// Showing the window is asked of the toolkit's main loop and waited for there, so it is not
+	// done by what forwards the engine's events, for the same reason as the tray's menu below.
+	svc.attention = func() { go reveal() }
 	// The System skin follows the desktop. WebKitGTK in a plain GTK window does not pass the
 	// desktop's dark preference on to the page, so the page is told, at once and on every change.
 	svc.dark = ui.Env.IsDarkMode
@@ -206,8 +208,23 @@ func Run(o Options) error {
 			return menu
 		}
 		tray.SetMenu(menu())
-		// Before anything forwards events: the menu follows the history.
-		svc.recentChanged = func() { tray.SetMenu(menu()) }
+		// The menu follows the history. It is rebuilt by a goroutine of its own: the toolkit sets
+		// a menu on its main loop and waits for it, and what forwards the engine's events must
+		// never wait for a loop that has ended (a call that ends while the application leaves).
+		// Requests made meanwhile are one request.
+		stale := make(chan struct{}, 1)
+		go func() {
+			for range stale {
+				tray.SetMenu(menu())
+			}
+		}()
+		// Before anything forwards events.
+		svc.recentChanged = func() {
+			select {
+			case stale <- struct{}{}:
+			default: // a rebuild is already asked for
+			}
+		}
 		tray.OnClick(reveal)
 		main.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 			if leaving.Load() {

@@ -9,6 +9,7 @@ The scope is wider than the skins: the tray, the close button and the local addr
 | 1 | `5502e87` | UNSOUND: 6 major, 4 minor | [codex-round1.md](codex-round1.md) |
 | 2 | `fa9e3bd` | UNSOUND: of the ten, 4 resolved and 6 partially; 5 new major, 5 new minor | [codex-round2.md](codex-round2.md) |
 | 3 | `9792f85` | UNSOUND: N1 to N10 resolved (N3 as a recorded limit); 3 new major, 6 new minor | [codex-round3.md](codex-round3.md) |
+| 4 | `4a5bd14` | UNSOUND for M3 and for the M4 work: round 3's nine resolved (8 in part, on purpose; 9 in part); 4 new major, 3 new minor | [codex-round4.md](codex-round4.md) |
 
 ## What was done about round 1
 
@@ -59,3 +60,17 @@ The report re-graded two of its round-2 findings as minor (the DNS limit of N3, 
 | 7 | `RGB(...)` in capitals passed the literal-color test | Fixed, with a fixture. |
 | 8 | The desktop entry the application installs for itself passes no link and declares no type | Fixed in part, on purpose. The entry now passes a link on (`%u`). It still claims no `sip:` or `tel:` handling: that makes go-microsip a candidate for the desktop's links without the user having asked, which the Rust candidate did only with consent. The AppImage's own entry declares the types. A setting that registers the handler with consent is open under task 6.1. |
 | 9 | Receipts mixed revisions: a packaged log older than the harness it was quoted for, and a request log from before the Ubuntu skin drew in Inter | Fixed. The request log is produced by `frontend/scripts/network-log.sh` and was run again at this state; the packaged run in the M3 receipt is the one of the final artifact, driven by the harness of the same commit; the tray receipt points to it and keeps its first run as history. |
+
+## What was done about round 4
+
+From this round on the verdict is given twice, for M3 and for the M4 work carried in the same extract. The report names files under `internal/platform/secrets`; the package is `internal/platform/keyring` since (the session's own permission rules refuse to read a directory of that name, whatever is in it).
+
+| # | For | Finding | Response |
+| --- | --- | --- | --- |
+| 1 | M3 | The engine's late "busy" to an unasked quit replaced a question that had been put on the screen meanwhile (a link's), so its yes ended the call | Fixed. One place puts a question on the screen (`ask`), and it never replaces one that is there: whatever would be asked is said in a notice instead. It is used by the link, the delete and clear questions, the close button during a call and the engine's late answer. Tested with the quit's answer held back while a link's question is shown, and with the close button over a link's question. |
+| 2 | M4 | The tray's menu was rebuilt, on the toolkit's main loop and waiting for it, by what forwards the engine's events: a call ending while the application leaves would wait for a loop that has ended | Fixed. The menu is rebuilt by a goroutine of its own, asked through a channel that holds one request; showing the window for an incoming call is not done by the forwarder either. The lab window test has a new case, a termination signal during a call: the process ends, the call is over, the PBX takes the extension again. It was not shown to hang before the fix. |
+| 3 | M4 | Two registrations in a row could leave the first one's password in the keyring, when its write finished last | Fixed. A registration is one whole act under a lock: the command, the session's password and the keyring's, in the order the requests came. `TestThePasswordKeptIsTheOneOfTheLastRegistration` holds the first write back: the second registration waits, and its password is the one kept. |
+| 4 | M3 | The packaged run quoted for the final artifact was an older run, quoted for two artifacts | Fixed. The log in `docs/receipts/go-m3/appimage-call.log` is the run of the artifact named in the receipt's closing section, driven by the checks of the same commit (it has the `links`, `quit during a call` and `the password is remembered` cases); the earlier row that quoted it for another commit is gone. |
+| 5 | M4 | The keyring's five seconds did not cover connecting to the session bus | Fixed. The whole operation, connecting included, is given up after five seconds. `make go-keyring` adds a bus that accepts the connection and never answers: the caller is let go after 5.0 s. |
+| 6 | M3 | An icon whose stroke is transparent (`stroke-opacity: 0`) passed both audits | Fixed. An icon is judged by what its shapes paint: stroke or fill, the paint's own alpha, its opacity, the line's width, the shape's and the icon's opacity. The contrast audit uses that paint and that opacity. One more control: ten. |
+| 7 | M3 | The request log's check looked for the page's address anywhere in a line | Fixed. The address of each request is taken out and compared by how it starts; the script first checks itself with a foreign address that carries the page's own in its query. |

@@ -21,6 +21,7 @@ Change `openspec/changes/migrate-to-go-wails`, section 6. Work in progress: no t
 | `TestShutdownIsBoundedWhenThePBXStopsAnswering`, `TestShutdownDuringACallIsBoundedWhenThePBXStopsAnswering` (`internal/core/engine`) | pass: a loopback PBX that registers and answers a call, then answers nothing; the engine reports the call ended and the registration disabled and stops in 4.0 s, having sent the hang-up and the unregistration |
 | `TestAConditionalShutdownIsRefusedDuringACall` | pass: a quit nobody was asked about is the engine's to decide |
 | `make go-window-call`, subtest `quit during a call` | pass: the close button during a call asks; after the yes the process is gone (0.1 s with the lab PBX answering), the call ended and the account unregistered, and the PBX takes the same extension again |
+| `make go-window-call`, subtest `a termination signal during a call` | pass: the same without a question, on SIGTERM; the call's last event arrives while the window is leaving and does not hold it |
 | the lab scenarios `engine/shutdown/*` | pass in `make go-lab` |
 
 Open in 6.1:
@@ -33,13 +34,14 @@ Open in 6.1:
 
 A password typed in the settings is kept in the user's keyring and nowhere else; the database keeps a reference of the form `go-microsip/<random>`, which says nothing of the account. The next start reads it and registers by itself. A password the configuration provides (the environment, a private file) still comes first. A keyring that is locked, missing or slow leaves the password for the session, with a warning on the standard error; the unlock prompt of the desktop is never started from here, as in the Rust candidate.
 
-- Linux: the freedesktop Secret Service on the session bus (`internal/platform/secrets`), items of the default collection with the attributes `application = go-microsip` and `account = <reference>`, a "plain" session, every operation bounded by five seconds.
+- Linux: the freedesktop Secret Service on the session bus (`internal/platform/keyring`), items of the default collection with the attributes `application = go-microsip` and `account = <reference>`, a "plain" session, every operation bounded by five seconds, connecting to the bus included.
 - Windows: generic credentials of the Credential Manager, named `go-microsip:<reference>`.
 - The Rust application's entries (`application = rust-microsip`) can be read for the import of its password; they are never written or deleted.
 
 | Check | Result |
 | --- | --- |
-| `make go-secrets` | pass: against GNOME Keyring on a private session bus, unlocked with a throwaway password: store, read, replace, another reference, delete, invalid references; then the collection is locked and reading and storing answer "locked" with the keyring's prompt dismissed; then a session bus with no Secret Service and a session with no bus answer "no keyring", and no error repeats a password |
+| `make go-keyring` | pass: against GNOME Keyring on a private session bus, unlocked with a throwaway password: store, read, replace, another reference, delete, invalid references; then the collection is locked and reading and storing answer "locked" with the keyring's prompt dismissed; then a session bus with no Secret Service and a session with no bus answer "no keyring", and no error repeats a password; then a bus that accepts the connection and never answers lets the caller go after 5.0 s |
+| `TestThePasswordKeptIsTheOneOfTheLastRegistration` (`internal/core/app`) | pass: with the first registration's keyring write held back, the second waits, and its password is the one kept |
 | `TestATypedPasswordIsKeptInTheKeyringForTheNextStart` (`internal/core/app`) | pass: the typed password registers, is the one entry of the keyring under a reference without the account, is in no file of the profile, registers by itself at the next start, is replaced by the next one typed; without a keyring it lives for the session and the next start asks again |
 | `make go-window-call`, subtest `the password is remembered` | pass: in the built window, with no password configured, the password is typed in the settings, the account registers; no file of the profile (database, its journal, configuration, the window's trace and output) holds the password; the next start registers by itself |
 
@@ -67,4 +69,15 @@ Open in 6.3: notifications, the tray and link registration on Windows; the sound
 
 ## Runs
 
-Filled in at the commit that closes this batch.
+Artifacts `0.3.0-m3` of commit `4a5bd14`, with the checks of that commit, unless a row says otherwise.
+
+| Command | Result |
+| --- | --- |
+| `make go-check`, `make go-test`, `make go-frontend-test` | pass (33 page tests) |
+| `make go-lab` | 68 of 68 scenarios |
+| `make go-appimage-call` | pass: the AppImage through the two accounts, the wrong password, every skin, links, quitting during a call and the remembered password ([log](go-m3/appimage-call.log)) |
+| `make go-window-call` at the commit of this receipt | pass, with the two cases added since: the notification's Reject and a termination signal during a call ([log](go-m3/window-call.log)) |
+| `make go-keyring`, `make go-notify` at the commit of this receipt | pass |
+| `make go-vm GO_VMS="windows11 ubuntu2604 debian13"` | Ubuntu 26.04 and Debian 13 (GNOME on Wayland): pass ([log](go-m3/vm-ubuntu2604.log), [log](go-m3/vm-debian13.log)). Windows 11: the instance lock, the Credential Manager, the window, no listening port and the seven skins with their database pass; the emulated sound card fails the audio threshold, so the run as a whole fails ([log](go-m3/vm-windows11.log)) |
+
+The artifacts of the commit of this receipt are built and driven after it; the M3 receipt's closing section is updated with them.

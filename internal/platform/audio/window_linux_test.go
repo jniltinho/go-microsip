@@ -477,7 +477,8 @@ func TestCallThroughTheWindow(t *testing.T) {
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
 	t.Run("every skin", func(t *testing.T) { skinsInTheWindow(t, bin, server, passwords["1002"]) })
 	t.Run("links", func(t *testing.T) { linksInTheWindow(t, bin, server, passwords["1002"]) })
-	t.Run("quit during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"]) })
+	t.Run("quit during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"], false) })
+	t.Run("a termination signal during a call", func(t *testing.T) { quitDuringACall(t, bin, server, passwords["1002"], true) })
 	t.Run("the password is remembered", func(t *testing.T) { passwordIsRemembered(t, bin, server, passwords["1002"]) })
 	// The same window on a desktop at 100 and at 200 %, in every skin. An X11 display scales by
 	// whole numbers (GDK_SCALE); 150 % cannot be had here.
@@ -566,7 +567,10 @@ func passwordIsRemembered(t *testing.T, bin, server, password string) {
 // Quitting during a call (desktop-app: "Quit during a call"): the close button asks, the yes ends
 // the call, the account unregisters and the process is gone within the engine's bound. The PBX
 // then takes the same extension again, which it would refuse had the contact stayed.
-func quitDuringACall(t *testing.T, bin, server, password string) {
+//
+// With signal, the process is told to end (SIGTERM) instead: nobody is asked, and the same holds.
+// The call's last event then arrives while the window is already leaving, which must not hold it.
+func quitDuringACall(t *testing.T, bin, server, password string, signal bool) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "config.toml")
 	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1002\"\ndomain = %q\nport = 5060\ntransport = \"udp\"\n", server)
@@ -574,7 +578,7 @@ func quitDuringACall(t *testing.T, bin, server, password string) {
 		t.Fatal(err)
 	}
 	trace := filepath.Join(dir, "ui-trace.jsonl")
-	_, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	quitting, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
 	w := &window{t: t, lines: follow(t, trace)}
 	w.until(60*time.Second, "registration shown", func() bool { return w.registered == "registered" && w.shows("Registered") })
 	for deadline := time.Now().Add(10 * time.Second); w.id == ""; time.Sleep(200 * time.Millisecond) {
@@ -587,16 +591,23 @@ func quitDuringACall(t *testing.T, bin, server, password string) {
 	}
 	w.keys("ctrl+l", "6", "0", "0", "Return")
 	w.until(30*time.Second, "the call connected", func() bool { return w.call.Phase == "established" && w.shows("Connected", "600") })
-	w.keys("alt+F4")
-	w.until(10*time.Second, "the question before quitting", func() bool { return w.shows("Hang up and quit?") && w.call.Phase == "established" })
 	asked := time.Now()
-	w.click("Hang up and quit")
+	if signal {
+		if err := syscall.Kill(-quitting.Process.Pid, syscall.SIGTERM); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		w.keys("alt+F4")
+		w.until(10*time.Second, "the question before quitting", func() bool { return w.shows("Hang up and quit?") && w.call.Phase == "established" })
+		asked = time.Now()
+		w.click("Hang up and quit")
+	}
 	select {
 	case <-exited:
 	case <-time.After(10 * time.Second):
-		t.Fatal("the window was still there 10 s after the yes: the engine's bound is 5 s")
+		t.Fatal("the window was still there 10 s after it was told to end: the engine's bound is 5 s")
 	}
-	t.Logf("gone %v after the yes", time.Since(asked).Round(10*time.Millisecond))
+	t.Logf("gone %v after it was told to end", time.Since(asked).Round(10*time.Millisecond))
 	if !w.unregistered(5 * time.Second) {
 		t.Error("the engine did not report itself stopped")
 	}

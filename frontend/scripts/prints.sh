@@ -5,10 +5,11 @@
 # an icon in sight beside the state's label (a state is never told by color alone), and the main
 # screens of each skin for the ring of every control that takes the keyboard's focus (focus.js).
 # The results go to <output directory>/contrast.txt, states.txt and focus.txt, and any failure
-# makes the run fail. The run ends with nine controls (a ring taken away on a call and in the menu,
+# makes the run fail. The run ends with ten controls (a ring taken away on a call and in the menu,
 # a ring on a transparent control, an audit pointed at another screen, an icon hidden, an icon and
-# a text in a transparent badge, an icon whose shapes are transparent, in the state check and in
-# the contrast audit): each must be reported, or the audits prove nothing. Run from the repository root with the dev server up (see
+# a text in a transparent badge, an icon whose stroke is transparent, an icon whose shapes are
+# transparent, in the state check and in the contrast audit): each must be reported, or the
+# audits prove nothing. Run from the repository root with the dev server up (see
 # docs/ui/go-frontend.md):
 #   frontend/scripts/prints.sh [base URL] [output directory] [skins...]
 set -eu
@@ -44,8 +45,9 @@ shot() {
 state() {
 	screen=$1
 	shift
+	abo eval "$audit" >/dev/null # the arithmetic of what an icon paints
 	for label in "$@"; do
-		found=$(abo eval "[...document.querySelectorAll('svg')].some((s) => { const b = s.getBoundingClientRect(), c = getComputedStyle(s); let a = 1; for (let e = s; e; e = e.parentElement) a *= Number(getComputedStyle(e).opacity); return b.width > 0 && b.height > 0 && c.visibility !== 'hidden' && a > 0 && [...s.querySelectorAll('path, circle, rect, line')].some((p) => { const q = getComputedStyle(p); return q.display !== 'none' && q.visibility !== 'hidden' && Number(q.opacity) > 0; }) && s.parentElement.innerText.trim().startsWith('$label'); })")
+		found=$(abo eval "[...document.querySelectorAll('svg')].some((s) => { const b = s.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(s).visibility !== 'hidden' && window.__aaa.icon(s) !== null && s.parentElement.innerText.trim().startsWith('$label'); })")
 		if [ "$found" = true ]; then
 			echo "$skin/$screen: icon and label \"$label\"" >>"$out/states.txt"
 		else
@@ -254,6 +256,9 @@ if [ "$low" != '""' ]; then
 else
 	echo "prints: CONTROL FAILED: text in a transparent badge was not reported"
 fi
+fault muted '.badge path { stroke-opacity: 0 }'
+state icon-with-a-transparent-stroke "Muted"
+caught "an icon whose stroke is transparent" "$out/states.txt" '^control/icon-with-a-transparent-stroke: NO ICON'
 fault muted '.badge path { opacity: 0 }'
 state icon-with-transparent-shapes "Muted"
 caught "an icon whose shapes are transparent" "$out/states.txt" '^control/icon-with-transparent-shapes: NO ICON'
@@ -264,6 +269,6 @@ if printf '%s' "$low" | grep -q 'icon in'; then
 else
 	echo "prints: CONTROL FAILED: the contrast of an icon with transparent shapes was not reported"
 fi
-echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label, $(grep -c 'controls show a ring' "$out/focus.txt") screens show a ring on every control, $controls of 9 controls caught)"
-[ "$controls" -eq 9 ] && ! grep -v '^control/' "$out/contrast.txt" | grep -q BELOW && ! grep -v '^control/' "$out/states.txt" | grep -q "NO ICON" &&
+echo "prints: $out ($(grep -c ': ok$' "$out/contrast.txt") screens pass the contrast audit, $(grep -c 'icon and label' "$out/states.txt") states carry an icon and a label, $(grep -c 'controls show a ring' "$out/focus.txt") screens show a ring on every control, $controls of 10 controls caught)"
+[ "$controls" -eq 10 ] && ! grep -v '^control/' "$out/contrast.txt" | grep -q BELOW && ! grep -v '^control/' "$out/states.txt" | grep -q "NO ICON" &&
 	! grep -v '^control/' "$out/focus.txt" | grep -q "RING"

@@ -28,7 +28,7 @@ GO_GUI_FLAGS := --init --security-opt seccomp=unconfined --security-opt apparmor
 GO_GUI     := GO_DOCKER_FLAGS="$(GO_GUI_FLAGS)" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
-	go-frontend-test go-offline-skins go-secrets go-notify go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
+	go-frontend-test go-offline-skins go-keyring go-notify go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
 	go-vm go-shell
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
@@ -67,8 +67,8 @@ go-self-test: go-build ## Go: the window opens under Xvfb and the page calls the
 go-offline-skins: go-build ## Go: the window starts in every skin in a container with no network
 	GO_DOCKER_FLAGS="--network none $(GO_GUI_FLAGS)" $(GO) build/qa/offline-skins.sh $(GO_BIN) $(OUT)
 
-go-secrets: go-embed-stub ## Go: the keyring adapter against GNOME Keyring on a private session bus, and against no keyring
-	$(GO_GUI) sh -c 'CGO_ENABLED=0 go test -c -o /tmp/secrets.test ./internal/platform/secrets && build/qa/secrets.sh /tmp/secrets.test'
+go-keyring: go-embed-stub ## Go: the keyring adapter against GNOME Keyring on a private session bus, and against no keyring
+	$(GO_GUI) sh -c 'CGO_ENABLED=0 go test -c -o /tmp/keyring.test ./internal/platform/keyring && build/qa/keyring.sh /tmp/keyring.test'
 
 go-notify: go-embed-stub ## Go: the call notifier against a notification service on a private session bus, and against none
 	$(GO_GUI) sh -c 'CGO_ENABLED=0 go test -c -o /tmp/notify.test ./internal/platform/notify && build/qa/notify.sh /tmp/notify.test'
@@ -117,7 +117,7 @@ go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 
 	$(GO) sh -c 'mkdir -p $(GO_DIST)/g0 && CGO_ENABLED=0 go test -c -o $(GO_DIST)/g0/audio.test ./internal/platform/audio && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/audio.test.exe ./internal/platform/audio && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/lock.test.exe ./internal/platform/lock && \
-		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/secrets.test.exe ./internal/platform/secrets'
+		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/keyring.test.exe ./internal/platform/keyring'
 	mkdir -p $(GO_VM_OUT)
 	build/vm/run.sh $(GO_VERSION) "$(abspath $(GO_VM_OUT))" $(or $(SECONDS),300) $(GO_VMS)
 

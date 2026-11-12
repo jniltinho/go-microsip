@@ -1,0 +1,18 @@
+vm-check: Ubuntu 26.04 LTS, kernel 7.0.0-22-generic
+vm-check: libgtk-4-1 4.22.4+ds-0ubuntu0.1 (ii )
+vm-check: libwebkitgtk-6.0-4 2.52.6-0ubuntu0.26.04.1 (ii )
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.6.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 60 s: capture 3000 of 3000 frames (longest miss 0 ticks, gap 27 ms, 0 samples dropped); speaker 5995 of 5996 10 ms pieces (longest silence 1 pieces, arrival gap 48 ms, 11 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 320 ms between frames); capture: 2560 samples dropped; playback: 29 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 320 ms without samples); playback: 2325 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 109.174µs, microphone back after 167.79717ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (68.45s)
+vm-check: audio: PASS
+vm-check: audio adapter OK on the distribution's audio service
+vm-check: desktop session: ubuntu:GNOME on wayland, GNOME Shell 50.1
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: system skin: followed the desktop to dark in 224 ms and back to light in 339 ms
+vm-check: PASS Ubuntu 26.04 LTS

@@ -101,6 +101,10 @@ type Phone struct {
 	// inCall: the engine has a call. It keeps its account for the length of it.
 	inCall atomic.Bool
 
+	// registering makes a registration one whole act: the command, the session's password and
+	// the keyring's are those of the same request, in the order the requests came.
+	registering sync.Mutex
+
 	mu       sync.Mutex
 	password domain.Secret // typed in this session or read from the keyring; never written to a file
 }
@@ -311,6 +315,10 @@ func (p *Phone) Register(account domain.AccountSettings, password *string) error
 	if p.inCall.Load() {
 		return Refused(domain.NoticeBusy) // the engine would refuse it: nothing changes meanwhile
 	}
+	// One at a time, to the end: a second request waits, so the password it leaves in the keyring
+	// is the one of the registration that came last, not of whichever write finished last.
+	p.registering.Lock()
+	defer p.registering.Unlock()
 	p.mu.Lock()
 	secret := p.password
 	p.mu.Unlock()

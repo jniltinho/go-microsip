@@ -1,7 +1,7 @@
-// Package secrets keeps passwords in the user's keyring, the store the operating system encrypts
-// with the user's login: the freedesktop Secret Service on Linux (GNOME Keyring, KWallet) and the
+// Package keyring keeps passwords in the user's keyring, the store the operating system encrypts
+// with the user's login: the freedesktop Secret Service on Linux (GNOME Store, KWallet) and the
 // Credential Manager on Windows. Nothing here writes a password to a file or logs one.
-package secrets
+package keyring
 
 import (
 	"errors"
@@ -29,8 +29,8 @@ var (
 // legacyApplication marks the Rust application's entries, which an import reads.
 const legacyApplication = "rust-microsip"
 
-// Keyring implements ports.Secrets on the keyring of the session.
-type Keyring struct{}
+// Store implements ports.Secrets on the keyring of the session.
+type Store struct{}
 
 // Legacy reads the entries the Rust application left in the keyring, for the import of its
 // password. It never writes or deletes.
