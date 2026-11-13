@@ -29,6 +29,9 @@ MODULES = (
     "func_callerid", "func_logic",
     # "channel originate" on the console: the VM lab calls a softphone with it (build/vm/pbx.sh).
     "res_clioriginate",
+    # The Reason header of a request that ends a call (RFC 3326): a phone that rang and was not
+    # the one that answered is told "Call completed elsewhere". FreePBX loads it by default.
+    "res_pjsip_rfc3326",
 )
 
 
