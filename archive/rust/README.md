@@ -23,7 +23,7 @@ To build it again, the move has to be undone in a checkout: revert the two cutov
 ([receipt](../../docs/receipts/go-m5-cutover-rehearsal-2026-11-13.md)).
 
 To bring an installation's account, contacts and history to go-microsip:
-`go-microsip import rust-microsip` (see the [README](../../README.md#coming-from-rust-microsip)).
+`go-microsip import rust-microsip` (see the [README](../../README.md#-coming-from-rust-microsip)).
 
 The lab keeps the names it was given here (the image `rust-microsip-asterisk`, the compose
 project `rust-microsip-lab`) and the sub-commands of `docker/asterisk/lab.sh` and

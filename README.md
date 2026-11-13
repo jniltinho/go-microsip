@@ -1,128 +1,95 @@
-<div align="center">
+<h1 align="center">go-microsip</h1>
 
-<img src="build/linux/go-microsip.svg" width="96" alt="go-microsip logo">
+<p align="center">
+  <b>The compact SIP softphone you already know how to use.</b><br>
+  The MicroSIP layout on Linux and Windows: keypad, call log, contacts, encrypted calls,<br>
+  seven skins, and a command line and MCP server for your AI agents. One executable, written in Go.
+</p>
 
-# go-microsip
+<p align="center">
+  <a href="https://github.com/jniltinho/go-microsip/releases"><img src="https://img.shields.io/github/v/release/jniltinho/go-microsip?include_prereleases&sort=semver&color=blue&label=release" alt="Release"></a>
+  <a href="https://github.com/jniltinho/go-microsip/actions/workflows/ci.yml"><img src="https://github.com/jniltinho/go-microsip/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/jniltinho/go-microsip/releases"><img src="https://img.shields.io/github/downloads/jniltinho/go-microsip/total?color=blue" alt="Downloads"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/jniltinho/go-microsip" alt="Go version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License: GPL-3.0-or-later"></a>
+  <a href="https://github.com/jniltinho/go-microsip/stargazers"><img src="https://img.shields.io/github/stars/jniltinho/go-microsip?style=social" alt="Stars"></a>
+</p>
 
-**A compact SIP softphone for Linux and Windows, written in Go, with the MicroSIP layout you already know.**
+<p align="center">
+  <a href="#-try-it-in-one-minute">Try it</a> ·
+  <a href="#-screenshots">Screenshots</a> ·
+  <a href="#-what-you-get">Features</a> ·
+  <a href="#-for-ai-agents-and-scripts">Agents</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="https://github.com/jniltinho/go-microsip/releases">Download</a>
+</p>
 
-[![Release](https://img.shields.io/github/v/release/jniltinho/go-microsip?include_prereleases&sort=semver&color=blue)](https://github.com/jniltinho/go-microsip/releases)
-[![CI](https://github.com/jniltinho/go-microsip/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jniltinho/go-microsip/actions/workflows/ci.yml)
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
+<p align="center">
+  <img src="docs/prints/go/tour.png" alt="go-microsip: the keypad, a call in progress with SRTP, the call log and the contacts, dark skin" width="900">
+</p>
 
-[Install](#install) · [Quick start](#quick-start) · [Screenshots](#screenshots) · [CLI and MCP](#cli-and-mcp) · [Platforms](#platforms) · [Limits](#limits-of-this-version) · [Build](#build-from-source) · [Docs](#documentation)
+## ✨ Why people pick it
 
-</div>
+- 📞 **Familiar from the first second** — the MicroSIP layout: type a number and press Call. Keypad, call log, contacts and a status bar that says whether you are **Online**.
+- 📦 **One file, nothing to install** — an AppImage on Linux, a portable `.zip` on Windows. No Electron and no bundled browser: the window is drawn by the system's own web view.
+- 🔒 **Private by default** — TLS signaling and SRTP audio when your PBX has them, the password you type goes to the system's keyring, and is never accepted as an argument or written to a log or the database.
+- 🖥️ **At home on your desktop** — tray icon with your last calls, notifications with **Answer** and **Reject**, a ring you can hear, `sip:` and `tel:` links, one instance.
+- 🎨 **Your look** — seven skins switched live: Light, Dark, Windows XP, macOS, Ubuntu, Windows 98 and Matrix.
+- 🤖 **Ready for AI agents** — a command line and an MCP server let an agent place and answer calls, and nothing happens until you press **Allow** in the window.
+- 🧪 **Tested against real PBXs** — its calls are checked against a disposable Asterisk lab and FreePBX 17, and the packaged files on clean Ubuntu, Debian and Windows 11 VMs.
+- 🔁 **Coming from rust-microsip?** — one command brings your account, contacts and history over.
 
-## Why go-microsip
+## 🚀 Try it in one minute
 
-MicroSIP is loved for being small, fast and simple, but it is a Windows program. go-microsip
-brings the same idea to the Linux desktop, and to Windows, as one executable: the familiar layout
-of keypad, call log, contacts and a status bar that shows whether you are **Online**, in a window
-drawn by the system's own web view (WebKitGTK on Linux, WebView2 on Windows): no browser is
-bundled, and the window's page loads nothing from the network.
+**Linux** (Ubuntu 26.04 or later, Debian 13; x86_64): download the AppImage from
+[Releases](https://github.com/jniltinho/go-microsip/releases), then:
 
-Calls are encrypted when your PBX supports it (TLS signaling with SRTP), the password stays in the
-system's keyring, and AI agents can place or answer calls through a local command line and an MCP
-server only with your explicit approval.
-
-go-microsip is the Go rewrite of **rust-microsip**, the application this repository held until
-version 0.1.0-rc.3. The Rust code is kept under [archive/rust](archive/rust/README.md) as a
-reference and is no longer built or released.
-
-go-microsip is an independent project inspired by [MicroSIP](https://www.microsip.org/). It is not
-affiliated with or endorsed by MicroSIP.
-
-## Features
-
-| Area | What you get |
-|---|---|
-| **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, do-not-disturb; RFC 4733 DTMF; a ring for incoming calls and a ringback tone while the other side rings, or the audio the PBX plays before it answers |
-| **Security** | TLS with the CA bundle you name (`ca_file`); SDES-SRTP, optional or mandatory; the password never goes in arguments, logs or the database |
-| **Interface** | MicroSIP-like window: keypad, call history, contacts with favorites and CSV import, status bar; seven skins (Light, Dark, Windows XP, macOS, Ubuntu, Windows 98, Matrix) |
-| **Desktop** | Tray icon whose menu lists your last calls; closing the window keeps it in the tray; a notification with Answer/Reject for an incoming call and one for a missed call; `sip:`/`tel:` link handler; single instance |
-| **Audio** | PipeWire or PulseAudio on Linux, WASAPI on Windows; devices chosen in the settings, with a local audio test; devices opened only during calls |
-| **Configuration** | Settings in the window, or TOML, `.env` and environment with a clear precedence; `go-microsip doctor` shows where every value came from, without secrets |
-| **Agents** | `go-microsip` command line and `go-microsip mcp`: every action waits for **Allow** in the window unless you issue a scoped, revocable grant; a headless `service` mode |
-
-Status: **pre-release** ([latest](https://github.com/jniltinho/go-microsip/releases)). Calls are
-tested against a disposable Asterisk lab and a FreePBX 17 VM, and the packaged application on clean
-Ubuntu 26.04, Debian 13 and Windows 11 VMs. Sound on real sound cards and headsets, and most of the
-desktop integration on real machines, have not been checked by a recorded test yet: see
-[Limits of this version](#limits-of-this-version) and the
-[release notes](docs/release/v0.2.0-rc.1.md).
-
-## Screenshots
-
-<table>
-  <tr>
-    <th>Keypad (dark)</th>
-    <th>Call log (dark)</th>
-    <th>Settings (dark)</th>
-  </tr>
-  <tr>
-    <td><img src="docs/prints/go/dark/dialpad-number.png" width="260" alt="Keypad with a number typed and an Online status bar, dark skin"></td>
-    <td><img src="docs/prints/go/dark/calls.png" width="260" alt="Call log with direction icons, dark skin"></td>
-    <td><img src="docs/prints/go/dark/settings.png" width="260" alt="Account settings, dark skin"></td>
-  </tr>
-  <tr>
-    <th>Keypad (light)</th>
-    <th>Call in progress (light)</th>
-    <th>Contacts (light)</th>
-  </tr>
-  <tr>
-    <td><img src="docs/prints/go/light/dialpad.png" width="260" alt="Keypad, light skin"></td>
-    <td><img src="docs/prints/go/light/call-active.png" width="260" alt="A call in progress, light skin"></td>
-    <td><img src="docs/prints/go/light/contacts.png" width="260" alt="Contacts list, light skin"></td>
-  </tr>
-</table>
-
-All screens use fictional data. Every screen in every skin is under [docs/prints/go](docs/prints/go/).
-
-## Install
-
-Download from the [releases page](https://github.com/jniltinho/go-microsip/releases):
-
-- `go-microsip-<version>-x86_64.AppImage` (Linux): make it executable and run it.
-- `go-microsip-<version>-linux-amd64`: the same program as a plain executable.
-- `go-microsip-<version>-windows-amd64.zip` (Windows, preview): a portable folder with the program,
-  the license and the third-party notices. `go-microsip-<version>-windows-amd64.exe` is the
-  program alone. Both are unsigned, so SmartScreen may warn you; check them with
-  `Get-FileHash <file> -Algorithm SHA256` first.
-
-Verify a download with `sha256sum --check --ignore-missing SHA256SUMS`. What each system needs is
-under [Platforms](#platforms).
-
-## Quick start
-
-1. Start go-microsip and open **Settings**.
-2. Fill in the SIP server, the username, the domain and the password, and pick UDP, TCP or TLS.
-3. Save. The status bar says **Online** once the account is registered.
-4. Type a number and press **Call**, or pick an entry in **Calls** or **Contacts**.
-
-Prefer a file? Create `$XDG_CONFIG_HOME/go-microsip/config.toml` (`%APPDATA%\go-microsip\config.toml`
-on Windows):
-
-```toml
-schema = 1
-
-[account]
-username = "1001"
-domain = "sip.example.invalid"
-server = "sip.example.invalid"
-transport = "tls"        # udp | tcp | tls
-media = "srtp"           # rtp | srtp (srtp requires tls)
-ca_file = "/etc/ssl/certs/ca-certificates.crt"
-password_env = "GO_MICROSIP_SIP_PASSWORD"
+```bash
+chmod +x go-microsip-*-x86_64.AppImage
+./go-microsip-*-x86_64.AppImage
 ```
 
-Export the password in the environment variable that `password_env` names before starting;
-passwords are never accepted as command-line arguments. `go-microsip doctor` prints a sanitized
-report of the effective configuration, the display and the sound, `go-microsip config validate`
-and `config export` check and print the configuration without secrets, and `go-microsip --help`
-lists every command.
+**Windows 11** (preview): download `go-microsip-<version>-windows-amd64.zip`, extract it anywhere and
+run `go-microsip.exe`. It is unsigned, so SmartScreen may ask first.
 
-## CLI and MCP
+Then open **Settings**, fill in your SIP server, username, domain and password, pick UDP, TCP or
+TLS, and save. When the status bar says **Online**, type a number and press **Call**.
+
+Verify what you downloaded with `sha256sum --check --ignore-missing SHA256SUMS`. Requirements,
+configuration by file and everything else: **[documentation](docs/README.md)**.
+
+## 📸 Screenshots
+
+**Pick your style** — seven skins, switched live in Settings:
+
+<p align="center">
+  <img src="docs/prints/go/skins.png" alt="The keypad in the Light, Dark, Windows XP, macOS, Ubuntu, Windows 98 and Matrix skins" width="900">
+</p>
+
+| Incoming call | Call on hold | Settings |
+|---------------|--------------|----------|
+| ![Incoming call](docs/prints/go/dark/incoming.png) | ![Call on hold](docs/prints/go/dark/call-held.png) | ![Settings](docs/prints/go/dark/settings.png) |
+
+| Agent approval | Agent access | Call log (light) |
+|----------------|--------------|------------------|
+| ![An agent asks to place a call](docs/prints/go/dark/approval.png) | ![Grants for agents](docs/prints/go/dark/agent-access.png) | ![Call log, light skin](docs/prints/go/light/calls.png) |
+
+All screens use fictional data. Every screen in every skin: [docs/prints/go](docs/prints/go/).
+
+## 🧩 What you get
+
+| | |
+|---|---|
+| **Calls** | One SIP account over UDP, TCP or TLS · G.711 (PCMU/PCMA) · hold, mute, blind transfer, do-not-disturb · RFC 4733 DTMF · ring, ringback, and the audio your PBX plays before it answers |
+| **Security** | TLS with the CA bundle you name · SDES-SRTP, optional or mandatory · password in the keyring (Secret Service, Windows Credential Manager) · a window whose page loads nothing from the network |
+| **Interface** | Keypad, call history, contacts with favorites and CSV import, status bar · seven skins · keyboard friendly |
+| **Desktop** | Tray icon with the last calls · notifications for incoming and missed calls · `sip:` and `tel:` links · single instance |
+| **Audio** | PipeWire or PulseAudio on Linux, WASAPI on Windows · devices chosen in Settings · a local audio test |
+| **Configuration** | Settings in the window, or a TOML file, a `.env` file and environment variables · `go-microsip doctor` shows where every value came from, without secrets |
+| **Agents** | `go-microsip` command line and MCP server · every action waits for **Allow**, or for a scoped, time-limited grant you issue · a headless `service` mode |
+| **Everywhere** | Linux x86_64 (AppImage) · Windows 11 x86_64 (preview) · every release with checksums, third-party notices and a bill of materials |
+
+## 🤖 For AI agents and scripts
 
 While the window runs, other local programs can drive it:
 
@@ -132,156 +99,54 @@ go-microsip call dial 1002      # waits for "Allow" in the window
 go-microsip mcp                 # MCP server for AI agents, on standard input and output
 ```
 
-Every change waits for **Allow** in the window, unless you issued a scoped, time- and quota-limited
-grant in **Settings → Agent access**. `go-microsip service` runs without a window from a
-single-use bootstrap exported there. See [Controlling go-microsip](docs/agent-cli-mcp.md).
+Every change waits for **Allow** in the window, unless you issued a scoped, time- and
+quota-limited grant in **Settings → Agent access**. `go-microsip service` runs without a window
+from a single-use bootstrap exported there. The whole contract:
+[Controlling go-microsip](docs/agent-cli-mcp.md).
 
-## Coming from rust-microsip
+## 🔁 Coming from rust-microsip
 
-Both applications can be installed and run by the same user: each has its own name, settings,
-database, lock and control socket, and neither touches the other's files. Nothing is imported by
-itself; to bring rust-microsip's account, contacts and history over, with both closed:
+go-microsip is the Go rewrite of rust-microsip, which this repository held until `0.1.0-rc.3`
+(now under [archive/rust](archive/rust/README.md), no longer built). Both can be installed side by
+side; nothing is imported by itself. With both closed:
 
 ```sh
 go-microsip import rust-microsip            # a preview; changes nothing
 go-microsip import rust-microsip --apply    # --credential also copies the keyring password
 ```
 
-## Platforms
+## 🧭 Good to know
 
-- **The AppImage without FUSE.** `go-microsip-<version>-x86_64.AppImage` is run directly
-  where FUSE is available. Where it is not (a container, a minimal installation), run it
-  with `APPIMAGE_EXTRACT_AND_RUN=1` in the environment, or with `--appimage-extract-and-run`
-  as its first argument: it unpacks itself to a temporary folder and runs from there. The
-  project's own checks in containers and in the test VMs run it this way.
-- **Linux** (Ubuntu 26.04 and later, Debian 13; x86_64). The window uses the system's GTK 4 and
-  WebKitGTK 6.0 (`libgtk-4-1`, `libwebkitgtk-6.0-4`), which the default GNOME desktop of both
-  already has and another desktop may have to install, and the desktop's sound service (PipeWire
-  or PulseAudio). `go-microsip --safe-gpu` starts it without GPU acceleration, which a
-  virtual machine may need.
-  - A password typed in Settings is kept in the desktop keyring (Secret Service) and nowhere
-    else. Without a keyring, or with a locked one, it lasts for the session and is asked for
-    again at the next start; that is also the case of a user who logs in without a password.
-    `account.password_env` or a private `account.password_file` avoid the prompt.
-  - An incoming call rings on the speaker chosen for calls and is shown as a desktop
-    notification with **Answer** and **Reject** where the notification service offers buttons.
-    With do-not-disturb on, nothing rings.
-  - On a desktop with a tray (KDE, Ubuntu's GNOME) the close button hides the window to the tray
-    icon, whose menu lists the latest calls; without one, the close button quits, asking first
-    during a call.
-  - `sip:` and `tel:` links open go-microsip, which asks before it calls. Making it the default
-    handler is your choice in the desktop's settings.
-  - The command line, the MCP server and the headless service work here:
-    [Controlling go-microsip](docs/agent-cli-mcp.md).
-- **Windows 11** (preview; x86_64). Windows 10 needs the WebView2 runtime, which Windows 11
-  brings, and is not tested. The window opens with its settings,
-  contacts and history, and the password is kept in the Credential Manager, where it outlives
-  the application's folder. The close button hides the window to the notification area; a
-  `sip:` or `tel:` link can be opened with go-microsip, which asks before it calls, once you
-  choose it in Settings, Default apps; an incoming call is also a Windows notification with
-  **Answer** and **Reject**; and the command line reaches the window as on Linux (the MCP
-  server was checked in a Windows VM against a running window; the headless service is not
-  tried on Windows yet). Calls over UDP and TCP are checked in a Windows VM against a lab PBX, with audio
-  as packets both ways; sound on a real sound card, TLS and SRTP are not verified on Windows
-  yet. At the first call Windows asks whether its firewall should let go-microsip accept
-  connections: calls, incoming ones included, work whichever you answer.
-- **macOS**: not built.
+go-microsip is young, and says what it has not proven. Its calls are checked in a lab and in
+virtual machines; sound on real sound cards and headsets and much of the desktop integration have
+not been checked by a recorded test yet. There is one account and one call at a time, no STUN,
+and a TLS account needs its CA bundle named. The details, per system:
+[Platforms](docs/README.md#platforms) and [Limits of this version](docs/README.md#limits-of-this-version).
 
-## Limits of this version
+## 📚 Documentation
 
-Known, and accepted for this pre-release:
+| | |
+|---|---|
+| [Documentation guide](docs/README.md) | Install, requirements, configuration, security, skins, platforms, limits, troubleshooting |
+| [Controlling go-microsip](docs/agent-cli-mcp.md) | Command line, MCP server, grants, the headless service |
+| [Architecture](docs/architecture.md) | The layers from the core to the window, and the security boundaries |
+| [Development](docs/DEVELOPMENT.md) | Build in Docker, tests, the lab PBX, the test VMs |
+| [Release process](docs/release.md) | How a version is built, checked and published |
+| [Adding a skin](docs/themes.md) | One stylesheet and one registry entry |
 
-- **The network.** There is no STUN and no SIP keepalive: nothing is sent between two
-  renewals of a registration to keep its path open (a call that only receives does send a
-  frame of silence a second, see "Audio before the answer"). Calls work with a PBX that keeps the
-  audio passing through itself and answers to the address packets come from (symmetric RTP),
-  which is how the lab's Asterisk is set and what a default FreePBX extension asks for; a PBX
-  that expects the softphone to know its public address is not supported. Behind a home
-  router this was not tried yet.
-- **One account**, and one call at a time.
-- **Sound.** There is no volume in the window (the system's mixer has one for each
-  application). A sound device chosen in the settings is used by the next call, and a call in
-  progress keeps the ones it began with; the settings' audio test uses it at once: a tone on the chosen speaker and the level of the
-  chosen microphone, for ten seconds or until it is stopped, and never during a call. The ring and the ringback are tones the softphone makes itself, on the speaker
-  chosen for calls: there is no ringtone file to choose and no speaker of its own for ringing.
-- **Audio before the answer.** What a PBX plays before a call is answered (early media: an
-  operator's own ringing tone, or a message such as "this number is unavailable") is played
-  in place of the softphone's ringback tone. Nothing of the microphone is sent before the
-  answer or on hold; one frame of silence a second is. One VPN gateway was seen to close its
-  tunnel after about twelve seconds that carried the other side's audio alone, and held
-  with this frame: that is one installation's behavior, not a guarantee for others. With an account that
-  requires SRTP, audio before the answer that is not encrypted is not played.
-- **A call answered on another phone.** When a PBX rings this softphone and another phone
-  of the same extension, and the other one answers, the call is not notified as missed and
-  is listed as answered, with no duration. This rests on the PBX saying why it stopped
-  ringing (the Reason header of its CANCEL, as Asterisk and FreePBX send it); from a PBX
-  that does not say, such a call is a missed one.
-- **A PBX without RFC 4733 keys.** A call whose answer does not agree to `telephone-event`
-  has its audio; keys pressed during it are refused, and nothing is sent in their place.
-- **A call nobody answers** ends after 60 seconds.
-- **TLS needs a CA file.** A TLS account registers only with a CA bundle named in its
-  settings (`ca_file`): the system's certificates are not used, so a PBX whose certificate
-  comes from a public authority needs that authority's bundle named too. Without one the
-  window says "certificate rejected". rust-microsip, the application this one replaced, used
-  the system's certificates when no bundle was named.
-- **Signaling from the PBX alone.** An account over UDP reads nothing that does not come,
-  at the account's port, from an address the server's name has answered with since the
-  account connected: the name is resolved then, and again when something arrives from
-  another address at that port, and an address it once had is kept until the account
-  connects again. A PBX that answers from another port than the account's, or that sends
-  its calls from an address its name never answers with, is not heard. An account over TCP
-  or TLS listens on nothing and reads only the connections it opened itself; a request that
-  arrives on one of them from another address or port is refused once it is read, with one
-  exception that is the SIP library's: a CANCEL that matches a call ringing here is obeyed
-  before that check, so a host the softphone connected to for an earlier call (a PBX that
-  names another host as a call's Contact) could stop a later call's ringing.
-- **A server name with several addresses.** Each request is sent to the address the name
-  has at that moment, and the cancellation of a call is addressed separately from the call:
-  with a name whose answer changes in between, a call canceled while it rings can ring on at
-  the server that got it. Not seen with one PBX behind one name.
-- **A network that goes away.** When the address the account registered from leaves the
-  machine (a VPN that dropped, a cable pulled), the window says so within a few seconds and
-  the account registers again by itself once the network is back: tried after 5 s, then at
-  doubling delays, eight times; after that, "Register" in the window.
-- **A transfer that the PBX accepts and then fails.** FreePBX takes the other party away
-  before it reports the failure: go-microsip says the transfer failed and stays in a call
-  with nobody in it until you hang up.
-- **Secure media.** Unencrypted RTP is used unless SRTP is chosen for the account, and every
-  call says which one it has. Three protections of rust-microsip's own SRTP code are
-  not in the library used here: the receiver bound to one source, the stop before the packet
-  counter runs out, and the bounded list of unauthenticated sources.
-- **Builds.** The build image pins its base by digest but not every package and tool in it.
-
-`go-microsip doctor` prints a sanitized report of the configuration, the display and the sound;
-`go-microsip --help` lists every command.
-
-## Build from source
-
-Only Docker and make are needed; Go and Node run inside a pinned build image, never on the host.
+**Built with** Go · Wails v3 · sipgo and diago · Vue 3 · Vite+ · Tailwind CSS
 
 ```sh
-make image                 # the build image, once
-make check                 # gofmt and go vet for every build
-make test                  # unit tests with the race detector
-make dist                  # dist/go: Linux binary, AppImage, Windows .exe and .zip, notices, SBOM, SHA256SUMS
-make lab                   # calls against a disposable Asterisk lab
+make image && make check && make test && make dist    # only Docker and make on the host
 ```
 
-The [development guide](docs/DEVELOPMENT.md) covers the layout, the lab, the test VMs and the
-release process.
+## ⭐ Support the project
 
-## Documentation
-
-- [Documentation index](docs/README.md): guides, records and receipts.
-- [Architecture](docs/architecture.md): the layers from the core to the window.
-- [Controlling go-microsip](docs/agent-cli-mcp.md): command line, MCP, grants and the headless service.
-- [Adding a skin](docs/themes.md).
-- [Development guide](docs/DEVELOPMENT.md) and [release process](docs/release.md).
-- [The migration from Rust](openspec/changes/migrate-to-go-wails/proposal.md): the plan, its
-  [tasks](openspec/changes/migrate-to-go-wails/tasks.md), the
-  [parity matrix](docs/migration/parity-matrix.md) and the [receipts](docs/receipts/).
+If go-microsip is useful to you, **star the repository**: it helps other people find it. Issues
+and pull requests are welcome; start with the [development guide](docs/DEVELOPMENT.md).
 
 ## License
 
-GPL-3.0-or-later. Third-party notices ship with every release. The MicroSIP name is used only to
-describe the interface this project is inspired by.
+GPL-3.0-or-later; see [LICENSE](LICENSE). Third-party notices ship with every release.
+go-microsip is an independent project inspired by [MicroSIP](https://www.microsip.org/); it is
+not affiliated with or endorsed by MicroSIP, and uses the name only to describe the interface.

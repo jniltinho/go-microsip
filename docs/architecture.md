@@ -95,7 +95,7 @@ The control protocol, the command line, the MCP tools and grants are described i
 - **Signaling** (`internal/core/sip`). Requests are accepted only from the registrar. A TLS account trusts only its configured CA bundle, never the system roots. A TLS or TCP account listens on nothing: requests arrive on the connection the registration opened; only a UDP account binds a socket.
 - **Media.** A secure-media account answers an offer without SRTP with 488 and ends a call whose answer is not SRTP before any audio is sent or played. RTP and RTCP are taken only from the negotiated address; replayed or forged SRTP and SRTCP packets are dropped and counted (replay window of 64).
 
-What this version does not do, and the exceptions to the rules above, are stated in the README: [Limits of this version](../README.md#limits-of-this-version).
+What this version does not do, and the exceptions to the rules above, are stated in the documentation guide: [Limits of this version](README.md#limits-of-this-version).
 
 ## Platforms
 
@@ -105,7 +105,7 @@ What this version does not do, and the exceptions to the rules above, are stated
 | Windows (x86_64) | WebView2, cross-built without cgo | WASAPI | Credential Manager | Unix-domain socket |
 | macOS | not built | no backend | no adapter | none |
 
-A build without a window (Linux with neither cgo nor the `purego` tag) keeps every other command. The core is checked with `go vet` for macOS so that it stays portable; nothing else exists for that system. The state of each platform, as tested, is in the README's [Platforms](../README.md#platforms).
+A build without a window (Linux with neither cgo nor the `purego` tag) keeps every other command. The core is checked with `go vet` for macOS so that it stays portable; nothing else exists for that system. The state of each platform, as tested, is in the guide's [Platforms](README.md#platforms).
 
 ## Third-party SIP and media stack
 
