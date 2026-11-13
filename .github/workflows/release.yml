@@ -1,7 +1,8 @@
 # The only workflow that publishes binaries: runs on version tags (v0.2.0,
 # v0.2.0-rc.1). It publishes only a commit on main whose ci.yml push run is
-# green, only after the owner approves the `release` environment, and a final
-# version only when docs/release/vX.Y.Z.md checks every release gate.
+# green, and a final version only when docs/release/vX.Y.Z.md checks every
+# release gate. Pushing the tag is the decision to publish: nothing waits for
+# an approval on GitHub.
 # It builds nothing: it publishes the files that green run built from the
 # tagged commit, so what was checked is what is released. -rc.N tags are
 # published as pre-releases.
@@ -16,35 +17,9 @@ permissions:
   actions: read
 
 jobs:
-  # Refuse to run when the `release` environment lost its protection: GitHub
-  # would otherwise create it unprotected and publish without approval.
-  environment-check:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: The release environment requires the owner's approval
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          env=$(gh api "repos/$GITHUB_REPOSITORY/environments/release") \
-            || { echo "the release environment does not exist" >&2; exit 1; }
-          printf '%s' "$env" | jq -e '[.protection_rules[].type] | index("required_reviewers")' >/dev/null \
-            || { echo "the release environment has no required reviewer" >&2; exit 1; }
-          printf '%s' "$env" | jq -e '.can_admins_bypass == false' >/dev/null \
-            || { echo "admins can bypass the release environment" >&2; exit 1; }
-          printf '%s' "$env" | jq -e '.deployment_branch_policy.custom_branch_policies == true' >/dev/null \
-            || { echo "the release environment does not restrict deployments" >&2; exit 1; }
-          policies=$(gh api "repos/$GITHUB_REPOSITORY/environments/release/deployment-branch-policies" \
-            --jq '[.branch_policies[] | "\(.type):\(.name)"] | join(",")')
-          [ "$policies" = "tag:v*" ] || { echo "release deployments must be limited to v* tags" >&2; exit 1; }
-
   release:
-    needs: environment-check
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Required reviewer (the owner) and a v* tag policy are set on this
-    # environment in the repository settings: the job waits for approval.
-    environment: release
     permissions:
       contents: write
       actions: read

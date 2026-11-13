@@ -159,7 +159,7 @@ Do not run `make go-frontend` while it is up: `npm ci` replaces `node_modules` u
 
 `.github/workflows/ci.yml` runs on `main` and on pull requests, with no secrets: the publication scan with its negative controls (`build/release/ci-selftest.sh`, `build/release/check-gates-selftest.sh`), then `make image`, `check`, `test`, `go-frontend-test`, `dist`, a check of the checksums and the manifest, `make go-smoke`, a scan of the artifacts, and a smoke of the `.exe` and the `.zip` on a Windows runner. The lab, the VMs and calls with real sound are not part of it.
 
-The artifacts CI builds from a commit on `main` are the ones `.github/workflows/release.yml` publishes for a tag on that commit: the release workflow builds nothing. It requires a green CI run for the commit, a tag equal to `GO_VERSION`, the owner's approval and, for a final version, every gate checked (`build/release/check-gates.sh`). The process is in [release.md](release.md).
+The artifacts CI builds from a commit on `main` are the ones `.github/workflows/release.yml` publishes for a tag on that commit: the release workflow builds nothing. It requires a green CI run for the commit, a tag equal to `GO_VERSION` and, for a final version, every gate checked (`build/release/check-gates.sh`). The process is in [release.md](release.md).
 
 ## Project rules
 

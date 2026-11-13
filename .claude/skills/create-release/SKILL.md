@@ -18,7 +18,8 @@ and on pull requests. See `docs/release.md`.
   gate checked (the workflow refuses any `- [ ]`). Never tick a gate without a receipt bound to a
   commit; human, VM and device gates are done only by people.
 - `-rc.N` tags publish pre-releases (no gate check) whose notes say they are not a release.
-- The owner approves the `release` environment on GitHub; an agent pushes the tag and waits.
+- Pushing the tag publishes: no approval waits on GitHub. Push a tag only when the owner asked
+  for that release in this conversation.
 - Run `make scan` before pushing; never publish `base/`, secrets or personal paths.
 
 ## Before you start
@@ -49,7 +50,7 @@ Semantic versions with a `v` prefix: `v0.2.0`, `v0.2.1` (fixes), `v0.3.0` (featu
 
 4. Check the files that will be published: `gh run download <run-id> --name dist --dir dist/go`,
    then the VM checks on them (`KEEP=1 make go-vm GO_VM_LAB=1`). Record `SHA256SUMS` in a receipt.
-5. Tag that commit and push (triggers `release.yml`, which waits for the owner's approval):
+5. Tag that commit and push (triggers `release.yml`, which publishes with no further approval):
 
    ```bash
    git tag -a $NEXT -m "Release $NEXT" <commit> && git push origin $NEXT

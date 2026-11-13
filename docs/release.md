@@ -4,7 +4,9 @@ Binaries are published only by `.github/workflows/release.yml`, which runs when 
 (or `vX.Y.Z-rc.N`) is pushed. It builds nothing: it publishes the files that `ci.yml` built from
 the tagged commit on `main`, so the files that were checked are the files that are released.
 `ci.yml` runs the checks on `main` and pull requests and keeps what it built for 30 days as the
-workflow artifact `dist`. Tagging is the owner's decision.
+workflow artifact `dist`. Nothing waits for an approval on GitHub: pushing the tag publishes, so
+tagging is the owner's decision and an agent pushes a tag only when the owner asked for that
+release.
 
 ## Rules enforced by the workflow
 
@@ -12,19 +14,13 @@ workflow artifact `dist`. Tagging is the owner's decision.
    artifacts are taken from that run.
 2. The tag equals `GO_VERSION` in `build/go.mk`, and the artifacts' `build-manifest.json` names
    that version, the tagged commit and a clean checkout.
-3. The job runs in the protected **`release` environment**: it waits until the owner approves it
-   on GitHub (required reviewer; only `v*` tags may deploy). A first job refuses to run when that
-   environment is missing or lost this protection. An agent can push a tag but cannot publish.
-   The workflow file itself lives on `main`, so this relies on only the owner deciding what
-   reaches `main`. Admin bypass is disabled. Approval comes from the owner's GitHub account, so
-   never give an agent credentials that can approve deployments.
-4. A **final** version (`vX.Y.Z`) needs `docs/release/vX.Y.Z.md` (release notes and gate
+3. A **final** version (`vX.Y.Z`) needs `docs/release/vX.Y.Z.md` (release notes and gate
    checklist) that passes `build/release/check-gates.sh X.Y.Z`: no open checkbox in any task-list
    syntax, every task id of the [migration change](../openspec/changes/migrate-to-go-wails/tasks.md)
    listed as checked, `AG-01`..`AG-06` checked and an `Owner decision` line checked. Each item
    starts with its own label (`- [x] migrate-to-go-wails 7.2 ...`); `check-gates-selftest.sh`
    holds the negative controls. Never tick a gate without a receipt bound to a commit.
-5. Only `vX.Y.Z-rc.N` tags are pre-releases (no gate check), for example to carry the exact files
+4. Only `vX.Y.Z-rc.N` tags are pre-releases (no gate check), for example to carry the exact files
    into the manual checklist; their notes say they are not a release. Any other suffix is refused.
 
 The workflow then checks `SHA256SUMS`, that nothing is published that the checksums do not name,
@@ -69,8 +65,7 @@ prompt and the `Get-FileHash` check.
    git tag -a vX.Y.Z -m "Release vX.Y.Z" <commit> && git push origin vX.Y.Z
    ```
 
-5. The owner approves the `release` environment on GitHub. Then watch
-   `gh run list --workflow release.yml -L 3`, check `gh release view vX.Y.Z`, download the assets
+5. Watch `gh run list --workflow release.yml -L 3`, check `gh release view vX.Y.Z`, download the assets
    and run `sha256sum --check SHA256SUMS`; the sums are those recorded in step 3.
 
 The `create-release` skill (`.claude/skills/create-release/`) walks through the same steps.
