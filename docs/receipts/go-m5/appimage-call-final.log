@@ -9,23 +9,23 @@ sh docker/asterisk/go-call.sh 10 window dist/go/go-microsip-0.3.0-m3-x86_64.AppI
  Container rust-microsip-lab-pbx-1 Started 
  Container rust-microsip-lab-pbx-1 Waiting 
  Container rust-microsip-lab-pbx-1 Healthy 
- Container rust-microsip-lab-test-runner-run-65f8f053b3d1 Creating 
- Container rust-microsip-lab-test-runner-run-65f8f053b3d1 Created 
+ Container rust-microsip-lab-test-runner-run-e3a84b0712ca Creating 
+ Container rust-microsip-lab-test-runner-run-e3a84b0712ca Created 
 === RUN   TestCallThroughTheWindow
 === RUN   TestCallThroughTheWindow/1001
     window_linux_test.go:1462: the sound test: its tone in 100 % of two seconds on the chosen speaker, the microphone's level shown as 37 %
-    window_linux_test.go:1525: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 21 ms)
-    window_linux_test.go:1557: 1001, 3 s after the skin changed during the call: speaker 296 of 296 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
-dbus-daemon[15]: [session uid=1000 pid=15 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.12' (uid=1000 pid=43 comm="/tmp/appimage_extracted_888332e0c197b2aab777758b60" label="unconfined")
+    window_linux_test.go:1525: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 995 of 995 10 ms pieces (longest silence 1 pieces, arrival gap 39 ms)
+    window_linux_test.go:1557: 1001, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+dbus-daemon[15]: [session uid=1000 pid=15 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.10' (uid=1000 pid=44 comm="/tmp/appimage_extracted_12114ac1a66b0e45f7d281c81a" label="unconfined")
 dbus-daemon[15]: [session uid=1000 pid=15 pidfd=5] Successfully activated service 'ca.desrt.dconf'
     window_linux_test.go:1684: the ring: its notes in 33 % of three seconds on the chosen speaker, anything at all in 34 %
-    window_linux_test.go:1869: 1001: 323 ms: sent registration registered; 7694 ms: sent call dialing ; 7695 ms: sent call established ; 7755 ms: shown established; 20216 ms: sent call established ; 20253 ms: shown established; 23320 ms: sent call established ; 23502 ms: shown established; 26548 ms: sent call held ; 26752 ms: shown held; 27230 ms: sent call established ; 27252 ms: shown established; 34551 ms: sent call terminating ; 34552 ms: sent call ended normal; 44110 ms: sent call ringing ; 44256 ms: shown ringing; 47779 ms: sent call established ; 48004 ms: shown established; 49702 ms: sent call established ; 49702 ms: sent transfer pending; 49724 ms: sent call terminating ; 49724 ms: sent transfer succeeded; 49725 ms: sent call ended transferred; 49725 ms: sent transfer succeeded; 49878 ms: sent call ringing ; 50004 ms: shown ringing; 50046 ms: sent call ended rejected; 50376 ms: sent call ringing ; 50503 ms: shown ringing; 50550 ms: sent call ended canceled; 51512 ms: sent registration disabled; 51512 ms: sent stopped
+    window_linux_test.go:1869: 1001: 326 ms: sent registration registered; 7678 ms: sent call dialing ; 7682 ms: sent call established ; 7754 ms: shown established; 20212 ms: sent call established ; 20252 ms: shown established; 23315 ms: sent call established ; 23503 ms: shown established; 26545 ms: sent call held ; 26753 ms: shown held; 27229 ms: sent call established ; 27252 ms: shown established; 34368 ms: sent call terminating ; 34369 ms: sent call ended normal; 43865 ms: sent call ringing ; 44005 ms: shown ringing; 47517 ms: sent call established ; 47756 ms: shown established; 49437 ms: sent call established ; 49437 ms: sent transfer pending; 49459 ms: sent call terminating ; 49459 ms: sent transfer succeeded; 49460 ms: sent call ended transferred; 49460 ms: sent transfer succeeded; 49642 ms: sent call ringing ; 49755 ms: shown ringing; 49792 ms: sent call ended rejected; 50131 ms: sent call ringing ; 50252 ms: shown ringing; 50295 ms: sent call ended canceled; 51253 ms: sent registration disabled; 51253 ms: sent stopped
 === RUN   TestCallThroughTheWindow/1201
     window_linux_test.go:1462: the sound test: its tone in 100 % of two seconds on the chosen speaker, the microphone's level shown as 37 %
-    window_linux_test.go:1525: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 994 of 996 10 ms pieces (longest silence 2 pieces, arrival gap 22 ms)
-    window_linux_test.go:1557: 1201, 3 s after the skin changed during the call: speaker 296 of 296 10 ms pieces (longest silence 0 pieces, arrival gap 22 ms)
+    window_linux_test.go:1525: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 22 ms)
+    window_linux_test.go:1557: 1201, 3 s after the skin changed during the call: speaker 295 of 295 10 ms pieces (longest silence 1 pieces, arrival gap 21 ms)
     window_linux_test.go:1684: the ring: its notes in 33 % of three seconds on the chosen speaker, anything at all in 33 %
-    window_linux_test.go:1869: 1201: 315 ms: sent registration registered; 7705 ms: sent call dialing ; 7710 ms: sent call established ; 7752 ms: shown established; 20226 ms: sent call established ; 20252 ms: shown established; 23328 ms: sent call established ; 23503 ms: shown established; 26538 ms: sent call held ; 26753 ms: shown held; 27226 ms: sent call established ; 27252 ms: shown established; 34545 ms: sent call terminating ; 34545 ms: sent call ended normal; 44350 ms: sent call ringing ; 44503 ms: shown ringing; 48000 ms: sent call established ; 48016 ms: shown established; 49892 ms: sent call established ; 49892 ms: sent transfer pending; 49913 ms: sent call terminating ; 49913 ms: sent transfer succeeded; 49914 ms: sent call ended transferred; 49914 ms: sent transfer succeeded; 50131 ms: sent call ringing ; 50252 ms: shown ringing; 50303 ms: sent call ended rejected; 50623 ms: sent call ringing ; 50755 ms: shown ringing; 50791 ms: sent call ended canceled; 51742 ms: sent registration disabled; 51742 ms: sent stopped
+    window_linux_test.go:1869: 1201: 331 ms: sent registration registered; 7674 ms: sent call dialing ; 7680 ms: sent call established ; 7755 ms: shown established; 20217 ms: sent call established ; 20254 ms: shown established; 23320 ms: sent call established ; 23504 ms: shown established; 26546 ms: sent call held ; 26753 ms: shown held; 27244 ms: sent call established ; 27252 ms: shown established; 34352 ms: sent call terminating ; 34353 ms: sent call ended normal; 43632 ms: sent call ringing ; 43756 ms: shown ringing; 47261 ms: sent call established ; 47504 ms: shown established; 49214 ms: sent call established ; 49214 ms: sent transfer pending; 49236 ms: sent call terminating ; 49236 ms: sent transfer succeeded; 49237 ms: sent call ended transferred; 49237 ms: sent transfer succeeded; 49388 ms: sent call ringing ; 49505 ms: shown ringing; 49552 ms: sent call ended rejected; 49884 ms: sent call ringing ; 50002 ms: shown ringing; 50054 ms: sent call ended canceled; 50960 ms: sent registration disabled; 50960 ms: sent stopped
 === RUN   TestCallThroughTheWindow/wrong_password
 === RUN   TestCallThroughTheWindow/an_untrusted_certificate
 === RUN   TestCallThroughTheWindow/the_System_skin_without_a_color-preference_service
@@ -37,7 +37,7 @@ dbus-daemon[15]: [session uid=1000 pid=15 pidfd=5] Successfully activated servic
     window_linux_test.go:1010: gone 0s after it was told to end
 === RUN   TestCallThroughTheWindow/the_password_is_remembered
 === RUN   TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering
-    window_linux_test.go:677: gone 4.03s after the yes, with a PBX that answers nothing
+    window_linux_test.go:677: gone 4.02s after the yes, with a PBX that answers nothing
 === RUN   TestCallThroughTheWindow/the_tray
 === RUN   TestCallThroughTheWindow/agent_control
     window_linux_test.go:2076: the audit trail: call_dial requested destination ***00; call_dial approved destination ***00; call_dial succeeded -; call_hangup requested -; call_hangup denied -; call_hangup requested -; call_hangup approved -; call_hangup succeeded -
@@ -46,7 +46,7 @@ dbus-daemon[15]: [session uid=1000 pid=15 pidfd=5] Successfully activated servic
 === RUN   TestCallThroughTheWindow/the_Agent_access_form
     window_linux_test.go:2407: the audit trail: grant issued 1 scopes, 15 min; grant revoked -
 === RUN   TestCallThroughTheWindow/the_headless_service
-    window_linux_test.go:2622: the audit trail: grant bootstrap issued 4 scopes, 10 min; dnd_set granted enabled=true by grant grant-1-065dbe9c4117b18c9c7598b9; dnd_set succeeded -; call_dial granted destination ***00 by grant grant-1-065dbe9c4117b18c9c7598b9; call_dial succeeded -; call_hangup granted - by grant grant-1-065dbe9c4117b18c9c7598b9; call_hangup succeeded -
+    window_linux_test.go:2622: the audit trail: grant bootstrap issued 4 scopes, 10 min; dnd_set granted enabled=true by grant grant-1-ff765e7d608a42bf214a7c0b; dnd_set succeeded -; call_dial granted destination ***00 by grant grant-1-ff765e7d608a42bf214a7c0b; call_dial succeeded -; call_hangup granted - by grant grant-1-ff765e7d608a42bf214a7c0b; call_hangup succeeded -
 === RUN   TestCallThroughTheWindow/light_at_100
     window_linux_test.go:1260: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/light_at_200
@@ -75,36 +75,36 @@ dbus-daemon[15]: [session uid=1000 pid=15 pidfd=5] Successfully activated servic
     window_linux_test.go:1260: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
 === RUN   TestCallThroughTheWindow/matrix_at_200
     window_linux_test.go:1260: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
---- PASS: TestCallThroughTheWindow (268.81s)
-    --- PASS: TestCallThroughTheWindow/1001 (52.91s)
-    --- PASS: TestCallThroughTheWindow/1201 (53.02s)
+--- PASS: TestCallThroughTheWindow (268.07s)
+    --- PASS: TestCallThroughTheWindow/1001 (52.72s)
+    --- PASS: TestCallThroughTheWindow/1201 (52.21s)
     --- PASS: TestCallThroughTheWindow/wrong_password (0.61s)
-    --- PASS: TestCallThroughTheWindow/an_untrusted_certificate (15.28s)
-    --- PASS: TestCallThroughTheWindow/the_System_skin_without_a_color-preference_service (3.46s)
-    --- PASS: TestCallThroughTheWindow/every_skin (24.28s)
+    --- PASS: TestCallThroughTheWindow/an_untrusted_certificate (15.33s)
+    --- PASS: TestCallThroughTheWindow/the_System_skin_without_a_color-preference_service (3.41s)
+    --- PASS: TestCallThroughTheWindow/every_skin (23.77s)
     --- PASS: TestCallThroughTheWindow/links (8.21s)
-    --- PASS: TestCallThroughTheWindow/quit_during_a_call (2.07s)
-    --- PASS: TestCallThroughTheWindow/a_termination_signal_during_a_call (1.72s)
-    --- PASS: TestCallThroughTheWindow/the_password_is_remembered (2.77s)
+    --- PASS: TestCallThroughTheWindow/quit_during_a_call (1.92s)
+    --- PASS: TestCallThroughTheWindow/a_termination_signal_during_a_call (1.62s)
+    --- PASS: TestCallThroughTheWindow/the_password_is_remembered (2.83s)
     --- PASS: TestCallThroughTheWindow/quit_with_a_PBX_that_stopped_answering (5.14s)
     --- PASS: TestCallThroughTheWindow/the_tray (3.33s)
-    --- PASS: TestCallThroughTheWindow/agent_control (8.51s)
-    --- PASS: TestCallThroughTheWindow/the_command_line_and_MCP (6.78s)
-    --- PASS: TestCallThroughTheWindow/the_Agent_access_form (9.14s)
-    --- PASS: TestCallThroughTheWindow/the_headless_service (1.68s)
-    --- PASS: TestCallThroughTheWindow/light_at_100 (3.99s)
-    --- PASS: TestCallThroughTheWindow/light_at_200 (5.99s)
-    --- PASS: TestCallThroughTheWindow/dark_at_100 (3.98s)
-    --- PASS: TestCallThroughTheWindow/dark_at_200 (5.96s)
-    --- PASS: TestCallThroughTheWindow/xp_at_100 (4.03s)
-    --- PASS: TestCallThroughTheWindow/xp_at_200 (6.00s)
-    --- PASS: TestCallThroughTheWindow/macos_at_100 (3.98s)
-    --- PASS: TestCallThroughTheWindow/macos_at_200 (6.00s)
+    --- PASS: TestCallThroughTheWindow/agent_control (8.42s)
+    --- PASS: TestCallThroughTheWindow/the_command_line_and_MCP (7.04s)
+    --- PASS: TestCallThroughTheWindow/the_Agent_access_form (9.38s)
+    --- PASS: TestCallThroughTheWindow/the_headless_service (2.16s)
+    --- PASS: TestCallThroughTheWindow/light_at_100 (3.98s)
+    --- PASS: TestCallThroughTheWindow/light_at_200 (6.00s)
+    --- PASS: TestCallThroughTheWindow/dark_at_100 (4.03s)
+    --- PASS: TestCallThroughTheWindow/dark_at_200 (6.01s)
+    --- PASS: TestCallThroughTheWindow/xp_at_100 (4.04s)
+    --- PASS: TestCallThroughTheWindow/xp_at_200 (5.95s)
+    --- PASS: TestCallThroughTheWindow/macos_at_100 (4.03s)
+    --- PASS: TestCallThroughTheWindow/macos_at_200 (5.95s)
     --- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.99s)
-    --- PASS: TestCallThroughTheWindow/ubuntu_at_200 (6.00s)
+    --- PASS: TestCallThroughTheWindow/ubuntu_at_200 (5.95s)
     --- PASS: TestCallThroughTheWindow/win98_at_100 (4.03s)
-    --- PASS: TestCallThroughTheWindow/win98_at_200 (6.00s)
-    --- PASS: TestCallThroughTheWindow/matrix_at_100 (3.98s)
-    --- PASS: TestCallThroughTheWindow/matrix_at_200 (5.95s)
+    --- PASS: TestCallThroughTheWindow/win98_at_200 (5.95s)
+    --- PASS: TestCallThroughTheWindow/matrix_at_100 (4.03s)
+    --- PASS: TestCallThroughTheWindow/matrix_at_200 (6.01s)
 PASS
-run directory: artifacts/go-call/20261113T043529Z
+run directory: artifacts/go-call/20261113T050737Z
