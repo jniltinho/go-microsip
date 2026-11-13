@@ -75,8 +75,8 @@
       "ok": true,
       "data": {
         "codec": "pcma",
-        "frames": 130,
-        "heard": 0.9998282223432319,
+        "frames": 131,
+        "heard": 0.9998282223432315,
         "proto": "RTP/AVP"
       }
     },
@@ -137,8 +137,8 @@
         "callee_frames": 130,
         "callee_heard": 0.9998282223432319,
         "callee_proto": "RTP/AVP",
-        "caller_frames": 130,
-        "caller_heard": 0.999828222343211,
+        "caller_frames": 131,
+        "caller_heard": 0.9998282223432108,
         "caller_proto": "RTP/AVP",
         "codec": "pcma"
       }
@@ -278,7 +278,7 @@
         ],
         "hold_mode": "sendonly",
         "holder_heard": [
-          0.9998282223432128,
+          0.999828222343212,
           0,
           0.9998282223432128
         ],
@@ -367,7 +367,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -387,7 +387,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -397,7 +397,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 99,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -417,7 +417,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -437,7 +437,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": true
       }
@@ -446,7 +446,7 @@
       "name": "engine/pair/1001-1002",
       "ok": true,
       "data": {
-        "answered_ms": 2403,
+        "answered_ms": 2402,
         "callee_heard": 1,
         "callee_secure": false,
         "caller_heard": 1,
@@ -622,7 +622,7 @@
       "ok": true,
       "data": {
         "events": 4,
-        "took_ms": 0
+        "took_ms": 1
       }
     },
     {
@@ -675,7 +675,7 @@
       "name": "engine/cancel/crossing-answer",
       "ok": true,
       "data": {
-        "hangup +0 ms from the answer": "caller ended: canceled, callee ended: failed",
+        "hangup +0 ms from the answer": "caller ended: canceled, callee ended: normal",
         "hangup +10 ms from the answer": "caller ended: normal, callee ended: normal",
         "hangup +3 ms from the answer": "caller ended: normal, callee ended: normal",
         "hangup +30 ms from the answer": "caller ended: normal, callee ended: normal",
@@ -763,7 +763,7 @@
         "events": 8,
         "frames": 149,
         "heard": 1,
-        "took_ms": 3026
+        "took_ms": 3027
       }
     },
     {
@@ -774,7 +774,7 @@
         "events": 8,
         "frames": 149,
         "heard": 1,
-        "took_ms": 3030
+        "took_ms": 3029
       }
     }
   ],
