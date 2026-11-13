@@ -268,8 +268,10 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 		// No datagram is parsed, on any socket the stack reads, that does not come from the
 		// registrar: the stack acts on a CANCEL that matches a ringing call before any handler
 		// could ask where it came from. A TCP or TLS account listens on nothing and reads only
-		// the connections it opened itself, to the address the library resolved: there is
-		// nobody else to refuse on those, and refusing part of a stream would break it.
+		// the connections it opened itself: dropping part of a stream would break it, and a
+		// response dropped there is not sent again. The requests that arrive on those
+		// connections are still the handler's to refuse (registrarOnly): a dialog's Contact
+		// may have made the library open one to somebody who is not the registrar.
 		uaOpts = append(uaOpts, sipgo.WithUserAgentTransportLayerOptions(gosip.WithTransportLayerReadFilter(
 			func(from gosip.TransportReadProps, data []byte) ([]byte, error) {
 				if e.AcceptAnySource || e.fromRegistrar(from.RemoteAddr.String()) {
@@ -566,7 +568,7 @@ func (e *Endpoint) Close() {
 // takes calls from its PBX, not from whoever can reach its socket.
 func (e *Endpoint) registrarOnly(next sipgo.RequestHandler) sipgo.RequestHandler {
 	return func(req *gosip.Request, tx gosip.ServerTransaction) {
-		if !e.AcceptAnySource && e.Account.Settings.Transport == domain.UDP && !e.fromRegistrar(req.Source()) {
+		if !e.AcceptAnySource && !e.fromRegistrar(req.Source()) {
 			e.RefusedSources.Add(1)
 			tx.Terminate() // no response: the sender learns nothing
 			return

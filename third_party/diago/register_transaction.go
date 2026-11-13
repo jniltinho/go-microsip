@@ -164,8 +164,11 @@ func (t *RegisterTransaction) register(ctx context.Context) error {
 		return fmt.Errorf("no Via header in response")
 	}
 
+	challenged := res.StatusCode == sip.StatusUnauthorized || res.StatusCode == sip.StatusProxyAuthRequired
 	// https://datatracker.ietf.org/doc/html/rfc3581#section-9
-	if rport, _ := via.Params.Get("rport"); rport != "" {
+	// go-microsip: only when the request is sent again. A registrar that accepted it at once
+	// has the Contact it carried, and that is the one Unregister has to name.
+	if rport, _ := via.Params.Get("rport"); rport != "" && challenged {
 		if p, err := strconv.Atoi(rport); err == nil {
 			contact.Address.Port = p
 		}

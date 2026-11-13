@@ -235,7 +235,8 @@ Limits of this version, known and accepted for it:
   another address at that port, and an address it once had is kept until the account
   connects again. A PBX that answers from another port than the account's, or that sends
   its calls from an address its name never answers with, is not heard. An account over TCP
-  or TLS listens on nothing and reads only the connections it opened itself.
+  or TLS listens on nothing and reads only the connections it opened itself; requests that
+  arrive on them are taken from the same addresses and port, and no others.
 - **A server name with several addresses.** Each request is sent to the address the name
   has at that moment, and the cancellation of a call is addressed separately from the call:
   with a name whose answer changes in between, a call canceled while it rings can ring on at

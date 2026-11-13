@@ -30,8 +30,12 @@ type challenger struct {
 	seen, accepted atomic.Int32
 	// removalDelay is how long a removal (Expires: 0) is held before it is noted and answered.
 	removalDelay time.Duration
-	mu           sync.Mutex
-	order        []string // what was accepted: "register", or "remove " and the Contact it named
+	// single makes this a registrar that allows one contact: a registration beside another
+	// contact's binding is refused with 403. A removal removes the contact it names, no other.
+	single bool
+	mu     sync.Mutex
+	bound  map[string]bool // the Contact of each binding
+	order  []string        // "register", "refused", or "remove " and the Contact it named
 }
 
 const (
@@ -86,16 +90,32 @@ func (c *challenger) serve(t *testing.T) (port int) {
 	srv.OnRegister(func(req *gosip.Request, tx gosip.ServerTransaction) {
 		c.seen.Add(1)
 		if c.answers(req.GetHeader(answer)) {
-			what := "register"
+			contact := ""
+			if h := req.GetHeader("Contact"); h != nil {
+				contact = h.Value()
+			}
+			removal := false
 			if x := req.GetHeader("Expires"); x != nil && x.Value() == "0" {
+				removal = true
 				time.Sleep(c.removalDelay)
-				what = "remove"
-				if contact := req.GetHeader("Contact"); contact != nil {
-					what += " " + contact.Value()
-				}
 			}
 			c.mu.Lock()
-			c.order = append(c.order, what)
+			if c.bound == nil {
+				c.bound = map[string]bool{}
+			}
+			switch {
+			case removal:
+				delete(c.bound, contact)
+				c.order = append(c.order, "remove "+contact)
+			case c.single && len(c.bound) > 0 && !c.bound[contact]:
+				c.order = append(c.order, "refused")
+				c.mu.Unlock()
+				_ = tx.Respond(gosip.NewResponseFromRequest(req, 403, "Forbidden", nil))
+				return
+			default:
+				c.bound[contact] = true
+				c.order = append(c.order, "register")
+			}
 			c.mu.Unlock()
 			c.accepted.Add(1)
 			res := gosip.NewResponseFromRequest(req, 200, "OK", nil)
@@ -155,7 +175,7 @@ func TestAProxyChallengeIsAnswered(t *testing.T) {
 // arriving after the new registration, would take it away, with those of the extension's other
 // phones.
 func TestAnAccountSavedAgainRegistersAfterTheOldBindingIsRemoved(t *testing.T) {
-	c := &challenger{status: 401, password: "fictional-lab-password", removalDelay: 300 * time.Millisecond}
+	c := &challenger{status: 401, password: "fictional-lab-password", removalDelay: 300 * time.Millisecond, single: true}
 	port := c.serve(t)
 	e := Start(Options{Audio: &memory.Audio{}})
 	for i := range 2 {
@@ -168,13 +188,16 @@ func TestAnAccountSavedAgainRegistersAfterTheOldBindingIsRemoved(t *testing.T) {
 		}
 	}
 	c.mu.Lock()
-	order := append([]string(nil), c.order...)
+	order, bound := append([]string(nil), c.order...), len(c.bound)
 	c.mu.Unlock()
 	if len(order) != 3 || order[0] != "register" || !strings.HasPrefix(order[1], "remove") || order[2] != "register" {
-		t.Fatalf("the registrar accepted %q, want the registration, its removal, the new registration", order)
+		t.Fatalf("the registrar saw %q, want the registration, its removal, the new registration", order)
 	}
 	if strings.Contains(order[1], "*") || !strings.Contains(order[1], "1001@") {
 		t.Errorf("the removal named %q, want the softphone's own contact", order[1])
+	}
+	if bound != 1 {
+		t.Errorf("the registrar holds %d bindings, want the new registration's alone", bound)
 	}
 	e.Send(domain.Shutdown{})
 	drain(t, e.Events())
