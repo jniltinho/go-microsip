@@ -15,6 +15,7 @@ Copy-Item 'C:\dist\g0\lock.test.exe' "$work\lock.test.exe" -Force
 Copy-Item 'C:\dist\g0\keyring.test.exe' "$work\keyring.test.exe" -Force
 Copy-Item 'C:\dist\g0\control.test.exe' "$work\control.test.exe" -Force
 Copy-Item 'C:\dist\g0\notify.test.exe' "$work\notify.test.exe" -Force
+if (Test-Path 'C:\dist\g0\mcp.test.exe') { Copy-Item 'C:\dist\g0\mcp.test.exe' "$work\mcp.test.exe" -Force }
 
 $os = Get-CimInstance Win32_OperatingSystem
 "vm-check: $($os.Caption) $($os.Version)"
@@ -28,6 +29,38 @@ cmd /c "`"$work\go-microsip.exe`" doctor --json > `"$work\doctor.txt`" 2>&1"
 if ($LASTEXITCODE -ne 0) { "vm-check: FAIL doctor exit $LASTEXITCODE"; exit 1 }
 "vm-check: $((Get-Content "$work\version.txt") -join ' ')"
 "vm-check: doctor $((Get-Content "$work\doctor.txt") -join '' -replace '\s', '')"
+
+# The .zip as a user gets it: extracted, it holds the program, the license and the notices, and
+# that program says the same version as the .exe beside it.
+$failed = ''
+try {
+    Remove-Item -Recurse -Force "$work\zip" -ErrorAction SilentlyContinue
+    Expand-Archive "C:\dist\go-microsip-$Version-windows-amd64.zip" "$work\zip"
+    $inside = @(Get-ChildItem "$work\zip" -Recurse -File)
+    $program = $inside | Where-Object Name -eq 'go-microsip.exe' | Select-Object -First 1
+    cmd /c "`"$($program.FullName)`" version > `"$work\zipversion.txt`" 2>&1"
+    $same = ((Get-Content "$work\zipversion.txt") -join ' ') -eq ((Get-Content "$work\version.txt") -join ' ')
+    $names = ($inside | ForEach-Object Name | Sort-Object) -join ', '
+    if ($LASTEXITCODE -eq 0 -and $same -and $names -eq 'go-microsip.exe, LICENSE.txt, THIRD_PARTY_NOTICES.txt') {
+        "vm-check: the .zip extracts to $names, and its program says the same version"
+    } else { "vm-check: zip: FAILED: it holds $names; its program's version exit $LASTEXITCODE, the same as the .exe: $same"; $failed = "$failed zip" }
+} catch { "vm-check: zip: FAILED: $($_.Exception.Message)"; $failed = "$failed zip" }
+
+# A data folder that is not an absolute path (WIN-09): the import that would write the database
+# names the problem and creates nothing, in the folder it was started in or anywhere it says.
+try {
+    $probe = "$work\nodata"
+    Remove-Item -Recurse -Force $probe -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $probe | Out-Null
+    Set-Content -Encoding ascii "$probe\in.toml" @('schema = 1', '[account]', 'username = "1001"', 'domain = "pbx.invalid"', 'server = "pbx.invalid"')
+    cmd /c "cd /d `"$probe`" && set LOCALAPPDATA=relative&& `"$work\go-microsip.exe`" config import in.toml --apply > `"$work\nodata.txt`" 2>&1"
+    $code = $LASTEXITCODE
+    $said = (Get-Content "$work\nodata.txt" -ErrorAction SilentlyContinue) -join ' '
+    $left = @(Get-ChildItem $probe -Recurse -Force | Where-Object Name -ne 'in.toml')
+    if ($code -ne 0 -and $said -match 'no data directory' -and $said -match 'LOCALAPPDATA' -and $left.Count -eq 0) {
+        "vm-check: with LOCALAPPDATA not an absolute path, config import --apply ends with $code, names it, and creates nothing"
+    } else { "vm-check: data folder: FAILED: exit $code, said: $said; left behind: $($left.Name -join ', ')"; $failed = "$failed datafolder" }
+} catch { "vm-check: data folder: FAILED: $($_.Exception.Message)"; $failed = "$failed datafolder" }
 
 # The instance lock, which the database of settings, contacts and history is opened under.
 cmd /c "`"$work\lock.test.exe`" -test.v > `"$work\lock.txt`" 2>&1"
@@ -79,7 +112,6 @@ function Invoke-Desktop([string]$Name, [string[]]$Lines, [int]$Timeout) {
 $code = Invoke-Desktop 'audio' @('set GO_MICROSIP_AUDIO_TEST=1', "set GO_MICROSIP_AUDIO_SECONDS=$Seconds",
     "`"$work\audio.test.exe`" -test.v -test.timeout 20m -test.run TestWASAPI") ($Seconds + 120)
 Get-Content "$work\audio.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match 'wasapi_windows_test|^(--- |PASS|FAIL|ok|panic)' } | ForEach-Object { "vm-check: audio: $_" }
-$failed = ''
 if ($code -ne 0) { "vm-check: audio: FAILED (exit $code); the window is still checked"; $failed = 'audio' }
 else { 'vm-check: audio adapter OK on the Windows audio service' }
 
@@ -129,10 +161,17 @@ if ($code -ne 0) { "vm-check: skins: FAILED (exit $code)"; Get-Content "$work\sk
 else { 'vm-check: the seven skins drawn on WebView2, each with its bundled font' }
 
 # 5. The desktop's side of the window: links, the control socket, a second start, the tray.
-$code = Invoke-Desktop 'desktop' @("powershell -NoProfile -ExecutionPolicy Bypass -File C:\vagrant\desktop.ps1 -Exe `"$work\go-microsip.exe`" -Work `"$work`" -ControlTest `"$work\control.test.exe`" -NotifyTest `"$work\notify.test.exe`" -Shots C:\dist\vm") 480
+$code = Invoke-Desktop 'desktop' @("powershell -NoProfile -ExecutionPolicy Bypass -File C:\vagrant\desktop.ps1 -Exe `"$work\go-microsip.exe`" -Work `"$work`" -ControlTest `"$work\control.test.exe`" -NotifyTest `"$work\notify.test.exe`" -McpTest `"$work\mcp.test.exe`" -Shots C:\dist\vm") 480
 Get-Content "$work\desktop.log" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^desktop:' } | ForEach-Object { "vm-check: $_" }
 if ($code -ne 0) { "vm-check: desktop: FAILED (exit $code)"; Get-Content "$work\desktop.log" -Tail 6 -ErrorAction SilentlyContinue; $failed = "$failed desktop" }
 else { 'vm-check: links, agent control, the second start and the tray pass on Windows; the notification reaches Windows' }
+
+# 5b. Where the window left its data: the database under LOCALAPPDATA, which does not roam, and no
+# configuration file written by a window that was only looked at.
+$database = "$env:LOCALAPPDATA\go-microsip\go-microsip.sqlite3"
+$written = Test-Path "$env:APPDATA\go-microsip\config.toml"
+if ((Test-Path $database) -and -not $written) { "vm-check: the window's database is $database; no config.toml was written under APPDATA" }
+else { "vm-check: folders: FAILED: database there: $(Test-Path $database); a config.toml under APPDATA: $written"; $failed = "$failed folders" }
 
 # 6. The call walkthrough, when run.sh has the lab PBX up on the VMs' own network (GO_VM_LAB=1).
 if ($Pbx) {

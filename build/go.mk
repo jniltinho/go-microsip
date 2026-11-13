@@ -122,6 +122,7 @@ go-vm: ## Go: the artifacts of go-dist on clean desktop VMs (GO_VMS="ubuntu2604 
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/lock.test.exe ./internal/platform/lock && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/keyring.test.exe ./internal/platform/keyring && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/control.test.exe ./internal/control && \
+		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/mcp.test.exe ./internal/mcp && \
 		CGO_ENABLED=0 GOOS=windows go test -c -o $(GO_DIST)/g0/notify.test.exe ./internal/platform/notify'
 	mkdir -p $(GO_VM_OUT)
 	@# The Rust candidate's AppImage, when one was built here: the VMs run it beside go-microsip.

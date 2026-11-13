@@ -62,7 +62,8 @@ ring)
 			echo "vm-lab: the PBX called $2"
 			# A second call, once the first is over, that the PBX gives up after six seconds: a
 			# call nobody answered.
-			up() { pbx "core show channels concise" | grep -q "^PJSIP/$2-"; }
+			ext=$2 # a function has positional parameters of its own
+			up() { pbx "core show channels concise" | grep -q "^PJSIP/$ext-"; }
 			for _ in $(seq 60); do up && break; sleep 1; done
 			for _ in $(seq 300); do up || break; sleep 1; done
 			sleep 4

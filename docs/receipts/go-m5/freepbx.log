@@ -16,8 +16,8 @@ freepbx: PASS engine/dtmf/wrong-digits-control
 freepbx: PASS engine/dnd/during-a-call 
 freepbx: PASS engine/renewal/1001 
 freepbx: 10 scenarios, 0 failed
-impair: pbx: netem 8002: root refcnt 2 limit 1000 delay 15ms  15ms loss 1% reorder 10% seed 14244435644957029384 gap 1; sent 2364 packets, dropped 18
-impair: freepbx: netem 8002: root refcnt 2 limit 1000 delay 15ms  15ms loss 1% reorder 10% gap 1; sent 2161 packets, dropped 27
+impair: pbx: netem 8003: root refcnt 2 limit 1000 delay 15ms  15ms loss 1% reorder 10% seed 833047046356304002 gap 1; sent 2321 packets, dropped 24
+impair: freepbx: netem 8003: root refcnt 2 limit 1000 delay 15ms  15ms loss 1% reorder 10% gap 1; sent 2180 packets, dropped 26
 freepbx: degraded: PASS engine/echo/1001/PCMA 
 freepbx: degraded: PASS engine/echo/1001/PCMU 
 freepbx: degraded: PASS engine/pair/1001-1002 

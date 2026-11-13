@@ -6,7 +6,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 96,
+        "frames": 92,
         "heard": 1,
         "secure": false
       }
@@ -16,7 +16,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 99,
         "heard": 1,
         "secure": false
       }
@@ -25,7 +25,7 @@
       "name": "engine/pair/1001-1002",
       "ok": true,
       "data": {
-        "answered_ms": 2608,
+        "answered_ms": 2659,
         "callee_heard": 1,
         "callee_secure": false,
         "caller_heard": 1,
@@ -36,7 +36,7 @@
       "name": "engine/hold-mute/1001-1002",
       "ok": true,
       "data": {
-        "held_frames_during": 74,
+        "held_frames_during": 75,
         "held_heard": [
           1,
           0,
@@ -51,7 +51,7 @@
           1,
           1
         ],
-        "other_side_frames": 74,
+        "other_side_frames": 73,
         "other_side_heard": [
           0,
           1
@@ -72,7 +72,7 @@
       "data": {
         "accepted_tone": 1,
         "digits": 3,
-        "frames": 104,
+        "frames": 101,
         "rejected_tone": 0
       }
     },
@@ -82,7 +82,7 @@
       "data": {
         "accepted_tone": 0,
         "digits": 3,
-        "frames": 104,
+        "frames": 106,
         "rejected_tone": 1
       }
     },

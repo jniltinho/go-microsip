@@ -158,7 +158,7 @@ func Export(o Options) (string, error) {
 
 // ErrNoDataDirectory means neither XDG_DATA_HOME nor HOME (LOCALAPPDATA on Windows) names an
 // absolute directory for the database.
-var ErrNoDataDirectory = errors.New("no data directory (XDG_DATA_HOME/HOME) is available")
+var ErrNoDataDirectory = errors.New("no data directory (XDG_DATA_HOME or HOME; LOCALAPPDATA on Windows) is available")
 
 // ImportError is a failure of Import after the preview was built: Preview is still shown.
 type ImportError struct {

@@ -23,7 +23,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 101,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -32,7 +32,7 @@
       "name": "engine/pair/1001-1002",
       "ok": true,
       "data": {
-        "answered_ms": 2556,
+        "answered_ms": 2662,
         "callee_heard": 1,
         "callee_secure": false,
         "caller_heard": 1,

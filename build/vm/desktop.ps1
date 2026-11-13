@@ -6,7 +6,7 @@
 # to the notification area, and that a ringing call's notification reaches Windows. Prints one
 # "desktop:" line per step; the exit code is the number of steps that failed.
 param([Parameter(Mandatory = $true)][string]$Exe, [Parameter(Mandatory = $true)][string]$Work,
-    [string]$ControlTest = '', [string]$NotifyTest = '', [string]$Shots = '')
+    [string]$ControlTest = '', [string]$NotifyTest = '', [string]$McpTest = '', [string]$Shots = '')
 $ErrorActionPreference = 'Stop'
 $trace = "$Work\desktop.jsonl"
 . "$PSScriptRoot\window.ps1"
@@ -50,6 +50,16 @@ if ($ControlTest) {
     Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -match 'session_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: control: $_" }
     if ($p.ExitCode -ne 0) { Fail 'control: the session test' }
 }
+# 2b. The MCP server, started as an agent starts it beside this window: it initializes, lists its
+# tools, reaches the window, and is refused what needs a grant.
+if ($McpTest -and (Test-Path $McpTest)) {
+    $env:GO_MICROSIP_MCP_EXE = $Exe
+    $log = "$Work\mcp.log"
+    $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"`"$McpTest`" -test.v -test.run TestTheMCPServerReachesTheWindowOfThisSession > `"$log`" 2>&1`"" -PassThru -WindowStyle Hidden
+    if (-not $p.WaitForExit(90000)) { $p.Kill(); Fail 'mcp: the session test did not end' }
+    Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -match 'session_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: mcp: $_" }
+    if ($p.ExitCode -ne 0) { Fail 'mcp: the session test' }
+}
 
 # 3. A second start with a link ends by itself, and the running window asks before it calls.
 $link = Run 'tel:600'
@@ -58,6 +68,19 @@ if ($link.Code -eq 0 -and (Shows 'A link asks to call 600' 20)) {
 } else { Fail "single instance: the second start exit $($link.Code): $($link.Out); the page shows: $((Page).Substring(0, [Math]::Min(300, (Page).Length)))" }
 Key '{ESC}' # Cancel: nothing is dialed
 if (-not (Shows '^(?!.*A link asks to call).*$' 10)) { Fail 'single instance: the question did not go away on Escape' }
+
+# 3b. A sip: link, as the registered command hands it over, and one that is refused: it ends with
+# 2, the refusal does not repeat it, and the window asks nothing.
+$sip = Run 'sip:601@pbx.invalid'
+if ($sip.Code -eq 0 -and (Shows 'A link asks to call 601' 20)) {
+    'desktop: links: a second start with sip:601@pbx.invalid ended with 0 and the running window asks "A link asks to call 601" (the host is not part of it)'
+} else { Fail "links: the sip: link exit $($sip.Code): $($sip.Out)" }
+Key '{ESC}'
+if (-not (Shows '^(?!.*A link asks to call).*$' 10)) { Fail 'links: the question of the sip: link did not go away on Escape' }
+$refused = Run 'sip:602@pbx.invalid;transport=tcp'
+if ($refused.Code -eq 2 -and $refused.Out -match 'not supported' -and $refused.Out -notmatch '602' -and -not (Shows 'A link asks to call' 3)) {
+    'desktop: links: a link with parameters is refused (exit 2), the refusal does not repeat it, and the window asks nothing'
+} else { Fail "links: a link with parameters: exit $($refused.Code): $($refused.Out)" }
 if (@(Get-Process go-microsip -ErrorAction SilentlyContinue).Count -ne 1) { Fail "single instance: $(@(Get-Process go-microsip).Count) softphone processes run" }
 
 # 4. A call asked for on the command line waits for the person; Escape denies it.
