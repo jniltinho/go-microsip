@@ -2051,6 +2051,10 @@ func agentControl(t *testing.T, bin, server, password string) {
 			t.Fatalf("a client after the window ended: %v", err)
 		}
 	}
+	// And the softphone has left the PBX, where the next one registers the same extension.
+	if !w.unregistered(15 * time.Second) {
+		t.Error("the softphone did not report that it had stopped")
+	}
 	db, err := store.Open(app.StorePath(map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data")}))
 	if err != nil {
 		t.Fatal(err)
@@ -2275,6 +2279,9 @@ func commandLineAndMCP(t *testing.T, bin, server, password string) {
 		if time.Now().After(deadline) {
 			t.Fatal("the command line still reaches a softphone after the window ended")
 		}
+	}
+	if !w.unregistered(15 * time.Second) {
+		t.Error("the softphone did not report that it had stopped")
 	}
 	trail := auditTrail(t, dir)
 	want := []string{"call_dial requested destination ***00", "call_dial approved destination ***00", "call_dial succeeded -",
