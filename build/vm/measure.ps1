@@ -74,12 +74,13 @@ foreach ($name in 'go-microsip', 'rust-microsip') {
     foreach ($n in 0..$Runs) {
         $last = Once $name
         if (-not $last.Window) { break }
+        if ($name -eq 'go-microsip' -and -not $last.Drawn) { $last.Window = $null; break } # a window whose page was never drawn
         if ($n -eq 0) { "measure: ${name}: first start: $($last.Window) ms to a window$(if ($last.Drawn) { ", $($last.Drawn) ms to the first drawn page" })" }
         else { $windows += $last.Window; if ($last.Drawn) { $pages += $last.Drawn } }
         if ($n -lt $Runs) { Leave }
     }
     if (-not $last.Window) {
-        "measure: ${name}: NOT MEASURED: it opened no window here (exit $($last.Process.ExitCode))"
+        "measure: ${name}: NOT MEASURED: a start opened no window, or drew no page, here (exit $($last.Process.ExitCode))"
         Leave
         continue
     }

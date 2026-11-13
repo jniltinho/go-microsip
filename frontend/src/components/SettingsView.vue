@@ -100,8 +100,9 @@ async function toggleTest() {
   } catch (e) {
     return fail(e);
   }
-  // The settings were left while the devices were opening: the test that just began is not theirs.
-  if (gone) return void stopAudioTest().catch(() => {});
+  // The settings were left while the devices were opening: leaving stopped that start, and what
+  // runs now, if anything, is another page's.
+  if (gone) return;
   test.running = true;
   watching = setInterval(async () => {
     const t = await audioTest().catch(() => ({ running: false, level: 0 }));

@@ -595,10 +595,14 @@ func (a *actor) established(c *call, med *diago.DialogMedia) {
 	}
 	if c.settled != nil {
 		if c.earlyFailed {
-			a.resound(c, med)
-		} else {
-			c.private(onEarly, false) // the audio runs since the early media: from now it also sends
+			// Its audio ended on its own while it rang, and nothing here can start it again on
+			// the same media: an answered call that hears nothing is ended, as it is when the
+			// audio of an answered call ends. The microphone was never sent.
+			a.e.opts.Log.Warn("the call is ended: its audio stopped before the answer")
+			a.terminate(c, domain.EndFailed)
+			return
 		}
+		c.private(onEarly, false) // the audio runs since the early media: from now it also sends
 		return
 	}
 	a.openSound(c, med)
@@ -668,33 +672,6 @@ func (a *actor) startSound(c *call, med *diago.DialogMedia, audio ports.MediaIO)
 	})
 }
 
-// resound starts an answered call's sound again, on the devices it has, after the audio it
-// played before the answer ended on its own: a goroutine of it is gone, and an answered call
-// that looks fine and hears nothing must not be. A failure after this one ends the call, as for
-// any answered call.
-func (a *actor) resound(c *call, med *diago.DialogMedia) {
-	c.earlyFailed = false
-	if !c.sound {
-		c.private(onEarly, false) // the devices never ran: the user was told when they failed
-		return
-	}
-	audio := c.audio
-	c.stop()
-	go func() {
-		c.pumps.Wait()
-		a.e.post(func() {
-			if c.released != nil || c.snap.Phase.IsFinal() {
-				return // over meanwhile: stopAudio closes the devices
-			}
-			c.private(onEarly, false)
-			if err := a.startSound(c, med, audio); err != nil {
-				a.e.opts.Log.Warn("audio unavailable", "error", err)
-				a.notice(domain.NoticeAudioUnavailable)
-			}
-		})
-	}()
-}
-
 // mediaGrace is how long a dialog has to turn out ended after its audio stopped: when the other
 // side hangs up, the audio may end a moment before the dialog says so.
 const mediaGrace = 500 * time.Millisecond
@@ -704,8 +681,8 @@ const mediaGrace = 500 * time.Millisecond
 // side hung up is not a failure: the dialog ends within a moment and the call ends as it should.
 func (a *actor) mediaFailed(c *call, direction string, cause error) {
 	if c.snap.Phase.Kind == domain.Ringing {
-		// What played before the answer stopped: the call still rings, and its sound is started
-		// again when it is answered.
+		// What played before the answer stopped: the call still rings, and is ended if it is
+		// answered (see established).
 		a.e.opts.Log.Warn("the audio before the answer stopped", "direction", direction, "error", cause)
 		c.earlyFailed = true
 		return

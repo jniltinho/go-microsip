@@ -1008,22 +1008,30 @@ func (w *ComfortNoiseWriter) Write(buf []byte) (n int, err error) {
 }
 
 // sameMedia reports whether two SDP bodies describe the same media: their connection, media and
-// attribute lines (addresses, ports, codecs, direction, keys). The origin, whose version a server
-// may raise between its 183 and its answer, the session's name and its times say nothing of the
-// media. (go-microsip)
+// attribute lines (addresses, ports, codecs, direction, keys), section by section. Within a
+// section the order of the lines and a repeated line say nothing; the order of the payload types
+// is in the m= line itself. The origin, whose version a server may raise between its 183 and its
+// answer, the session's name and its times say nothing of the media. (go-microsip)
 func sameMedia(a, b []byte) bool {
 	if len(a) == 0 || len(b) == 0 {
 		return false
 	}
-	lines := func(sdp []byte) []string {
-		var out []string
+	sections := func(sdp []byte) [][]string {
+		out := [][]string{nil} // the session's own lines, then one section for each m= line
 		for _, line := range strings.Split(string(sdp), "\n") {
 			line = strings.TrimRight(line, "\r")
-			if strings.HasPrefix(line, "c=") || strings.HasPrefix(line, "m=") || strings.HasPrefix(line, "a=") {
-				out = append(out, line)
+			switch {
+			case strings.HasPrefix(line, "m="):
+				out = append(out, []string{line})
+			case strings.HasPrefix(line, "c="), strings.HasPrefix(line, "a="):
+				out[len(out)-1] = append(out[len(out)-1], line)
 			}
+		}
+		for i, section := range out {
+			slices.Sort(section)
+			out[i] = slices.Compact(section)
 		}
 		return out
 	}
-	return slices.Equal(lines(a), lines(b))
+	return slices.EqualFunc(sections(a), sections(b), func(x, y []string) bool { return slices.Equal(x, y) })
 }

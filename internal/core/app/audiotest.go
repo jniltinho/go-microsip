@@ -22,6 +22,9 @@ type audioTest struct {
 	stop  chan struct{}
 	done  chan struct{}
 	level atomic.Uint32 // the microphone's peak, in thousandths of full scale; it falls back by itself
+	// opened: the devices are open, so done closes within moments of stop. Before that, done
+	// waits for a sound service that may take its time.
+	opened atomic.Bool
 }
 
 // StartAudioTest plays a tone on the speaker chosen in the settings and measures the chosen
@@ -53,8 +56,9 @@ func (p *Phone) StartAudioTest() error {
 		close(t.done)
 		return err
 	}
+	t.opened.Store(true)
 	select {
-	case <-t.stop: // stopped while the devices were opening
+	case <-t.stop: // stopped while the devices were opening: nobody waited for them
 		sound.Close()
 		close(t.done)
 		return nil
@@ -103,8 +107,10 @@ func (p *Phone) runAudioTest(t *audioTest, sound ports.MediaIO) {
 	}
 }
 
-// StopAudioTest ends the sound test, when one is running, and returns once its devices are
-// released.
+// StopAudioTest ends the sound test, when one is running or starting. It returns once the
+// devices of a running test are released; it does not wait for a test whose devices are still
+// opening, which may take as long as the sound service likes: those are closed, unused, when
+// they do open. A call's events and Close go through here and must not wait for that.
 func (p *Phone) StopAudioTest() {
 	p.mu.Lock()
 	t := p.test
@@ -112,7 +118,9 @@ func (p *Phone) StopAudioTest() {
 	p.mu.Unlock()
 	if t != nil {
 		close(t.stop)
-		<-t.done
+		if t.opened.Load() {
+			<-t.done
+		}
 	}
 }
 

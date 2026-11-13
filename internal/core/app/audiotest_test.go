@@ -344,8 +344,13 @@ func earlyLab(t *testing.T, garbage bool) *earlyPBX {
 	})
 	srv.OnInvite(func(req *gosip.Request, tx gosip.ServerTransaction) {
 		with := func(code int, reason string) *gosip.Response {
-			// The same audio in both; the answer has another origin version and session name.
-			sdp := fmt.Sprintf("v=0\r\no=- 1 %d IN IP4 127.0.0.1\r\ns=%s\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=sendrecv\r\n", code, reason[:2], rtp.LocalAddr().(*net.UDPAddr).Port)
+			// The same audio in both; the answer has another origin version and session name,
+			// its attributes in another order and one of them twice.
+			attributes := "a=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=sendrecv\r\n"
+			if code == 200 {
+				attributes = "a=sendrecv\r\na=fmtp:101 0-16\r\na=rtpmap:101 telephone-event/8000\r\na=rtpmap:0 PCMU/8000\r\na=sendrecv\r\n"
+			}
+			sdp := fmt.Sprintf("v=0\r\no=- 1 %d IN IP4 127.0.0.1\r\ns=%s\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0 101\r\n%s", code, reason[:2], rtp.LocalAddr().(*net.UDPAddr).Port, attributes)
 			res := gosip.NewResponseFromRequest(req, code, reason, []byte(sdp))
 			res.AppendHeader(gosip.NewHeader("Content-Type", "application/sdp"))
 			res.AppendHeader(gosip.NewHeader("Contact", fmt.Sprintf("<sip:lab@%s;transport=tcp>", addr)))
@@ -532,7 +537,7 @@ func TestAnAudioTestStoppedWhileItOpensNeverPlays(t *testing.T) {
 	started := make(chan error, 1)
 	go func() { started <- p.StartAudioTest() }()
 	soon(t, "a test that is starting", func() bool { running, _ := p.AudioTest(); return running })
-	p.StopAudioTest() // returns once the devices that were opening are closed again
+	p.StopAudioTest() // does not wait for the devices: they are closed when they do open
 	if err := <-started; err != nil {
 		t.Fatal(err)
 	}
@@ -580,5 +585,46 @@ func TestATonesSpeakerThatOpensAfterTheCallEndedPlaysNothing(t *testing.T) {
 	soon(t, "the speaker closed again", back.Closed)
 	if frames, _ := back.Heard(); frames != 0 {
 		t.Errorf("%d frames of the ringback were played after the call ended", frames)
+	}
+}
+
+// A sound service that does not answer does not hold the softphone: stopping a test whose
+// devices are still opening returns at once, and so does closing the phone. The devices are
+// closed, unused, when the service finally answers.
+func TestAStalledSoundServiceDoesNotHoldTheStopOrTheClose(t *testing.T) {
+	dir := t.TempDir()
+	o := Options{Files: own{}, Env: map[string]string{"XDG_DATA_HOME": filepath.Join(dir, "data"), "XDG_CONFIG_HOME": filepath.Join(dir, "config")}}
+	sound := &memory.Audio{Tone: 1000, OpenGate: make(chan struct{})}
+	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
+	if err != nil {
+		t.Fatal(err)
+	}
+	within := func(what string, f func()) {
+		t.Helper()
+		done := make(chan struct{})
+		go func() { defer close(done); f() }()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("%s waits for the sound service", what)
+		}
+	}
+	started := make(chan error, 2)
+	go func() { started <- p.StartAudioTest() }()
+	soon(t, "a test that is starting", func() bool { running, _ := p.AudioTest(); return running })
+	within("stopping the test", p.StopAudioTest)
+	// A second test, also held by the service, while the phone is closed.
+	go func() { started <- p.StartAudioTest() }()
+	soon(t, "a second test that is starting", func() bool { running, _ := p.AudioTest(); return running })
+	within("closing the phone", p.Close)
+	close(sound.OpenGate) // the service answers at last
+	for range 2 {
+		if err := <-started; err != nil {
+			t.Error(err)
+		}
+	}
+	soon(t, "the devices that opened late closed again", func() bool { return sound.OpenStreams() == 0 })
+	if running, _ := p.AudioTest(); running {
+		t.Error("a test is running after the stop and the close")
 	}
 }

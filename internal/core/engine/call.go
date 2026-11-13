@@ -48,8 +48,8 @@ type call struct {
 	gone bool
 
 	sound bool // the audio goroutines run
-	// earlyFailed: the audio that played before the answer ended on its own; the answer starts
-	// the call's sound again.
+	// earlyFailed: the audio that played before the answer ended on its own; the call is ended
+	// when it is answered.
 	earlyFailed bool
 	audio       ports.MediaIO
 	stop        context.CancelFunc
@@ -131,11 +131,10 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 				// or a VPN gateway on the way closes a path that only carries the other side's
 				// audio (music on hold, an operator's ringing tone) for some seconds.
 				if quiet++; quiet%keepaliveTicks == 0 {
+					// Best effort: a frame that cannot be sent now is not the call's failure; one
+					// that carries the microphone and cannot be sent is, when there is one.
 					codec.Encode(payload, &silence)
-					if _, err := writer.Write(payload); err != nil {
-						ended("send", err)
-						return
-					}
+					_, _ = writer.Write(payload)
 				}
 				continue
 			}

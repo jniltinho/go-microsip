@@ -25,6 +25,8 @@ type Audio struct {
 	Denied bool
 	// OpenDelay is how long Open takes, as a sound service that is slow to answer.
 	OpenDelay time.Duration
+	// OpenGate, when set, holds Open until it is closed: a sound service that does not answer.
+	OpenGate chan struct{}
 
 	mu     sync.Mutex
 	opened []*Stream
@@ -43,6 +45,9 @@ func (a *Audio) Outputs() ([]ports.Device, error) {
 // Open returns a new stream, or ports.ErrNoAudioService when Unavailable is set.
 func (a *Audio) Open(input, output string) (ports.MediaIO, error) {
 	time.Sleep(a.OpenDelay)
+	if a.OpenGate != nil {
+		<-a.OpenGate
+	}
 	if a.Unavailable {
 		return nil, ports.ErrNoAudioService
 	}
