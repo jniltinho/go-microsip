@@ -42,6 +42,23 @@ What this shows and what it does not:
 
 The owner chose the pre-release `v0.2.0-rc.1` and had the VMs shut down and removed, in that order, before the run could be repeated. All five (`ubuntu2604`, `debian13`, `windows11`, `pbx`, `freepbx`) were destroyed with `vagrant destroy -f`. So:
 
-- The tagged commit is a later one than `12a1786`. Between the two only documents, this receipt, the OpenSpec integration files and one test changed; no file that goes into the executables.
+- The tagged commit is `f342d2c`, later than `12a1786`. Between the two only documents changed (the README, the guide under `docs/`, the notes, this receipt, the task list and the archive's README): no file that goes into the executables.
 - The files of the tagged commit were checked by CI alone. They were not run on a VM, and task 7.7, which asks for that, stays open. The release's notes say this.
-- Their checksums, and the comparison with the published assets (task 7.10), are added below once CI has built them and the release is published.
+
+## The files of the tag
+
+Tag `v0.2.0-rc.1` on `f342d2c`, pushed on 2026-11-13. CI's run for that commit on `main` is 43417276337, all three jobs green. Its artifact `dist`, which the release workflow publishes, was downloaded before the tag: `sha256sum --check --strict SHA256SUMS` passes and the manifest says version `0.2.0-rc.1`, commit `f342d2ca6853`, a clean checkout.
+
+```
+4e198bce0b611f5f3bfeec6fc4fff1f9b6c94f04ccfe23f1c2c03beb702f342c  go-microsip-0.2.0-rc.1-linux-amd64
+11efe67de92b4480fbfc700a39dfce709afbddc835899b46efdc80c3dc502d0f  go-microsip-0.2.0-rc.1-x86_64.AppImage
+a4be5eda9fcfe3806bd2a9823fb1fb2d03e4f7296aa329f810dc0af0321c17c3  go-microsip-0.2.0-rc.1-windows-amd64.exe
+21761c03997ac36892cced14e7b985b8efafee30daced6c65007aa19c9d1df58  go-microsip-0.2.0-rc.1-windows-amd64.zip
+e3fc7c29dff51b72a0ebaf2660c72796dec32db4793123fe0e50beb23b14ba19  THIRD_PARTY_NOTICES.txt
+d60fecee4784cb881715b83122b2aa0aead3e850a4ab64db7ae3d1db4675039f  sbom.cdx.json
+894fe3b495aec41f43e29fd21c667697ff8c37cd276117aab7b55f7e65e5a22a  build-manifest.json
+```
+
+The notices and the bill of materials are the same files as those of `12a1786`; the executables differ because they carry their commit.
+
+The release workflow (run 43418385272) passed its check of the `release` environment and waits for the owner's approval. The comparison of the published assets with these lines (task 7.10) is added once it has run.
