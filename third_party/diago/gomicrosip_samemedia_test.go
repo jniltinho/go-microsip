@@ -42,11 +42,8 @@ func TestSameMedia(t *testing.T) {
 		"the keys in another order": change(
 			"a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA\r\na=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB",
 			"a=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB\r\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA"),
-		"another profile": change("RTP/SAVP", "RTP/AVP"),
-		"no keys":         change("a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA\r\na=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB\r\n", ""),
-		"two connections in another order": "v=0\r\no=- 1 1 IN IP4 192.0.2.1\r\ns=-\r\nc=IN IP4 192.0.2.9\r\nc=IN IP4 192.0.2.1\r\nt=0 0\r\n" +
-			"m=audio 40000 RTP/SAVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\n" +
-			"a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA\r\na=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB\r\na=sendrecv\r\n",
+		"another profile":                 change("RTP/SAVP", "RTP/AVP"),
+		"no keys":                         change("a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA\r\na=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB\r\n", ""),
 		"an address in the media section": change("m=audio 40000 RTP/SAVP 0 101\r\n", "m=audio 40000 RTP/SAVP 0 101\r\nc=IN IP4 192.0.2.9\r\n"),
 		"nothing":                         "",
 	}
@@ -54,6 +51,14 @@ func TestSameMedia(t *testing.T) {
 		if sameMedia([]byte(early), []byte(answer)) {
 			t.Errorf("%s: taken for the same media", name)
 		}
+	}
+	// The same two connection lines: the first one counts, so their order does.
+	two := change("c=IN IP4 192.0.2.1", "c=IN IP4 192.0.2.1\r\nc=IN IP4 192.0.2.9")
+	if !sameMedia([]byte(two), []byte(two)) {
+		t.Error("two connections in the same order: not the same media")
+	}
+	if sameMedia([]byte(two), []byte(change("c=IN IP4 192.0.2.1", "c=IN IP4 192.0.2.9\r\nc=IN IP4 192.0.2.1"))) {
+		t.Error("two connections in another order: taken for the same media")
 	}
 }
 

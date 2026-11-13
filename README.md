@@ -229,6 +229,11 @@ Limits of this version, known and accepted for it:
   comes from a public authority needs that authority's bundle named too. Without one the
   window says "certificate rejected". The Rust application uses the system's certificates
   when no bundle is named.
+- **Signaling from the PBX alone.** Nothing is read that does not come from the address and
+  port the account registered at. The server's name is resolved when the account connects
+  and every request outside a call goes to that one address until it connects again. A PBX
+  that answers from another port than the account's, or that sends its calls from an address
+  its name did not have at that moment, is not heard.
 - **A network that goes away.** When the address the account registered from leaves the
   machine (a VPN that dropped, a cable pulled), the window says so within a few seconds and
   the account registers again by itself once the network is back: tried after 5 s, then at

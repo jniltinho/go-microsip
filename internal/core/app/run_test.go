@@ -63,6 +63,7 @@ func labWith(t *testing.T, invite int, keys bool) (port int) {
 	addr := probe.Addr().String()
 	port = probe.Addr().(*net.TCPAddr).Port
 	probe.Close()
+	sent.Delete(fmt.Sprintf("%d REFER answered", port)) // an earlier PBX of this process may have had the port
 	ua, err := sipgo.NewUA()
 	if err != nil {
 		t.Fatal(err)

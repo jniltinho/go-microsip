@@ -138,6 +138,15 @@ func TestTheEndpointBindsWhereTheRegistrarIsReachedFrom(t *testing.T) {
 			t.Errorf("%s: bound to %s, want %s", c.name, got, c.want)
 		}
 	}
+	// Requests go to one of the addresses resolved once: an IPv4 one when there is one.
+	for want, peers := range map[string][]net.IP{
+		"198.51.100.10:5060": {ip("2001:db8::1"), ip("198.51.100.10"), ip("198.51.100.11")},
+		"[2001:db8::1]:5060": {ip("2001:db8::1"), ip("2001:db8::2")},
+	} {
+		if got := destFor(peers, 5060); got != want {
+			t.Errorf("requests for %v go to %s, want %s", peers, got, want)
+		}
+	}
 	// The kernel's own answer for the loopback is the loopback, which is not bound.
 	if got := bindHost([]net.IP{ip("127.0.0.1")}, 5060); got != "0.0.0.0" {
 		t.Errorf("a registrar on the loopback binds %s, want every interface", got)

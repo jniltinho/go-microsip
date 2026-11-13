@@ -82,7 +82,11 @@ type Endpoint struct {
 	Incoming chan *diago.DialogServerSession
 
 	peers []net.IP
-	ua    *sipgo.UserAgent
+	// dest is where every request outside a dialog is sent: one of peers and the account's
+	// port. The library would resolve the name again for each request, and an answer that is
+	// not among peers would send the request where the responses are not accepted from.
+	dest string
+	ua   *sipgo.UserAgent
 	// product is what the User-Agent header of a request says.
 	product string
 	// local is the address the endpoint is bound to, or "0.0.0.0".
@@ -224,6 +228,19 @@ func localFor(peers []net.IP, route func(net.IP) net.IP) string {
 	return local.String()
 }
 
+// destFor is the registrar's address requests are sent to: its first IPv4 address, as the address
+// to bind was chosen from those, or its first address.
+func destFor(peers []net.IP, port int) string {
+	to := peers[0]
+	for _, peer := range peers {
+		if peer.To4() != nil {
+			to = peer
+			break
+		}
+	}
+	return net.JoinHostPort(to.String(), strconv.Itoa(port))
+}
+
 // NewEndpoint creates the user agent of a validated account. Nothing is sent until Register or Dial.
 func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	s := a.Settings
@@ -234,8 +251,12 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve registrar: %w", err)
 	}
+	if len(peers) == 0 {
+		return nil, fmt.Errorf("resolve registrar: %s has no address", s.Server)
+	}
 	local := bindHost(peers, int(s.Port))
-	e := &Endpoint{Account: a, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, local: local}
+	e := &Endpoint{Account: a, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, local: local,
+		dest: destFor(peers, int(s.Port))}
 	tran := diago.Transport{
 		Transport:    s.Transport.String(),
 		BindHost:     local,
@@ -380,7 +401,7 @@ func (e *Endpoint) register(ctx context.Context) error {
 		expires = 300 * time.Second
 	}
 	reg, err := e.dg.RegisterTransaction(ctx, e.uri(s.Username), diago.RegisterOptions{
-		Username: e.authUser(), Password: e.Account.Password.Reveal(), Expiry: expires,
+		Username: e.authUser(), Password: e.Account.Password.Reveal(), Expiry: expires, ProxyHost: e.dest,
 	})
 	if err != nil {
 		return err
@@ -452,6 +473,7 @@ func (e *Endpoint) DialEarly(ctx context.Context, target string, onProgress func
 	if err != nil {
 		return nil, nil, err
 	}
+	d.InviteRequest.SetDestination(e.dest)
 	var progress []byte // the body of the last 183
 	told := func(res *gosip.Response) error {
 		if res.StatusCode > 100 && res.StatusCode < 200 {
@@ -490,9 +512,14 @@ func (e *Endpoint) DialEarly(ctx context.Context, target string, onProgress func
 		// acknowledged and hung up.
 		if res := d.InviteResponse; ctx.Err() != nil && res != nil && res.IsSuccess() {
 			hctx, done := context.WithTimeout(context.Background(), 3*time.Second)
-			switch d.LoadState() {
-			case gosip.DialogStateEnded: // the library ended it already: nothing is sent twice
-			case gosip.DialogStateConfirmed:
+			// A dialog a BYE ended is over on both sides and nothing is sent twice. One the
+			// library ended for a failure of its own (an ACK it could not repeat) is not over
+			// on the other side: its end has that failure as its cause.
+			state := d.LoadState()
+			cause := context.Cause(d.Context())
+			switch {
+			case state == gosip.DialogStateEnded && (cause == nil || errors.Is(cause, context.Canceled)):
+			case state == gosip.DialogStateConfirmed:
 				_ = d.Bye(hctx)
 			default:
 				if d.Ack(hctx) == nil {

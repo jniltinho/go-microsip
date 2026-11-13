@@ -8,6 +8,7 @@ Each round reviews a sanitized extract made with `git archive` (the Go code, the
 | 5 | `80a9b06` | the answers to round 4 | section 8: UNSOUND, 1 major; call path: UNSOUND, 1 major; 3 minor. Both major findings are defects of the answers to round 4, not of the work round 4 read (of the 12 earlier findings: 6 resolved, 4 in part, 2 accepted as stated limitations) | [codex-round5.md](codex-round5.md) |
 | 6 | `d71769c` | the answers to round 5 | section 8: SOUND; call path: SOUND WITH CHANGES, 1 minor (of round 5's 5 findings: 4 resolved, 1 in part) | [codex-round6.md](codex-round6.md) |
 | 7 | `2e4ffba` | everything since round 6: the answer to its finding, the owner's four decisions, the tests for the parity matrix, the TLS classification, the hang-up that crosses the answer | UNSOUND: 1 major (inherited from the SIP library, in the path under review), 6 minor; round 6's finding resolved | [codex-round7.md](codex-round7.md) |
+| 8 | `3f64b5d` | the answers to round 7 | UNSOUND: 2 major, both in the answers (an ended dialog that may still owe a BYE; the registrar's responses refused when its name resolves differently the second time), 2 minor in tests (of round 7's 7 findings: 4 resolved, 3 in part) | [codex-round8.md](codex-round8.md) |
 
 ## What was done about round 4
 
@@ -67,4 +68,17 @@ Where the rounds leave it: section 8's work is SOUND by round 6; the call path i
 
 Also taken from the report's notes: the comment of the lab scenario for early media said the microphone was not opened (the call's sound is open, and nothing of the microphone is sent); and Dial is not bounded by three seconds when an answer crosses the cancellation (the cancellation's own waits and the transport's writes are not), which is stated here and not changed.
 
-Where the rounds leave it: the changes read by round 7 were UNSOUND for the CANCEL from another address. Its answers have been read by nobody but their author.
+Round 8 found the first finding resolved (the filter is asked on every path by which bytes reach the parser) and three resolved in part; those and what it found new are below.
+
+## What was done about round 8
+
+| # | Severity | Finding | Response |
+| --- | --- | --- | --- |
+| 1 | major | The answer to round 7's finding 3 sent nothing to a dialog in the ended state, and the library also puts a dialog there when it cannot repeat an ACK: after such a failure, and the library's own BYE skipped for the same reason, the other side would keep the call | Fixed. A dialog that a BYE ended (sent and answered, or received) ends with no cause; one the library ended for a failure of its own carries that failure as the cause of its end. Only the first is left alone; the second is acknowledged and hung up like a dialog that was never confirmed. No test brings about a lost ACK, a failed repeat and a cancellation together: the rule is read from the library's code (`endWithCause`, `setState`), and the crossing test still passes. |
+| 2 | major | The filter of round 7's answer also drops responses, and the endpoint's list of the registrar's addresses came from one lookup while the library looked the name up again for every request: a name that answers with another address the second time would get the REGISTER and have its answer dropped | Fixed. Every request outside a dialog (REGISTER, its renewals and removal, INVITE and what follows it in its transaction) is sent to one address resolved when the endpoint was made, an IPv4 one when there is one, with the name kept in the request and for the TLS certificate; the library resolves nothing for them. An endpoint is made again, and the name resolved again, each time the account connects. `TestTheEndpointBindsWhereTheRegistrarIsReachedFrom` has the choice of the address; the lab's PBX is reached by a name, so its 79 scenarios go through it. Not shown: a name that changes its answer between two lookups, which needs a resolver of the test's own. Stated as limits in the README: a PBX that answers from another port than the account's, or whose requests come from another address than the ones its name had when the account connected, is not heard; requests inside a call go where the PBX's Contact says, and a Contact that is a name is resolved by the library. |
+| 3 | minor | The test for two connection lines in another order compared one line with two, which the old code also told apart | Fixed. The test compares the same two lines in both orders: equal in the same order, different reversed. |
+| 4 | minor | The mark that the tests' PBX answered 202 was kept by port for the life of the test process, so a later PBX on the same port could find the earlier one's | Fixed. A PBX of the tests clears the mark for its port when it starts. |
+
+Also from the report: the test of the CANCEL from another address watches 700 ms of quiet and does not read the refusal counter, which the application does not expose; that is the bound of what it shows, and the lab's foreign-source scenario does read the counter, for an INVITE.
+
+Where the rounds leave it: the answers to round 7 were UNSOUND for two things, both answered above. Those answers have been read by nobody but their author.
