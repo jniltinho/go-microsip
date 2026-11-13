@@ -6,7 +6,7 @@
 
 GO_IMAGE   ?= go-microsip-build:13
 GO         := GO_IMAGE=$(GO_IMAGE) scripts/go-docker.sh
-GO_PKGS    := . ./cmd/... ./internal/... ./build/winicon
+GO_PKGS    := . ./cmd/... ./internal/... ./build/winicon ./build/macos/package
 GO_VERSION ?= 0.2.0-rc.1
 GO_COMMIT  := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 GO_LDFLAGS := -s -w -X main.version=$(GO_VERSION) -X main.commit=$(GO_COMMIT)
@@ -30,7 +30,7 @@ GO_GUI     := GO_DOCKER_FLAGS="$(GO_GUI_FLAGS)" $(GO)
 
 .PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test go-smoke \
 	go-frontend-test go-offline-skins go-keyring go-notify go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
-	go-vm go-measure go-freepbx go-shell
+	go-vm go-measure go-freepbx go-shell go-macos go-mac
 
 go-image: ## Go: build the pinned build image (Debian 13, Go, Node, GTK4/WebKitGTK)
 	docker build -t $(GO_IMAGE) -f build/linux.Dockerfile build
@@ -112,6 +112,18 @@ go-appimage: go-build go-licenses ## Go: the x86_64 AppImage
 # Windows amd64: WebView2, cross-built without cgo.
 go-windows: go-frontend go-licenses ## Go: the Windows amd64 .exe and .zip
 	$(GO) build/windows/package.sh $(GO_DIST) $(GO_NAME) "$(GO_LDFLAGS)"
+
+# macOS universal (x86_64 and arm64): cross-built without cgo, the bundle written in Go
+# (openspec/changes/add-macos-universal). Not part of go-dist, and so of no release, yet.
+GO_MACOS := $(GO_DIST)/$(GO_NAME)-macos-universal.zip
+go-macos: go-frontend go-licenses ## Go: the macOS universal application as a .zip (not published yet)
+	$(GO) build/macos/package.sh $(GO_DIST) $(GO_NAME) "$(GO_LDFLAGS)" $(GO_VERSION) $(GO_COMMIT)
+	$(GO) build/qa/macos.sh $(GO_MACOS) $(GO_DIST)/macos/go-microsip-darwin-amd64 $(GO_DIST)/macos/go-microsip-darwin-arm64
+
+# The checks of the macOS build on a Mac over SSH, with a key and a host-key file the operator
+# verified (build/vm/mac.sh). The Mac is named by the environment and by nothing in this file.
+go-mac: ## Go: the macOS zip (or FILE=) checked on a Mac over SSH (GO_MAC_SSH=user@host[:port], GO_MAC_KNOWN_HOSTS=file)
+	@sh build/vm/mac.sh $(or $(FILE),$(GO_MACOS))
 
 # dist/go/: every artifact of this commit, with SHA256SUMS and a manifest. Run at each milestone.
 go-dist: go-appimage go-windows ## Go: Linux binary, AppImage, Windows .exe and .zip, notices, SBOM, SHA256SUMS

@@ -5,6 +5,16 @@
 #   build/qa/headless.sh <binary>
 set -eu
 bin=$1
+# timeout(1) is not on macOS: the same limit with what both systems have.
+limit() {
+	seconds=$1
+	shift
+	if command -v timeout >/dev/null 2>&1; then
+		timeout "$seconds" "$@"
+	else
+		perl -e 'alarm shift; exec @ARGV' "$seconds" "$@"
+	fi
+}
 unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
 "$bin" version
 "$bin" doctor --json
@@ -15,7 +25,7 @@ out=$({
 		'{"jsonrpc":"2.0","method":"notifications/initialized"}' \
 		'{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 	sleep 2
-} | timeout 20 "$bin" mcp)
+} | limit 20 "$bin" mcp)
 echo "$out" | grep -q '"serverInfo":{[^}]*"name":"go-microsip"' || { echo "headless: no initialize result" >&2; exit 1; }
 echo "$out" | grep -q '"name":"status_get"' || { echo "headless: tools/list did not list status_get" >&2; exit 1; }
 # A password-like option is refused with the usage status, before anything parses or echoes it.

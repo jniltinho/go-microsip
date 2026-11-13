@@ -65,6 +65,7 @@ The version is `GO_VERSION` in `build/go.mk`; the binary gets it and the commit 
 | `make go-appimage` | `build/linux/appimage.sh`: the x86_64 AppImage with the binary, its desktop entry, icon and notices. GTK 4 and WebKitGTK 6.0 come from the system. |
 | `make go-windows` | `build/windows/package.sh`: the Windows amd64 `.exe` (WebView2, cross-built without cgo, icon from `build/winicon`) and its portable `.zip`. |
 | `make dist` (`go-dist`) | All of the above, plus `SHA256SUMS` and `build-manifest.json` (version, commit, whether the tree was dirty, window backend, image) from `build/dist-manifest.sh`. |
+| `make go-macos` | `build/macos/package.sh`: the macOS universal application, `go-microsip.app` zipped. Both slices (x86_64, arm64) are cross-built without cgo and joined by `build/macos/package`, a Go program that also writes the bundle's files, with no Apple tool; `build/qa/macos.sh` then checks the zip from outside. It is not part of `make dist` and of no release yet (change `add-macos-universal`), and it has no sound, keychain or agent control on macOS so far. |
 
 **Checks of the built binary** (scripts in `build/qa/`)
 
@@ -94,6 +95,7 @@ The version is `GO_VERSION` in `build/go.mk`; the binary gets it and the commit 
 | `make go-vm` | Checks what `make dist` left in `dist/go` on clean desktop VMs (`GO_VMS="ubuntu2604 debian13 windows11"`), writes the output to `artifacts/go-vm/` and destroys each VM (`KEEP=1` keeps them). `SECONDS` is the length of the sound measurement (300 by default). `GO_VM_LAB=1` also places calls from the Windows VM to a lab PBX on an auxiliary VM. |
 | `make go-freepbx` | The lab's scenarios against FreePBX 17 installed in a VM, then again with the network impaired; output in `artifacts/go-freepbx/`. |
 | `make go-measure` | Start-up time and memory in the kept desktop VMs (`make go-vm KEEP=1` first), beside the Rust application: it copies that application's AppImage and `.exe` from `dist/` and fails without them. |
+| `make go-mac` | The macOS zip of `make go-macos` (or `FILE=` one executable) on a Mac over SSH: its version, the headless checks and the window's self-test. `GO_MAC_SSH=user@host[:port]` names the Mac and `GO_MAC_KNOWN_HOSTS` a host-key file you made and verified, outside the repository; only a key authenticates, and a Mac that wants a password or shows another host key fails the run. Nothing the Mac or `ssh` says is printed or kept: the output and `artifacts/go-mac/<time>.log` hold the script's own lines and values that match a pattern. `build/vm/mac-selftest.sh` holds the controls, with stand-ins for `ssh`, and CI runs it. |
 
 ## The lab
 

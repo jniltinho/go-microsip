@@ -33,3 +33,20 @@ On the same date, after seeing the spike window, the owner asked for a separate 
 On 2026-11-11 the owner recorded the G0 decision: go, proceed to milestone M1 (see `docs/receipts/go-g0-2026-11-11.md`, "Decision", for what stays open).
 
 On 2026-11-12, after the parity matrix was audited row by row and the decisions it left to the owner were laid out with a recommendation each (`docs/migration/parity-decisions.md`: nine differences already decided during the migration, seventeen not decided, twelve behaviors the Rust-era text requires and go-microsip does not have), the owner took every recommendation (translated from Portuguese: "yes, as recommended"). That document's "Decision" column is the record. It accepts the listed differences and the measured regressions, drops what it names as dropped (STUN for this release, a separate ringing device, a device change during a call, the flashing taskbar button, in-window volume), and asks for the work it names to be done before the parity gate. It is not the gate's sign-off: the gate still needs every row proven or dropped for one commit.
+
+## macOS universal (`add-macos-universal`)
+
+On 2026-11-13, after the proposal was presented with the result of its three rounds of Codex review (`docs/reviews/add-macos-universal/`) and the assumptions below, the owner approved starting implementation (translated from Portuguese: "I approve, you may start; you may access it over SSH with the login I gave you; that VM is for exactly that, for tests"). The approved planning artifacts are commit `48dc239` on `main`.
+
+Assumptions presented with the request for approval and accepted with it:
+
+- The application is unsigned: no Developer ID signature and no notarization. The owner had decided this earlier the same day (translated: "no signature is needed, as in the other projects I made with a Mac binary"). What macOS withholds from unsigned code is measured and stated, not worked around by signing.
+- A `.zip` holding `go-microsip.app`; no `.dmg`.
+- The minimum macOS is the one the toolchain builds for, 13.0 at the time of the approval.
+- macOS is claimed only where a check ran.
+- On macOS the content security policy alone confines the page, as on Windows by the decision of 2026-11-11, and the self-test names the checks it cannot make there.
+- From the commit that adds the macOS file to the published set, a final version of the Linux and Windows files also waits for the macOS gates; pre-releases do not.
+
+The owner's macOS VM may be used for the checks, over SSH. The checks authenticate with a key and never type or store a password: what needs one (a login at the VM's console, automatic login, an administrator command) is the owner's to do.
+
+The approval permits implementation and testing of this change. It is not a declaration that any measurement passed, and it does not cover publishing a release.

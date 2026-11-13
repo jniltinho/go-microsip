@@ -3,7 +3,7 @@
 # ships or supports: CGO-free Linux with the window, cgo Linux, Linux without a window, and Windows.
 #   build/qa/check.sh <packages...>
 set -eu
-unformatted=$(gofmt -l main.go cmd internal build/winicon)
+unformatted=$(gofmt -l main.go cmd internal build/winicon build/macos)
 if [ -n "$unformatted" ]; then
 	echo "$unformatted"
 	echo "run gofmt -w" >&2

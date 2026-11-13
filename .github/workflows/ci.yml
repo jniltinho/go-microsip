@@ -35,6 +35,9 @@ jobs:
         run: sh build/release/ci-selftest.sh
       - name: Release gate check controls
         run: sh build/release/check-gates-selftest.sh
+      # The check of the macOS build over SSH says nothing of the Mac it runs on (stand-ins for ssh).
+      - name: Mac check controls
+        run: sh build/vm/mac-selftest.sh
       # The notes of the version in the tree, as release.yml would publish them.
       - name: Release notes
         run: sh build/release/notes.sh "$(sed -n 's/^GO_VERSION ?= //p' build/go.mk)" "$GITHUB_REPOSITORY" > /dev/null
