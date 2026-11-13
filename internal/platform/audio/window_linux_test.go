@@ -4,10 +4,17 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"os"
 	"os/exec"
@@ -1358,24 +1365,56 @@ func wrongPasswordInTheWindow(t *testing.T, bin, server string) {
 	}
 }
 
-// A TLS account whose PBX presents a certificate that the system does not trust, and no CA
-// bundle of its own (A129): the window says that the certificate was rejected, and shows no
-// registration.
+// A TLS account whose registrar cannot be vouched for (A129): with a CA bundle that did not
+// sign the PBX's certificate, and with no bundle at all, the window says that the certificate
+// was rejected, shows no registration and does not go on trying.
 func untrustedCertificateInTheWindow(t *testing.T, bin, server, password string) {
-	dir := t.TempDir()
-	file := filepath.Join(dir, "config.toml")
-	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1202\"\ndomain = %q\nport = 5061\ntransport = \"tls\"\nmedia = \"srtp\"\n", server)
-	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+	// A certificate authority of the test's own, which signed nothing.
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
 		t.Fatal(err)
 	}
-	trace := filepath.Join(dir, "ui-trace.jsonl")
-	softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
-	w := &window{t: t, lines: follow(t, trace)}
-	w.until(60*time.Second, "the certificate's refusal shown", func() bool {
-		return w.registered == "failed" && w.failure == "certificate" && w.shows("Failed: certificate rejected")
-	})
-	if w.shows("Registered") {
-		t.Error("the window shows a registration the engine does not have")
+	authority := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "another authority"},
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true,
+		KeyUsage: x509.KeyUsageCertSign}
+	der, err := x509.CreateCertificate(rand.Reader, authority, authority, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, bundle := range map[string][]byte{"another authority's bundle": pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), "no bundle": nil} {
+		dir := t.TempDir()
+		file := filepath.Join(dir, "config.toml")
+		text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1202\"\ndomain = %q\nport = 5061\ntransport = \"tls\"\nmedia = \"srtp\"\n", server)
+		if bundle != nil {
+			ca := filepath.Join(dir, "other-ca.crt")
+			if err := os.WriteFile(ca, bundle, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			text += fmt.Sprintf("ca_file = %q\n", ca)
+		}
+		if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		trace := filepath.Join(dir, "ui-trace.jsonl")
+		cmd, exited := softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+		w := &window{t: t, lines: follow(t, trace)}
+		w.until(60*time.Second, name+": the certificate's refusal shown", func() bool {
+			return w.registered == "failed" && w.failure == "certificate" && w.shows("Failed: certificate rejected")
+		})
+		// Not tried again: the first retry of a failure that is retried comes after five seconds.
+		if w.watch(7*time.Second, func() bool { return w.registered != "failed" }) {
+			t.Errorf("%s: after the refusal the registration is %q: it was tried again", name, w.registered)
+		}
+		if w.shows("Registered") {
+			t.Errorf("%s: the window shows a registration the engine does not have", name)
+		}
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		select {
+		case <-exited:
+		case <-time.After(15 * time.Second):
+			t.Fatalf("%s: the softphone did not end", name)
+		}
+		w.unregistered(10 * time.Second)
 	}
 }
 

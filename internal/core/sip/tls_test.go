@@ -170,6 +170,15 @@ func TestAnExpiredCertificateIsRefused(t *testing.T) {
 
 // A TLS account without a bundle or with one that holds no certificate is an error, never a silent
 // fall back to the system roots. (An unreadable file is refused earlier, by config.ReadCAFile.)
+// An account with no bundle fails as a certificate failure, which is not retried, not as a
+// network failure, which is.
+func TestNoBundleIsACertificateFailure(t *testing.T) {
+	_, err := TLSConfig("pbx", nil)
+	if got := RegistrationFailure(fmt.Errorf("endpoint: %w", err)); got.Failure != domain.Certificate {
+		t.Errorf("no bundle is reported as %v, want a certificate failure", got)
+	}
+}
+
 func TestTLSConfigNeedsABundle(t *testing.T) {
 	for name, pem := range map[string][]byte{"none": nil, "empty": []byte("not a certificate\n")} {
 		if _, err := TLSConfig("pbx", pem); err == nil {

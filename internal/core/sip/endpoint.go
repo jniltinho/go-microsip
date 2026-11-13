@@ -48,12 +48,16 @@ var ErrInsecureAnswer = errors.New("the peer answered without SRTP; the call was
 // ErrNoCommonCodec means the peer answered with no codec this endpoint has: there is no call.
 var ErrNoCommonCodec = errors.New("the peer answered with no codec in common")
 
+// ErrNoCABundle means a TLS account has no CA bundle: nothing vouches for its registrar, and the
+// system's certificates are not used in its place.
+var ErrNoCABundle = errors.New("a TLS account needs a CA bundle (account.ca_file)")
+
 // TLSConfig builds the client TLS configuration of a TLS account. The configured bundle is the only
 // trust anchor: system roots are never added, so a certificate the operating system trusts but the
 // bundle does not is refused.
 func TLSConfig(server string, pem []byte) (*tls.Config, error) {
 	if len(pem) == 0 {
-		return nil, errors.New("a TLS account needs a CA bundle")
+		return nil, ErrNoCABundle
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(pem) {
@@ -592,7 +596,8 @@ func RegistrationFailure(err error) domain.RegistrationState {
 		} else {
 			return fail(domain.Rejected, code)
 		}
-	case errors.As(err, &verify), errors.As(err, &unknown), errors.As(err, &hostname), errors.As(err, &invalid):
+	case errors.As(err, &verify), errors.As(err, &unknown), errors.As(err, &hostname), errors.As(err, &invalid),
+		errors.Is(err, ErrNoCABundle): // nothing to verify the registrar with: trying again changes nothing
 		return fail(domain.Certificate, 0)
 	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
 		return fail(domain.Timeout, 0)

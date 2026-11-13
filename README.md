@@ -33,7 +33,7 @@ affiliated with or endorsed by MicroSIP.
 | Area | What you get |
 |---|---|
 | **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, DND; RFC 4733 DTMF; a ringback tone while the other side rings, or the audio the PBX plays before it answers |
-| **Security** | TLS with system or custom CA; SDES-SRTP/SRTCP, optional or mandatory, with downgrade refusal; the password never goes in arguments, logs or the database |
+| **Security** | TLS with the CA bundle you name (`ca_file`); SDES-SRTP/SRTCP, optional or mandatory, with downgrade refusal; the password never goes in arguments, logs or the database |
 | **Interface** | MicroSIP-like window: keypad, Logs-style call history (double-click to call back), contacts with favorites and CSV import, status bar with an Online icon; dark and light themes |
 | **Desktop** | Tray icon whose menu redials your last calls; closing the window keeps it in the tray; incoming-call notifications with Answer/Reject; `sip:`/`tel:` link handler; single instance |
 | **Audio** | ALSA, PipeWire and PulseAudio through the system's default devices; audio test with microphone level; devices opened only during calls |
@@ -219,6 +219,11 @@ Limits of this version, known and accepted for it:
 - **A PBX without RFC 4733 keys.** A call whose answer does not agree to `telephone-event`
   has its audio; keys pressed during it are refused, and nothing is sent in their place.
 - **A call nobody answers** ends after 60 seconds.
+- **TLS needs a CA file.** A TLS account registers only with a CA bundle named in its
+  settings (`ca_file`): the system's certificates are not used, so a PBX whose certificate
+  comes from a public authority needs that authority's bundle named too. Without one the
+  window says "certificate rejected". The Rust application uses the system's certificates
+  when no bundle is named.
 - **A network that goes away.** When the address the account registered from leaves the
   machine (a VPN that dropped, a cable pulled), the window says so within a few seconds and
   the account registers again by itself once the network is back: tried after 5 s, then at
