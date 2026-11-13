@@ -241,7 +241,12 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 		return nil, fmt.Errorf("resolve registrar: %w", err)
 	}
 	local := bindHost(peers, int(s.Port))
-	e := &Endpoint{Account: a, peers: peers, lookup: net.LookupIP, Incoming: make(chan *diago.DialogServerSession, 1), log: log, local: local}
+	e := &Endpoint{Account: a, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, local: local}
+	e.lookup = func(host string) ([]net.IP, error) { // bounded: a resolver that never answers holds nothing for good
+		ctx, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		return net.DefaultResolver.LookupIP(ctx, "ip", host)
+	}
 	tran := diago.Transport{
 		Transport:    s.Transport.String(),
 		BindHost:     local,
@@ -258,18 +263,22 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	// The library puts its user agent's name in the user part of every Contact address, where a
 	// PBX, and whatever inspects SIP on the way to it, expects the extension: the name it gets
 	// is the account's. The product goes in the User-Agent header of each request instead.
-	uaOpts := []sipgo.UserAgentOption{sipgo.WithUserAgent(s.Username), sipgo.WithUserAgentHostname(s.Domain),
-		// Nothing is parsed, on any socket the stack reads, that does not come from the registrar:
-		// the stack acts on a CANCEL that matches a ringing call before any handler could ask
-		// where it came from.
-		sipgo.WithUserAgentTransportLayerOptions(gosip.WithTransportLayerReadFilter(
+	uaOpts := []sipgo.UserAgentOption{sipgo.WithUserAgent(s.Username), sipgo.WithUserAgentHostname(s.Domain)}
+	if s.Transport == domain.UDP {
+		// No datagram is parsed, on any socket the stack reads, that does not come from the
+		// registrar: the stack acts on a CANCEL that matches a ringing call before any handler
+		// could ask where it came from. A TCP or TLS account listens on nothing and reads only
+		// the connections it opened itself, to the address the library resolved: there is
+		// nobody else to refuse on those, and refusing part of a stream would break it.
+		uaOpts = append(uaOpts, sipgo.WithUserAgentTransportLayerOptions(gosip.WithTransportLayerReadFilter(
 			func(from gosip.TransportReadProps, data []byte) ([]byte, error) {
 				if e.AcceptAnySource || e.fromRegistrar(from.RemoteAddr.String()) {
 					return data, nil
 				}
 				e.RefusedSources.Add(1)
 				return nil, nil
-			}))}
+			})))
+	}
 	if s.Transport == domain.TLS {
 		conf, err := TLSConfig(s.Server, a.CA)
 		if err != nil {
@@ -557,7 +566,7 @@ func (e *Endpoint) Close() {
 // takes calls from its PBX, not from whoever can reach its socket.
 func (e *Endpoint) registrarOnly(next sipgo.RequestHandler) sipgo.RequestHandler {
 	return func(req *gosip.Request, tx gosip.ServerTransaction) {
-		if !e.AcceptAnySource && !e.fromRegistrar(req.Source()) {
+		if !e.AcceptAnySource && e.Account.Settings.Transport == domain.UDP && !e.fromRegistrar(req.Source()) {
 			e.RefusedSources.Add(1)
 			tx.Terminate() // no response: the sender learns nothing
 			return

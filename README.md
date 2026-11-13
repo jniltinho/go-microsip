@@ -229,11 +229,13 @@ Limits of this version, known and accepted for it:
   comes from a public authority needs that authority's bundle named too. Without one the
   window says "certificate rejected". The Rust application uses the system's certificates
   when no bundle is named.
-- **Signaling from the PBX alone.** Nothing is read that does not come from an address the
-  server's name has, at the account's port. The name is resolved when the account connects,
-  and again when something arrives from another address at that port. A PBX that answers
-  from another port than the account's, or that sends its calls from an address its name
-  does not have, is not heard.
+- **Signaling from the PBX alone.** An account over UDP reads nothing that does not come,
+  at the account's port, from an address the server's name has answered with since the
+  account connected: the name is resolved then, and again when something arrives from
+  another address at that port, and an address it once had is kept until the account
+  connects again. A PBX that answers from another port than the account's, or that sends
+  its calls from an address its name never answers with, is not heard. An account over TCP
+  or TLS listens on nothing and reads only the connections it opened itself.
 - **A server name with several addresses.** Each request is sent to the address the name
   has at that moment, and the cancellation of a call is addressed separately from the call:
   with a name whose answer changes in between, a call canceled while it rings can ring on at

@@ -266,8 +266,9 @@ func (t *RegisterTransaction) Unregister(ctx context.Context) error {
 	req := t.Origin
 
 	req.RemoveHeader("Expires")
-	req.RemoveHeader("Contact")
-	req.AppendHeader(sip.NewHeader("Contact", "*"))
+	// go-microsip: the binding removed is this registration's own contact, which the request
+	// still carries. Upstream sends "Contact: *", which removes every binding of the address:
+	// the extension's other phones, and a registration that replaced this one.
 	expires := sip.ExpiresHeader(0)
 	req.AppendHeader(&expires)
 	return t.doRequest(ctx, req)

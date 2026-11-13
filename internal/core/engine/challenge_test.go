@@ -9,6 +9,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,6 +28,10 @@ type challenger struct {
 	status         int
 	password       string
 	seen, accepted atomic.Int32
+	// removalDelay is how long a removal (Expires: 0) is held before it is noted and answered.
+	removalDelay time.Duration
+	mu           sync.Mutex
+	order        []string // what was accepted: "register", or "remove " and the Contact it named
 }
 
 const (
@@ -81,6 +86,17 @@ func (c *challenger) serve(t *testing.T) (port int) {
 	srv.OnRegister(func(req *gosip.Request, tx gosip.ServerTransaction) {
 		c.seen.Add(1)
 		if c.answers(req.GetHeader(answer)) {
+			what := "register"
+			if x := req.GetHeader("Expires"); x != nil && x.Value() == "0" {
+				time.Sleep(c.removalDelay)
+				what = "remove"
+				if contact := req.GetHeader("Contact"); contact != nil {
+					what += " " + contact.Value()
+				}
+			}
+			c.mu.Lock()
+			c.order = append(c.order, what)
+			c.mu.Unlock()
 			c.accepted.Add(1)
 			res := gosip.NewResponseFromRequest(req, 200, "OK", nil)
 			res.AppendHeader(gosip.NewHeader("Expires", "120"))
@@ -131,6 +147,37 @@ func TestAProxyChallengeIsAnswered(t *testing.T) {
 		e.Send(domain.Shutdown{})
 		drain(t, e.Events())
 	}
+}
+
+// An account that is saved again registers after the endpoint it replaces has removed its binding,
+// and that removal names the softphone's own contact. A registrar that allows one contact refuses
+// the new one beside the old; and a removal of every contact of the address ("Contact: *"),
+// arriving after the new registration, would take it away, with those of the extension's other
+// phones.
+func TestAnAccountSavedAgainRegistersAfterTheOldBindingIsRemoved(t *testing.T) {
+	c := &challenger{status: 401, password: "fictional-lab-password", removalDelay: 300 * time.Millisecond}
+	port := c.serve(t)
+	e := Start(Options{Audio: &memory.Audio{}})
+	for i := range 2 {
+		e.Send(challenged(port, "fictional-lab-password"))
+		if got := registration(t, e, 3*time.Second); got.Status != domain.Registering {
+			t.Fatalf("registration %d: first state %v", i, got)
+		}
+		if got := registration(t, e, registerTimeout); got.Status != domain.Registered {
+			t.Fatalf("registration %d: %v, want registered", i, got)
+		}
+	}
+	c.mu.Lock()
+	order := append([]string(nil), c.order...)
+	c.mu.Unlock()
+	if len(order) != 3 || order[0] != "register" || !strings.HasPrefix(order[1], "remove") || order[2] != "register" {
+		t.Fatalf("the registrar accepted %q, want the registration, its removal, the new registration", order)
+	}
+	if strings.Contains(order[1], "*") || !strings.Contains(order[1], "1001@") {
+		t.Errorf("the removal named %q, want the softphone's own contact", order[1])
+	}
+	e.Send(domain.Shutdown{})
+	drain(t, e.Events())
 }
 
 // A password the registrar refuses is reported as such and is not tried again: no second

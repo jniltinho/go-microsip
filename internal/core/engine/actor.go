@@ -20,6 +20,9 @@ import (
 const (
 	// registerTimeout bounds one registration attempt.
 	registerTimeout = 10 * time.Second
+	// leaveTimeout is how long a new registration waits for the endpoint before it to remove its
+	// binding: a little more than Close gives the removal.
+	leaveTimeout = 6 * time.Second
 	// noAnswerTimeout ends an outgoing call nobody answered: a minute, as long as phones ring
 	// before a network gives up or its voice mail answers.
 	noAnswerTimeout = 60 * time.Second
@@ -48,9 +51,11 @@ type actor struct {
 	// is discarded.
 	generation int
 	endpoint   *sip.Endpoint
-	ctx        context.Context // ends with the account
-	cancel     context.CancelFunc
-	reg        domain.RegistrationState
+	// leaving is closed when the endpoint dropped last has removed its binding, or given up.
+	leaving chan struct{}
+	ctx     context.Context // ends with the account
+	cancel  context.CancelFunc
+	reg     domain.RegistrationState
 	// identity is the account the last reported registration state was about.
 	identity string
 	attempts int
@@ -224,10 +229,13 @@ func (a *actor) dropAccount() {
 	}
 	if ep := a.endpoint; ep != nil {
 		a.endpoint = nil
+		gone := make(chan struct{})
+		a.leaving = gone
 		// The binding is removed first: canceling closes the socket it would be removed through.
 		go func() {
 			ep.Close()
 			cancel()
+			close(gone)
 		}()
 		return
 	}
@@ -240,7 +248,18 @@ func (a *actor) connect() {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.ctx, a.cancel = ctx, cancel
 	a.setRegistration(domain.RegistrationState{Status: domain.Registering})
+	leaving := a.leaving
 	go func() {
+		if leaving != nil {
+			// The endpoint this one replaces removes its binding first: a registrar that allows
+			// one contact refuses this one beside the old.
+			select {
+			case <-leaving:
+			case <-time.After(leaveTimeout):
+			case <-ctx.Done(): // dropped while it waited: the generation has moved on
+				return
+			}
+		}
 		ep, err := sip.NewEndpoint(account, log)
 		if err == nil {
 			if err = ep.Serve(ctx); err == nil {
@@ -1021,9 +1040,12 @@ func (a *actor) release() {
 	}
 	if ep := a.endpoint; ep != nil {
 		a.endpoint = nil
+		gone := make(chan struct{})
+		a.leaving = gone
 		go func() { // the binding first, as in dropAccount
 			ep.Close()
 			cancel()
+			close(gone)
 		}()
 		return
 	}
