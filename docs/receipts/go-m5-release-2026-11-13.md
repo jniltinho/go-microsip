@@ -61,4 +61,10 @@ d60fecee4784cb881715b83122b2aa0aead3e850a4ab64db7ae3d1db4675039f  sbom.cdx.json
 
 The notices and the bill of materials are the same files as those of `12a1786`; the executables differ because they carry their commit.
 
-The release workflow (run 43418385272) passed its check of the `release` environment and waits for the owner's approval. The comparison of the published assets with these lines (task 7.10) is added once it has run.
+## Published
+
+The owner approved the `release` environment on GitHub and the release workflow (run 43418385272) passed: it found the green CI run of the tagged commit, checked the tag against the version, took that run's files, checked their sums, the manifest and that nothing else was there, scanned them and published the pre-release [`v0.2.0-rc.1`](https://github.com/jniltinho/go-microsip/releases/tag/v0.2.0-rc.1) with eight assets.
+
+Checked after it (task 7.10): the eight assets were downloaded with `gh release download`; `sha256sum --check --strict SHA256SUMS` passes; the published `SHA256SUMS` is the file recorded above, byte for byte, and each of the seven other assets has the checksum recorded above. The downloaded Linux executable's `version` prints `go-microsip 0.2.0-rc.1` and the commit `f342d2ca6853`. The release's notes end with the same seven lines.
+
+One flaw of the page: the notes' links to other documents are relative to `docs/release/` and do not resolve on the release page; the link to this receipt is absolute and does.
