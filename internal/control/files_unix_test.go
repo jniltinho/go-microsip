@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 package control
 
 import (
@@ -18,7 +20,7 @@ func (posix) Inspect(info os.FileInfo) (owner, mode uint32) {
 }
 
 func TestGrantFilesArePrivateAndNeverWrittenOver(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "run", "grants")
+	dir := filepath.Join(tempDir(t), "run", "grants")
 	grant := IssuedGrant{ID: "grant-1-abc", Capability: strings.Repeat("a", 64)}
 	path, err := WriteGrantFile(dir, grant)
 	if err != nil {
@@ -52,7 +54,7 @@ func TestGrantFilesArePrivateAndNeverWrittenOver(t *testing.T) {
 		t.Errorf("a session's grant as a bootstrap: %v", err)
 	}
 	// A directory others can enter is not written to.
-	open := filepath.Join(t.TempDir(), "open")
+	open := filepath.Join(tempDir(t), "open")
 	if err := os.Mkdir(open, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +64,7 @@ func TestGrantFilesArePrivateAndNeverWrittenOver(t *testing.T) {
 }
 
 func TestAGrantFileThatIsNotPrivateIsNotRead(t *testing.T) {
-	dir := t.TempDir()
+	dir := tempDir(t)
 	write := func(name, content string, mode os.FileMode) string {
 		t.Helper()
 		path := filepath.Join(dir, name)
