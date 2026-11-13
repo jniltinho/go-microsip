@@ -54,7 +54,8 @@ type LegacySecrets = rustimport.LegacySecrets
 type DoctorReport = config.DoctorReport
 
 // StorePath is the database: <data home>/go-microsip/go-microsip.sqlite3, where the data home is
-// XDG_DATA_HOME, else HOME/.local/share, and LOCALAPPDATA on Windows (the database must not roam).
+// XDG_DATA_HOME, else HOME/.local/share; LOCALAPPDATA on Windows (the database must not roam);
+// and HOME/Library/Application Support on macOS, beside the configuration.
 // Only an absolute path from the environment counts, never the working directory; without one the
 // result is empty.
 func StorePath(env map[string]string) string {
@@ -67,6 +68,10 @@ func StorePath(env map[string]string) string {
 	var home string
 	if runtime.GOOS == "windows" {
 		home = abs("LOCALAPPDATA")
+	} else if runtime.GOOS == "darwin" {
+		if user := abs("HOME"); user != "" {
+			home = filepath.Join(user, "Library", "Application Support")
+		}
 	} else if home = abs("XDG_DATA_HOME"); home == "" {
 		if user := abs("HOME"); user != "" {
 			home = filepath.Join(user, ".local", "share")
@@ -76,6 +81,13 @@ func StorePath(env map[string]string) string {
 		return ""
 	}
 	return filepath.Join(home, config.DirName, config.DirName+".sqlite3")
+}
+
+// Paths are the files a run uses without --config: the default configuration file and the
+// database. Either is empty when the environment names no home for it.
+func (o Options) Paths() (configuration, database string) {
+	c := o.base()
+	return c.DefaultConfigPath(), StorePath(c.Env)
 }
 
 // base is the resolution context without the database: the environment and the two paths.

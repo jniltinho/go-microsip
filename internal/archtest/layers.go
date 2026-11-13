@@ -42,9 +42,11 @@ var (
 	signalNames = []string{"cmd", "internal/g0"}
 )
 
-// system reports whether an import reaches raw memory or the operating system directly.
+// system reports whether an import reaches raw memory or the operating system directly: purego
+// calls the system's libraries without cgo, which is the same reach.
 func system(imp string) bool {
-	return imp == "unsafe" || imp == "syscall" || strings.HasPrefix(imp, "golang.org/x/sys/")
+	return imp == "unsafe" || imp == "syscall" || strings.HasPrefix(imp, "golang.org/x/sys/") ||
+		imp == "github.com/ebitengine/purego" || strings.HasPrefix(imp, "github.com/ebitengine/purego/")
 }
 
 func in(dir string, roots ...string) bool {

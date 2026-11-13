@@ -45,7 +45,9 @@ func ProcessContext(configPath, envFile string, files ports.FileAccess) Context 
 }
 
 // DefaultConfigPath is the TOML path used without --config: under XDG_CONFIG_HOME, else under
-// HOME/.config, on Windows under APPDATA. Only an absolute base counts; otherwise it is empty.
+// HOME/.config; on Windows under APPDATA; on macOS under HOME/Library/Application Support, the
+// one folder that system gives an application. Only an absolute base counts; otherwise it is
+// empty.
 func (c Context) DefaultConfigPath() string {
 	base := ""
 	if abs := func(name string) string {
@@ -55,6 +57,10 @@ func (c Context) DefaultConfigPath() string {
 		return ""
 	}; runtime.GOOS == "windows" {
 		base = abs("APPDATA")
+	} else if runtime.GOOS == "darwin" {
+		if home := abs("HOME"); home != "" {
+			base = filepath.Join(home, "Library", "Application Support")
+		}
 	} else if base = abs("XDG_CONFIG_HOME"); base == "" {
 		if home := abs("HOME"); home != "" {
 			base = filepath.Join(home, ".config")

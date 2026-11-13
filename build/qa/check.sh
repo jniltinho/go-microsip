@@ -1,6 +1,7 @@
 #!/bin/sh
 # Static checks (run inside the build container): gofmt, then go vet for every build the project
-# ships or supports: CGO-free Linux with the window, cgo Linux, Linux without a window, and Windows.
+# ships or supports: CGO-free Linux with the window, cgo Linux, Linux without a window, Windows,
+# and macOS on both architectures.
 #   build/qa/check.sh <packages...>
 set -eu
 unformatted=$(gofmt -l main.go cmd internal build/winicon build/macos)
@@ -16,8 +17,7 @@ packages=$(CGO_ENABLED=0 go list "$@") # on its own line: a failure here stops t
 # shellcheck disable=SC2046 # the package list is a word list
 CGO_ENABLED=0 go vet $(printf '%s\n' "$packages" | grep -v '/internal/gui$')
 CGO_ENABLED=0 GOOS=windows go vet "$@"
-# The core must build for a system no adapter exists for yet.
-if [ -d internal/core ]; then
-	CGO_ENABLED=0 GOOS=darwin go vet ./internal/core/...
-fi
-echo "check: gofmt and go vet OK (purego, cgo, no window, windows, core on darwin)"
+# macOS, both architectures of the universal application, tests included.
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go vet -tags purego "$@"
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go vet -tags purego "$@"
+echo "check: gofmt and go vet OK (purego, cgo, no window, windows, macOS on x86_64 and arm64)"

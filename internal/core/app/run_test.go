@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -481,11 +482,19 @@ func TestRunNeedsAPasswordAndARegistrar(t *testing.T) {
 }
 
 func TestStorePath(t *testing.T) {
-	for want, env := range map[string]map[string]string{
+	cases := map[string]map[string]string{
 		"/d/go-microsip/go-microsip.sqlite3":              {"XDG_DATA_HOME": "/d", "HOME": "/h"},
 		"/h/.local/share/go-microsip/go-microsip.sqlite3": {"XDG_DATA_HOME": "relative", "HOME": "/h"},
 		"": {"HOME": "relative"},
-	} {
+	}
+	// macOS has one folder for an application's files and no XDG convention.
+	if runtime.GOOS == "darwin" {
+		cases = map[string]map[string]string{
+			"/h/Library/Application Support/go-microsip/go-microsip.sqlite3": {"XDG_DATA_HOME": "/d", "HOME": "/h"},
+			"": {"XDG_DATA_HOME": "/d", "HOME": "relative"},
+		}
+	}
+	for want, env := range cases {
 		if got := StorePath(env); got != want {
 			t.Errorf("%v: %q, want %q", env, got, want)
 		}

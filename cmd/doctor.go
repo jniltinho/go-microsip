@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/jniltinho/go-microsip/internal/buildinfo"
+	"github.com/jniltinho/go-microsip/internal/control"
 	"github.com/jniltinho/go-microsip/internal/core/app"
 )
 
@@ -14,9 +15,37 @@ import (
 type doctorReport struct {
 	Build buildinfo.Info `json:"build"`
 	// Display tells whether a desktop session is visible to this process.
-	Display       bool             `json:"display"`
-	Audio         audioReport      `json:"audio"`
+	Display bool        `json:"display"`
+	Audio   audioReport `json:"audio"`
+	// Paths are where this run looks without --config; an empty one has no home in this session.
+	Paths         pathsReport      `json:"paths"`
 	Configuration app.DoctorReport `json:"configuration"`
+}
+
+// pathsReport names the default configuration file, the database and the folder of agent
+// control, whether or not they exist.
+type pathsReport struct {
+	Configuration string `json:"configuration"`
+	Database      string `json:"database"`
+	Control       string `json:"control"`
+}
+
+func (p pathsReport) String() string {
+	or := func(path string) string {
+		if path == "" {
+			return "none"
+		}
+		return path
+	}
+	return fmt.Sprintf("configuration %s, database %s, control %s", or(p.Configuration), or(p.Database), or(p.Control))
+}
+
+// paths asks the core and the control endpoint where they look; nothing is created.
+func (s *session) paths() pathsReport {
+	var p pathsReport
+	p.Configuration, p.Database = s.options().Paths()
+	p.Control, _ = control.RuntimeDir(s.getenv)
+	return p
 }
 
 // audioReport says whether a call would have sound, and why not.
@@ -66,6 +95,7 @@ func (s *session) doctor() *cobra.Command {
 				Build:         build,
 				Display:       s.getenv("WAYLAND_DISPLAY") != "" || s.getenv("DISPLAY") != "",
 				Audio:         s.audio(),
+				Paths:         s.paths(),
 				Configuration: app.Doctor(s.options()),
 			}
 			if asJSON {
@@ -74,8 +104,8 @@ func (s *session) doctor() *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(r)
 			}
-			fmt.Fprintf(c.OutOrStdout(), "go-microsip %s (%s) %s/%s\nwindow backend: %s\ndisplay: %t\naudio: %s\n%s",
-				r.Build.Version, r.Build.Commit, r.Build.OS, r.Build.Arch, r.Build.Window, r.Display, r.Audio, r.Configuration)
+			fmt.Fprintf(c.OutOrStdout(), "go-microsip %s (%s) %s/%s\nwindow backend: %s\ndisplay: %t\naudio: %s\npaths: %s\n%s",
+				r.Build.Version, r.Build.Commit, r.Build.OS, r.Build.Arch, r.Build.Window, r.Display, r.Audio, r.Paths, r.Configuration)
 			return nil
 		},
 	}

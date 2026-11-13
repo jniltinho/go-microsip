@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -205,6 +206,32 @@ func TestTOMLSchemaTypesAndUnknownKeysAreRejected(t *testing.T) {
 	}
 }
 
+// On macOS the default file is under the one folder that system gives an application, and the
+// XDG variables are not read.
+func TestTheDefaultFileOnMacOS(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the macOS folders: run on macOS")
+	}
+	dir := t.TempDir()
+	c := ctx()
+	c.Env = map[string]string{"HOME": dir, "XDG_CONFIG_HOME": filepath.Join(dir, "xdg"),
+		"GO_MICROSIP_ACCOUNT_USERNAME": "1", "GO_MICROSIP_ACCOUNT_DOMAIN": "d.invalid"}
+	want := filepath.Join(dir, "Library", "Application Support", "go-microsip", "config.toml")
+	if got := c.DefaultConfigPath(); got != want {
+		t.Fatalf("default path %q, want %q", got, want)
+	}
+	if cfg := ok(t, c); cfg.ConfigFile != "" {
+		t.Errorf("a missing default file was reported as loaded: %q", cfg.ConfigFile)
+	}
+	path := file(t, dir, "Library/Application Support/go-microsip/config.toml", "schema = 1\n[ui]\ntheme = \"light\"\n", 0o600)
+	if cfg := ok(t, c); cfg.ConfigFile != path || cfg.Config.UI.Theme != ThemeLight {
+		t.Errorf("default file: %q theme %q", cfg.ConfigFile, cfg.Config.UI.Theme)
+	}
+	if c.Env["HOME"] = "relative"; c.DefaultConfigPath() != "" {
+		t.Errorf("a default path with a relative HOME: %q", c.DefaultConfigPath())
+	}
+}
+
 func TestExplicitFilesMustExistButTheDefaultIsOptional(t *testing.T) {
 	dir := t.TempDir()
 	c := ctx()
@@ -217,6 +244,9 @@ func TestExplicitFilesMustExistButTheDefaultIsOptional(t *testing.T) {
 		t.Errorf("--env-file: %v", e)
 	}
 
+	if runtime.GOOS == "darwin" {
+		return // where the default file is on macOS has a test of its own
+	}
 	base := map[string]string{"GO_MICROSIP_ACCOUNT_USERNAME": "1", "GO_MICROSIP_ACCOUNT_DOMAIN": "d.invalid"}
 	c = ctx()
 	c.Env = maps.Clone(base)
