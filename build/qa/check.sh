@@ -12,8 +12,9 @@ fi
 CGO_ENABLED=0 go vet -tags purego "$@"
 CGO_ENABLED=1 go vet "$@"
 # Without cgo and without the purego tag there is no window: every other package must still build.
+packages=$(CGO_ENABLED=0 go list "$@") # on its own line: a failure here stops the check
 # shellcheck disable=SC2046 # the package list is a word list
-CGO_ENABLED=0 go vet $(CGO_ENABLED=0 go list "$@" | grep -v '/internal/gui$')
+CGO_ENABLED=0 go vet $(printf '%s\n' "$packages" | grep -v '/internal/gui$')
 CGO_ENABLED=0 GOOS=windows go vet "$@"
 # The core must build for a system no adapter exists for yet.
 if [ -d internal/core ]; then

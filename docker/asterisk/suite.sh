@@ -10,6 +10,11 @@
 #   which must carry the current commit in its label.
 # Exit status 0 only when every requested scenario wrote a passing report
 # and no lab container, network or volume is left.
+#
+# Historical: this is rust-microsip's suite. It builds from the root Dockerfile, which went to
+# archive/rust/ at the cutover, so it stops here. go-microsip's lab is `make lab`.
+echo "suite.sh is rust-microsip's lab suite and needs archive/rust at the root (archive/rust/README.md); go-microsip's is: make lab" >&2
+exit 2
 set -u
 cd "$(dirname "$0")/../.."
 [ "$(id -u)" -ne 0 ] || { echo "ERROR: run the suite as a non-root user." >&2; exit 1; }

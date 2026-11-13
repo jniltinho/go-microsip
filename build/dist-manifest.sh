@@ -10,9 +10,6 @@ window=$5
 image=$6
 if [ -z "$(git status --porcelain)" ]; then dirty=false; else dirty=true; fi
 cd "$dist"
-sha256sum "$name-linux-amd64" "$name-x86_64.AppImage" "$name-windows-amd64.exe" \
-	"$name-windows-amd64.zip" THIRD_PARTY_NOTICES.txt sbom.cdx.json >SHA256SUMS
-sha256sum --check --strict --quiet SHA256SUMS
 cat >build-manifest.json <<EOF
 {
   "version": "$version",
@@ -28,4 +25,7 @@ cat >build-manifest.json <<EOF
   ]
 }
 EOF
+sha256sum "$name-linux-amd64" "$name-x86_64.AppImage" "$name-windows-amd64.exe" \
+	"$name-windows-amd64.zip" THIRD_PARTY_NOTICES.txt sbom.cdx.json build-manifest.json >SHA256SUMS
+sha256sum --check --strict --quiet SHA256SUMS
 echo "dist: $(wc -l <SHA256SUMS) files in SHA256SUMS, commit $commit, dirty $dirty"

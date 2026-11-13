@@ -1,5 +1,7 @@
 # Disposable Asterisk lab
 
+> go-microsip uses this lab through `make lab`, `make go-call` and the VM targets (`docs/DEVELOPMENT.md`). The sections below about Rust runners, `suite.sh` and the `*-build` and `*-test` sub-commands of `lab.sh` other than `build`, `init`, `unit-test`, `config-check`, `test`, `up` and `down` describe rust-microsip, now under `archive/rust/`: they are history and those commands stop with a message.
+
 **Disposable signaling/synthetic-media infrastructure, not a working softphone or completed G0.** Based on the user's requested [andrius/asterisk](https://github.com/andrius/asterisk) project, pinned to Asterisk 22.11.0 and an exact linux/amd64 image manifest. See [provenance and license boundaries](../../docs/adr/0002-disposable-asterisk-lab.md) and the [executed receipt](../../docs/receipts/asterisk-lab-2026-10-12.md).
 
 ## Prerequisites

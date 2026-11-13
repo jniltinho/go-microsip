@@ -72,7 +72,7 @@ The version is `GO_VERSION` in `build/go.mk`; the binary gets it and the commit 
 | --- | --- |
 | `make go-headless` | With no display: `version`, `doctor --json`, an MCP handshake on stdio, the refusal of a password-like option, and the configuration commands. |
 | `make go-self-test` | Under Xvfb and a private session bus, `--self-test`: the window opens, the embedded page calls Go, and the page's confinement is reported. |
-| `make go-smoke` | The two checks above on the Linux binary and the AppImage that `make dist` left, without building them again. CI runs it on the files it hands to the release. |
+| `make go-smoke` | On the files `make dist` left, without building them again: the headless checks on the Linux binary, the window's self-test on the binary and on the AppImage, and that the program inside the AppImage is that binary. CI runs it on the files it hands to the release. |
 | `make go-offline-skins` | In a container with no network, the window starts in each skin with its bundled font; the built page is scanned for anything loaded from outside itself. `OUT=<dir>` keeps a picture of each skin. |
 | `make go-keyring`, `make go-notify` | The keyring and notification adapters against a real service on a private session bus (GNOME Keyring; the test itself as the notification service), and against a session without one. |
 | `make go-audio` | The audio adapter against PipeWire with virtual sound cards (`SECONDS=300` for the threshold run; 10 by default). |

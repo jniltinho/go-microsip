@@ -123,6 +123,24 @@ echo x > "$work/copy/internal/core/store/testdata/other.sqlite3"
 git -C "$work/copy" add -f internal/core/store/testdata/other.sqlite3
 expect_block "a database beside the allowed fixture" forbidden-path
 fresh_copy
+echo x >> "$work/copy/internal/core/store/testdata/rust-0.1.0-rc.3.sqlite3"
+git -C "$work/copy" add internal/core/store/testdata/rust-0.1.0-rc.3.sqlite3
+expect_block "the allowed fixture with other content" forbidden-path
+fresh_copy
+echo fictional > "$work/copy/db-password.txt"; git -C "$work/copy" add db-password.txt; commit "fictional name"
+git -C "$work/copy" rm --quiet db-password.txt; commit "remove fictional name"
+expect_block "an unrelated secret-named file only in history" secret-file-name
+# A historical blob exempt from the personal-home check is exempt only while it is history.
+exempt_blob=47ffedc4c66df172626c51518a8e29f32eb3bc90
+if git -C "$repo" cat-file -e "$exempt_blob" 2> /dev/null; then
+    fresh_copy
+    git -C "$repo" cat-file blob "$exempt_blob" > "$work/copy/old-store.txt"
+    git -C "$work/copy" add old-store.txt
+    expect_block "an exempt historical blob back in the index" personal-home
+else
+    echo "skip an exempt historical blob back in the index: this clone does not have the blob"
+fi
+fresh_copy
 mkdir -p "$work/copy/internal/platform/secrets"
 echo fictional > "$work/copy/internal/platform/secrets/secrets.go"
 git -C "$work/copy" add internal/platform/secrets/secrets.go

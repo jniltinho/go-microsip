@@ -104,12 +104,12 @@ jobs:
           jq -e --arg v "$VERSION" --arg c "$(git rev-parse --short=12 "$GITHUB_SHA")" \
             '.version == $v and .commit == $c and .dirty == false' build-manifest.json
           # Every file is one the checksums name, and nothing else is published.
-          ls | grep -v -x -e SHA256SUMS -e build-manifest.json | sort > ../present
+          ls | grep -v -x -e SHA256SUMS | sort > ../present
           awk '{ sub(/^\*/, "", $2); print $2 }' SHA256SUMS | sort > ../listed
           cmp ../present ../listed || { diff ../listed ../present; exit 1; }
           for f in "go-microsip-$VERSION-linux-amd64" "go-microsip-$VERSION-x86_64.AppImage" \
             "go-microsip-$VERSION-windows-amd64.exe" "go-microsip-$VERSION-windows-amd64.zip" \
-            THIRD_PARTY_NOTICES.txt sbom.cdx.json; do
+            THIRD_PARTY_NOTICES.txt sbom.cdx.json build-manifest.json; do
             [ -s "$f" ] || { echo "missing $f" >&2; exit 1; }
           done
           cd ..

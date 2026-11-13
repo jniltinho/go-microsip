@@ -67,10 +67,11 @@ go-self-test: go-build ## Go: the window opens under Xvfb and the page calls the
 
 # The same two checks on the files go-dist left, without building them again: what CI runs on the
 # artifacts it then hands to the release.
-go-smoke: ## Go: the headless checks and the window's self-test on the Linux binary and the AppImage of go-dist
+go-smoke: ## Go: the headless checks, the window's self-test and the AppImage's contents, on the files of go-dist
 	$(GO) build/qa/headless.sh $(GO_DIST)/$(GO_NAME)-linux-amd64
 	$(GO_GUI) build/qa/self-test.sh $(GO_DIST)/$(GO_NAME)-linux-amd64
 	$(GO_GUI) build/qa/self-test.sh $(GO_DIST)/$(GO_NAME)-x86_64.AppImage
+	$(GO) build/qa/appimage.sh $(GO_DIST)/$(GO_NAME)-x86_64.AppImage $(GO_DIST)/$(GO_NAME)-linux-amd64
 
 go-offline-skins: go-build ## Go: the window starts in every skin in a container with no network
 	GO_DOCKER_FLAGS="--network none $(GO_GUI_FLAGS)" $(GO) build/qa/offline-skins.sh $(GO_BIN) $(OUT)

@@ -34,11 +34,11 @@ Not run here: the VMs (they are run on CI's files) and FreePBX.
 
 ## The publication scan's exceptions
 
-The scan failed on the Go tree with 13 findings, none a secret or a personal path. By the owner's decision of 2026-11-13 it has these exceptions, each as narrow as its finding, and `ci-selftest.sh` checks that they stay so:
+The scan failed on the Go tree with 13 findings, none a secret or a personal path. It has these exceptions, each as narrow as its finding, and `ci-selftest.sh` checks that they stay so. The owner did not name them: they were the recommendation of the report he answered with the go-ahead for the release, and are taken from that ([record](../migration/parity-signoff.md)):
 
 | Finding | Exception |
 | --- | --- |
-| `internal/core/store/testdata/rust-0.1.0-rc.3.sqlite3`, the fictional database of the store's tests | that exact path, in the repository only; another database beside it fails, and so does any database in an artifact |
+| `internal/core/store/testdata/rust-0.1.0-rc.3.sqlite3`, the fictional database of the store's tests | that exact path with exactly that content (its blob id), in the repository only; the fixture changed, another database beside it, or any database in an artifact fails |
 | `archive/rust/crates/platform/src/secrets.rs` | the path that was already allowed, with `archive/rust/` in front |
 | six file names with "secrets" in the Go history (`internal/platform/secrets/*.go`, `build/qa/secrets.sh`, since renamed to `keyring`) | those names, in history only: one of them in the index fails |
 | five historical versions of `internal/core/store/store.go` and `store_test.go` with fictional example paths (a one-letter user, "lab", an ellipsis) | those five blobs by id, while absent from the index |

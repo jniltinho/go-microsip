@@ -180,7 +180,8 @@ go-microsip import rust-microsip --apply    # --credential also copies the keyri
   `sip:` or `tel:` link can be opened with go-microsip, which asks before it calls, once you
   choose it in Settings, Default apps; an incoming call is also a Windows notification with
   **Answer** and **Reject**; and the command line reaches the window as on Linux (the MCP
-  server and the headless service are not tried on Windows yet). Calls over UDP and TCP are checked in a Windows VM against a lab PBX, with audio
+  server was checked in a Windows VM against a running window; the headless service is not
+  tried on Windows yet). Calls over UDP and TCP are checked in a Windows VM against a lab PBX, with audio
   as packets both ways; sound on a real sound card, TLS and SRTP are not verified on Windows
   yet. At the first call Windows asks whether its firewall should let go-microsip accept
   connections: calls, incoming ones included, work whichever you answer.

@@ -15,6 +15,9 @@ controls_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/as
 hold_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.hold-g0.yaml "$@"; }
 transfer_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.transfer-g0.yaml "$@"; }
 case "${1:-}" in
+    calls-build|controls-build|hold-build|transfer-build|rust-test|calls-test|controls-test|hold-test|transfer-test)
+        echo "lab.sh $1 ran a runner of rust-microsip, which went to archive/rust/ at the cutover: it needs that tree's Dockerfile at the root (archive/rust/README.md)." >&2
+        exit 2 ;;
     build) docker buildx build --platform linux/amd64 --target runtime --load -t "$image" docker/asterisk ;;
     calls-build) docker buildx build --platform linux/amd64 --target g0-calls-runner --load -t rust-microsip-g0-calls:0.1.0-lab.1 . ;;
     controls-build) docker buildx build --platform linux/amd64 --target g0-controls-runner --load -t rust-microsip-g0-controls:0.1.0-lab.1 . ;;

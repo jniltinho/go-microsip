@@ -37,7 +37,8 @@ runs the publication scan over the files (the AppImage and the zip unpacked) and
 - `go-microsip-X.Y.Z-windows-amd64.exe` (the program alone)
 - `THIRD_PARTY_NOTICES.txt` and `sbom.cdx.json` (CycloneDX: the Go modules, the frontend packages
   and the fonts the executables contain)
-- `build-manifest.json` and `SHA256SUMS`
+- `build-manifest.json` (the version, the commit and the build image) and `SHA256SUMS`, which
+  names every other file
 
 The release's notes are `docs/release/vX.Y.Z.md` of the tagged commit followed by the checksums of
 the published files. The Windows files are unsigned: say so in the notes, with the SmartScreen
