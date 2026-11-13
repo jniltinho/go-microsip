@@ -141,7 +141,7 @@ func (a *App) forward() {
 				case a.notified == ev.Call.ID && ev.Call.Phase.Kind != domain.Ringing:
 					// Answered, refused or over: nothing is left to decide from a notification.
 					// A call that stopped ringing with no decision of the user's was missed.
-					if p := ev.Call.Phase; p.IsFinal() && p.End != domain.EndRejected && ev.Call.AnsweredMS == 0 {
+					if p := ev.Call.Phase; p.IsFinal() && p.End != domain.EndRejected && p.End != domain.EndAnsweredElsewhere && ev.Call.AnsweredMS == 0 {
 						a.notice.Missed(uint64(ev.Call.ID), ev.Call.Remote)
 					} else {
 						a.notice.Close(uint64(ev.Call.ID))

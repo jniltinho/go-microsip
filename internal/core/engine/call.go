@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -48,6 +49,7 @@ type call struct {
 	gone bool
 
 	sound bool // the audio goroutines run
+	keyed bool // the other side agreed to telephone-event: keys can be sent
 	// earlyFailed: the audio that played before the answer ended on its own; the call is ended
 	// when it is answered.
 	earlyFailed bool
@@ -84,10 +86,16 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 		codec = media.PCMU
 	}
 	// The DTMF writer wraps the audio writer, so keys and audio share one RTP stream in order.
-	writer, err := med.AudioWriterDTMF()
-	if err != nil {
+	// A side that did not agree to telephone-event (RFC 4733) gets the audio alone: the call
+	// has its sound, and its keys are refused.
+	var writer io.Writer
+	keys, err := med.AudioWriterDTMF()
+	if err == nil {
+		writer = keys
+	} else if writer, err = med.AudioWriter(); err != nil {
 		return err
 	}
+	c.keyed = keys != nil
 	// A fixed, bounded jitter buffer: late and reordered packets are put right, bursts are capped.
 	reader, err := med.AudioReader(diago.WithAudioReaderJitterBuffer(dmedia.RTPJitterBufferOptions{DelayPackets: 3, MaxPackets: 10}))
 	if err != nil {
@@ -114,8 +122,8 @@ func (c *call) startAudio(med *diago.DialogMedia, audio ports.MediaIO, log *slog
 		var silence [media.FrameSamples]int16
 		for ctx.Err() == nil {
 			select {
-			case key := <-c.keys:
-				if err := writer.WriteDTMF(key.Rune()); err != nil {
+			case key := <-c.keys: // none arrives when the call has no keys (see keyed)
+				if err := keys.WriteDTMF(key.Rune()); err != nil {
 					ended("send", err)
 					return
 				}

@@ -814,3 +814,14 @@ func TestTheDatabaseAddressKeepsADriveInThePath(t *testing.T) {
 		t.Errorf("a relative path: %s", got)
 	}
 }
+
+// An incoming call that another phone of the extension answered is an answered call in the
+// history, not a missed one.
+func TestACallAnsweredElsewhereIsNotMissed(t *testing.T) {
+	if got := OutcomeFromEnd(domain.Incoming, false, domain.EndAnsweredElsewhere); got != Answered {
+		t.Errorf("answered elsewhere is listed as %q, want %q", got, Answered)
+	}
+	if got := OutcomeFromEnd(domain.Incoming, false, domain.EndCanceled); got != Missed {
+		t.Errorf("a call the caller gave up is listed as %q, want %q", got, Missed)
+	}
+}

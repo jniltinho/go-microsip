@@ -51,7 +51,10 @@ func registrations(port int) int64 {
 	return n.(*atomic.Int64).Load()
 }
 
-func lab(t *testing.T, invite int) (port int) {
+func lab(t *testing.T, invite int) (port int) { return labWith(t, invite, true) }
+
+// labWith is lab; without keys its answer does not agree to telephone-event.
+func labWith(t *testing.T, invite int, keys bool) (port int) {
 	t.Helper()
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -93,6 +96,9 @@ func lab(t *testing.T, invite int) (port int) {
 			}
 			t.Cleanup(func() { rtp.Close() })
 			sdp := fmt.Sprintf("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-16\r\na=sendrecv\r\n", rtp.LocalAddr().(*net.UDPAddr).Port)
+			if !keys {
+				sdp = fmt.Sprintf("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\na=sendrecv\r\n", rtp.LocalAddr().(*net.UDPAddr).Port)
+			}
 			res := gosip.NewResponseFromRequest(req, 200, "OK", []byte(sdp))
 			res.AppendHeader(gosip.NewHeader("Content-Type", "application/sdp"))
 			res.AppendHeader(gosip.NewHeader("Contact", fmt.Sprintf("<sip:lab@%s;transport=tcp>", addr)))

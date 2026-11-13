@@ -59,6 +59,8 @@ func EngineScenarios() []Scenario {
 		Scenario{"engine/secure/keys-not-logged", engineSecureLog},
 		Scenario{"engine/ring/1001-1002", engineRing},
 		Scenario{"engine/ring/stops", engineRingStops},
+		Scenario{"engine/early-media/1001", engineEarlyMedia},
+		Scenario{"engine/answered-elsewhere", engineAnsweredElsewhere},
 	)
 }
 

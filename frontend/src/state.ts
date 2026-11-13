@@ -696,6 +696,7 @@ export const endReasonText = (reason: EndReason) =>
     transferred: "Transferred",
     not_acceptable: "Not acceptable",
     failed: "Failed",
+    answered_elsewhere: "Answered on another phone",
   })[reason];
 
 /** Human text for a transfer state. */

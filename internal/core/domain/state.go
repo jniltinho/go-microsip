@@ -104,10 +104,13 @@ const (
 	EndNotAcceptable
 	// EndFailed: a network or protocol failure.
 	EndFailed
+	// EndAnsweredElsewhere: an incoming call stopped ringing here because another phone of the
+	// extension answered it.
+	EndAnsweredElsewhere
 )
 
 func (e EndReason) String() string {
-	return [...]string{"normal", "canceled", "rejected", "busy", "no_answer", "transferred", "not_acceptable", "failed"}[e]
+	return [...]string{"normal", "canceled", "rejected", "busy", "no_answer", "transferred", "not_acceptable", "failed", "answered_elsewhere"}[e]
 }
 
 // PhaseKind is a call's phase without the reason of its end.

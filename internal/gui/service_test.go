@@ -574,12 +574,14 @@ func TestARingingCallIsNotifiedAndItsButtonsDecide(t *testing.T) {
 	call(4, domain.Incoming, domain.Ended, 2, domain.EndCanceled) // the caller gave up
 	call(5, domain.Incoming, domain.Ringing, 1)
 	call(5, domain.Incoming, domain.Ended, 2, domain.EndNoAnswer) // nobody decided in time
+	call(6, domain.Incoming, domain.Ringing, 1)
+	call(6, domain.Incoming, domain.Ended, 2, domain.EndAnsweredElsewhere) // another phone took it
 	close(stream)
 	<-done
 	close(board.actions)
 	<-decided // every button was acted on
 	if got, want := board.all(), []string{"incoming 2 1002", "close 2", "incoming 3 1002", "close 3",
-		"incoming 4 1002", "missed 4 1002", "incoming 5 1002", "missed 5 1002"}; !slices.Equal(got, want) {
+		"incoming 4 1002", "missed 4 1002", "incoming 5 1002", "missed 5 1002", "incoming 6 1002", "close 6"}; !slices.Equal(got, want) {
 		t.Errorf("the notifications asked for: %v, want %v", got, want)
 	}
 	mu.Lock()

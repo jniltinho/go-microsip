@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
+
+	gosip "github.com/emiago/sipgo/sip"
 )
 
 const (
@@ -155,5 +157,40 @@ func TestAnAddressThatLeftTheMachineIsGone(t *testing.T) {
 	}
 	if assigned("192.0.2.7", nil) {
 		t.Error("an address is assigned on a machine that has none")
+	}
+}
+
+// The CANCEL of a call that another phone answered says so in its Reason header (RFC 3326): a
+// SIP cause of 200, whatever its text, its spacing or what else the header lists.
+func TestACancelSaysWhenTheCallWasAnsweredElsewhere(t *testing.T) {
+	reason := func(values ...string) []gosip.Header {
+		var out []gosip.Header
+		for _, v := range values {
+			out = append(out, gosip.NewHeader("Reason", v))
+		}
+		return out
+	}
+	for _, yes := range [][]gosip.Header{
+		reason(`SIP;cause=200;text="Call completed elsewhere"`),
+		reason(`SIP ;cause=200`),
+		reason(`sip; Cause = "200" ;text="x"`),
+		reason(`Q.850;cause=16`, `SIP;cause=200`),
+		reason(`Q.850;cause=16;text="Normal", SIP;cause=200;text="Call completed elsewhere"`),
+	} {
+		if !completedElsewhere(yes) {
+			t.Errorf("%v: not read as answered elsewhere", yes)
+		}
+	}
+	for _, no := range [][]gosip.Header{
+		nil,
+		reason(`SIP;cause=487;text="Request Terminated"`),
+		reason(`Q.850;cause=200`),
+		reason(`SIP;text="cause=200"`),
+		reason(`SIP;cause=2000`),
+		reason(``),
+	} {
+		if completedElsewhere(no) {
+			t.Errorf("%v: read as answered elsewhere", no)
+		}
 	}
 }

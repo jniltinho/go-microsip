@@ -365,3 +365,94 @@ func engineRingStops(ctx context.Context, l *Lab) (map[string]any, error) {
 	}
 	return data, stopAll(a, b)
 }
+
+// engineEarlyMedia: what the PBX plays before it answers is heard while the call rings, in place
+// of the ringback; the microphone is not opened for anything to be sent of it (the PBX gets
+// frames of silence only, which this scenario does not see); and the call ends when the PBX gives
+// it up, never having been answered.
+func engineEarlyMedia(ctx context.Context, l *Lab) (map[string]any, error) {
+	p, err := l.phone(ctx, "1001", toneA)
+	if err != nil {
+		return nil, err
+	}
+	defer p.close()
+	if err := p.send("603"); err != nil {
+		return nil, err
+	}
+	if _, err := p.phase(ctx, domain.Ringing); err != nil {
+		return nil, err
+	}
+	data := map[string]any{}
+	for deadline := time.Now().Add(6 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		if p.sound.CallStreams() == 1 {
+			frames, share := p.sound.Last().Heard(toneLab)
+			data["frames_before_the_answer"], data["with_the_pbx_tone"] = frames, share[toneLab]
+			if frames >= 100 && share[toneLab] > 0.9 {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			return data, fmt.Errorf("the PBX's tone was not heard while the call rang: %v", data)
+		}
+	}
+	for _, back := range p.sound.OutputStreams() {
+		if !back.Closed() {
+			return data, fmt.Errorf("the ringback plays beside the PBX's audio")
+		}
+	}
+	end, err := p.snapshot(ctx, "the call given up by the PBX", func(c domain.CallSnapshot) bool { return c.Phase.IsFinal() })
+	if err != nil {
+		return data, err
+	}
+	data["end"] = end.Phase.End.String()
+	if end.AnsweredMS != 0 {
+		return data, fmt.Errorf("the call that was never answered has an answer time")
+	}
+	return data, nil
+}
+
+// engineAnsweredElsewhere: the PBX rings two phones of a group; one answers, and the other is told
+// that the call was answered elsewhere, not that the caller gave up.
+func engineAnsweredElsewhere(ctx context.Context, l *Lab) (map[string]any, error) {
+	a, err := l.phone(ctx, "1001", toneA)
+	if err != nil {
+		return nil, err
+	}
+	defer a.close()
+	b, err := l.phone(ctx, "1002", toneB)
+	if err != nil {
+		return nil, err
+	}
+	defer b.close()
+	caller, err := l.phone(ctx, "1101", toneLab)
+	if err != nil {
+		return nil, err
+	}
+	defer caller.close()
+	if err := caller.send("604"); err != nil {
+		return nil, err
+	}
+	if _, err := a.phase(ctx, domain.Ringing); err != nil {
+		return nil, err
+	}
+	ringing, err := b.phase(ctx, domain.Ringing)
+	if err != nil {
+		return nil, err
+	}
+	b.e.Send(domain.Answer{Call: ringing.ID})
+	if _, err := b.phase(ctx, domain.Established); err != nil {
+		return nil, err
+	}
+	end, err := a.snapshot(ctx, "the end of the call on the phone that did not answer", func(c domain.CallSnapshot) bool { return c.Phase.IsFinal() })
+	if err != nil {
+		return nil, err
+	}
+	data := map[string]any{"the_other_phone_ended_as": end.Phase.End.String()}
+	if end.Phase.End != domain.EndAnsweredElsewhere {
+		return data, fmt.Errorf("the phone that did not answer ended the call as %s, want answered_elsewhere", end.Phase.End)
+	}
+	if _, err := caller.phase(ctx, domain.Established); err != nil {
+		return data, err
+	}
+	return data, nil
+}

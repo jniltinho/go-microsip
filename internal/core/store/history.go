@@ -27,7 +27,9 @@ const (
 // established is Answered. An incoming call that never was is Missed unless the user rejected it.
 func OutcomeFromEnd(direction domain.Direction, established bool, reason domain.EndReason) Outcome {
 	switch {
-	case established:
+	case established, reason == domain.EndAnsweredElsewhere:
+		// Answered on another phone of the extension: an answered call with no duration here,
+		// not one that was missed.
 		return Answered
 	case reason == domain.EndRejected:
 		return Rejected

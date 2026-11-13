@@ -189,7 +189,9 @@ def dialplan():
               " same => n,Wait(20)\n same => n,Hangup()\n"
               # Early media: an announcement in 183 Session Progress, never answered.
               "exten => 603,1,Progress()\n same => n,PlayTones(1000)\n"
-              " same => n,Wait(8)\n same => n,Hangup(1)\n")
+              " same => n,Wait(8)\n same => n,Hangup(1)\n"
+              # Two phones ring; the one that does not answer is told the call was taken elsewhere.
+              "exten => 604,1,Dial(PJSIP/1001&PJSIP/1002,20)\n same => n,Hangup()\n")
     for name in ACCOUNTS:
         config += f"exten => {name},1,Dial(PJSIP/{name},20)\n same => n,Hangup()\n"
     return config

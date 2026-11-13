@@ -82,10 +82,12 @@ type Endpoint struct {
 	// product is what the User-Agent header of a request says.
 	product string
 	// local is the address the endpoint is bound to, or "0.0.0.0".
-	local  string
-	dg     *diago.Diago
-	cancel context.CancelFunc
-	log    *slog.Logger
+	local string
+	// elsewhere holds the Call-IDs of incoming calls canceled as answered elsewhere, until asked.
+	elsewhere sync.Map
+	dg        *diago.Diago
+	cancel    context.CancelFunc
+	log       *slog.Logger
 
 	// mu guards the binding. The library's registration is not safe for a renewal and another
 	// request at once, so halt stops the renewal loop before anything else touches it.
@@ -119,6 +121,32 @@ func bindHost(peers []net.IP, port int) string {
 		defer c.Close()
 		return c.LocalAddr().(*net.UDPAddr).IP
 	})
+}
+
+// AnsweredElsewhere reports, once, whether the registrar canceled the incoming call with this
+// Call-ID because another phone of the extension answered it.
+func (e *Endpoint) AnsweredElsewhere(callID string) bool {
+	_, was := e.elsewhere.LoadAndDelete(callID)
+	return was
+}
+
+// completedElsewhere reads the Reason headers of a CANCEL (RFC 3326): a SIP cause of 200 is a
+// call that was answered by another of the phones that rang.
+func completedElsewhere(reasons []gosip.Header) bool {
+	for _, h := range reasons {
+		for _, reason := range strings.Split(h.Value(), ",") {
+			fields := strings.Split(reason, ";")
+			if !strings.EqualFold(strings.TrimSpace(fields[0]), "SIP") {
+				continue
+			}
+			for _, field := range fields[1:] {
+				if name, value, ok := strings.Cut(strings.TrimSpace(field), "="); ok && strings.EqualFold(strings.TrimSpace(name), "cause") && strings.Trim(strings.TrimSpace(value), `"`) == "200" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // ErrAddressGone means the address the endpoint was bound to is no longer one of this machine's:
@@ -462,6 +490,17 @@ func (e *Endpoint) registrarOnly(next sipgo.RequestHandler) sipgo.RequestHandler
 			e.RefusedSources.Add(1)
 			tx.Terminate() // no response: the sender learns nothing
 			return
+		}
+		if req.IsInvite() {
+			// The CANCEL that ends a ringing call says why: kept for whoever ends the call.
+			if id := req.CallID(); id != nil {
+				call := id.Value()
+				tx.OnCancel(func(cancel *gosip.Request) {
+					if completedElsewhere(cancel.GetHeaders("Reason")) {
+						e.elsewhere.Store(call, true)
+					}
+				})
+			}
 		}
 		next(req, tx)
 	}

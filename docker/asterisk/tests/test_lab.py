@@ -71,6 +71,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("exten => 601,1,Answer()", config)
         self.assertIn("exten => 602,1,Answer()", config)
         self.assertIn("exten => 603,1,Progress()", config)
+        self.assertIn("exten => 604,1,Dial(PJSIP/1001&PJSIP/1002,20)", config)
         self.assertNotIn("_X", config)
         self.assertNotIn("System(", config)
         self.assertNotIn("Record(", config)

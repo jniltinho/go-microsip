@@ -20,8 +20,9 @@ import (
 const (
 	// registerTimeout bounds one registration attempt.
 	registerTimeout = 10 * time.Second
-	// noAnswerTimeout ends an outgoing call nobody answered.
-	noAnswerTimeout = 32 * time.Second
+	// noAnswerTimeout ends an outgoing call nobody answered: a minute, as long as phones ring
+	// before a network gives up or its voice mail answers.
+	noAnswerTimeout = 60 * time.Second
 	// operationTimeout bounds a hold, resume, transfer request or hang-up on the network.
 	operationTimeout = 5 * time.Second
 	// transferTimeout bounds the wait for a transfer's result.
@@ -731,7 +732,13 @@ func (a *actor) watch(c *call) {
 		a.e.post(func() {
 			switch {
 			case c.snap.Phase.Kind == domain.Ringing:
-				a.end(c, domain.EndCanceled)
+				reason := domain.EndCanceled
+				if ep := a.endpoint; ep != nil && c.server != nil && c.server.InviteRequest != nil {
+					if id := c.server.InviteRequest.CallID(); id != nil && ep.AnsweredElsewhere(id.Value()) {
+						reason = domain.EndAnsweredElsewhere // another phone of the extension took it
+					}
+				}
+				a.end(c, reason)
 			case c.snap.Phase.Kind == domain.Terminating:
 				a.end(c, c.ending)
 			case c.snap.Transfer.Kind == domain.TransferPending:
@@ -774,8 +781,8 @@ func (a *actor) dtmf(id domain.CallID, key domain.DTMFKey) {
 	if c == nil {
 		return
 	}
-	if c.snap.Phase.Kind != domain.Established || !c.sound {
-		a.notice(domain.NoticeInvalidState)
+	if c.snap.Phase.Kind != domain.Established || !c.sound || !c.keyed {
+		a.notice(domain.NoticeInvalidState) // also a call whose other side takes no keys
 		return
 	}
 	select {

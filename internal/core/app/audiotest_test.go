@@ -628,3 +628,44 @@ func TestAStalledSoundServiceDoesNotHoldTheStopOrTheClose(t *testing.T) {
 		t.Error("a test is running after the stop and the close")
 	}
 }
+
+// A PBX whose answer does not agree to telephone-event (RFC 4733) still gets a call with its
+// audio: the sound devices run and nothing is reported as missing. Only the keys are refused,
+// one by one, and the call stays up.
+func TestACallWithoutTelephoneEventHasItsAudioAndNoKeys(t *testing.T) {
+	o, _ := options(t, labWith(t, 200, false))
+	sound := &memory.Audio{Tone: 1000}
+	p, err := OpenPhone(o, PhoneOptions{Audio: sound})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	until(t, p, "registration", registered)
+	target, _ := domain.ParseDialTarget("1002")
+	if err := p.Send(domain.Dial{Target: target}); err != nil {
+		t.Fatal(err)
+	}
+	until(t, p, "the answer", func(ev domain.Event) bool {
+		c, ok := ev.(domain.CallChanged)
+		return ok && c.Call.Phase.Kind == domain.Established
+	})
+	soon(t, "sound of the call", func() bool { return sound.CallStreams() == 1 })
+	call := sound.Last()
+	key, _ := domain.NewDTMFKey('5')
+	if err := p.Send(domain.SendDTMF{Call: 1, Key: key}); err != nil {
+		t.Fatal(err)
+	}
+	// The first thing the phone says after the answer is the refusal of the key: no notice of
+	// missing audio came before it.
+	until(t, p, "a notice", func(ev domain.Event) bool {
+		n, ok := ev.(domain.Noticed)
+		if ok && n.Notice != domain.NoticeInvalidState {
+			t.Errorf("the phone reported %s", n.Notice)
+		}
+		return ok
+	})
+	time.Sleep(200 * time.Millisecond)
+	if call.Closed() || sound.OpenStreams() != 1 {
+		t.Errorf("the call's sound: closed %v, %d streams open; want it running", call.Closed(), sound.OpenStreams())
+	}
+}

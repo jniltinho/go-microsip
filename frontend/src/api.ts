@@ -58,7 +58,8 @@ export type EndReason =
   | "no_answer"
   | "transferred"
   | "not_acceptable"
-  | "failed";
+  | "failed"
+  | "answered_elsewhere";
 /** Progress of a blind transfer (B2.7); `code` accompanies "failed". */
 export interface Transfer {
   state: "pending" | "succeeded" | "failed";
