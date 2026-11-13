@@ -173,9 +173,11 @@ func TestAnExpiredCertificateIsRefused(t *testing.T) {
 // An account with no bundle fails as a certificate failure, which is not retried, not as a
 // network failure, which is.
 func TestNoBundleIsACertificateFailure(t *testing.T) {
-	_, err := TLSConfig("pbx", nil)
-	if got := RegistrationFailure(fmt.Errorf("endpoint: %w", err)); got.Failure != domain.Certificate {
-		t.Errorf("no bundle is reported as %v, want a certificate failure", got)
+	for name, pem := range map[string][]byte{"no bundle": nil, "a bundle with no certificate in it": []byte("not a certificate\n")} {
+		_, err := TLSConfig("pbx", pem)
+		if got := RegistrationFailure(fmt.Errorf("endpoint: %w", err)); got.Failure != domain.Certificate {
+			t.Errorf("%s is reported as %v, want a certificate failure", name, got)
+		}
 	}
 }
 

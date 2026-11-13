@@ -1008,18 +1008,18 @@ func (w *ComfortNoiseWriter) Write(buf []byte) (n int, err error) {
 }
 
 // sameMedia reports whether two SDP bodies describe the same media, section by section: the m=
-// line as it is (it holds the order of the payload types), the key lines in their order (the
-// first one the session supports is the one used), the last direction (the one that counts), and
-// the connection and other attribute lines as a set, where order and a repeated line say
-// nothing. The origin, whose version a server may raise between its 183 and its answer, the
+// line as it is (it holds the order of the payload types), the key lines and the connection lines
+// in their order (the first one the session supports, and the first connection, are the ones
+// used), the last direction (the one that counts), and the other attribute lines as a set, where
+// order and a repeated line say nothing. The origin, whose version a server may raise between its 183 and its answer, the
 // session's name and its times say nothing of the media. (go-microsip)
 func sameMedia(a, b []byte) bool {
 	if len(a) == 0 || len(b) == 0 {
 		return false
 	}
 	type section struct {
-		media, direction string
-		keys, rest       []string
+		media, direction  string
+		keys, where, rest []string
 	}
 	sections := func(sdp []byte) []section {
 		out := []section{{}} // the session's own lines, then one section for each m= line
@@ -1031,9 +1031,11 @@ func sameMedia(a, b []byte) bool {
 				out = append(out, section{media: line})
 			case strings.HasPrefix(line, "a=crypto:"):
 				at.keys = append(at.keys, line)
+			case strings.HasPrefix(line, "c="):
+				at.where = append(at.where, line) // the first one is the one used
 			case line == "a=sendrecv", line == "a=sendonly", line == "a=recvonly", line == "a=inactive":
 				at.direction = line
-			case strings.HasPrefix(line, "c="), strings.HasPrefix(line, "a="):
+			case strings.HasPrefix(line, "a="):
 				at.rest = append(at.rest, line)
 			}
 		}
@@ -1044,6 +1046,7 @@ func sameMedia(a, b []byte) bool {
 		return out
 	}
 	return slices.EqualFunc(sections(a), sections(b), func(x, y section) bool {
-		return x.media == y.media && x.direction == y.direction && slices.Equal(x.keys, y.keys) && slices.Equal(x.rest, y.rest)
+		return x.media == y.media && x.direction == y.direction && slices.Equal(x.keys, y.keys) &&
+			slices.Equal(x.where, y.where) && slices.Equal(x.rest, y.rest)
 	})
 }

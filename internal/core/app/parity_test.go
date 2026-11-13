@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,7 +35,8 @@ func dial(t *testing.T, p *Phone) {
 // A transfer the PBX accepts with 202 and never reports on is not a success (A126): it stays
 // pending, the call stays up, and nothing says it succeeded.
 func TestATransferIsNotASuccessOn202Alone(t *testing.T) {
-	o, _ := options(t, lab(t, 200))
+	port := lab(t, 200)
+	o, _ := options(t, port)
 	p, err := OpenPhone(o, PhoneOptions{Audio: &memory.Audio{Tone: 1000}})
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +53,11 @@ func TestATransferIsNotASuccessOn202Alone(t *testing.T) {
 		c, ok := ev.(domain.CallChanged)
 		return ok && c.Call.Transfer.Kind == domain.TransferPending
 	})
-	// Two seconds after the 202: still pending, still up.
+	soon(t, "the PBX's 202 to the REFER", func() bool {
+		_, answered := sent.Load(fmt.Sprintf("%d REFER answered", port))
+		return answered
+	})
+	// Two seconds after the PBX said 202: still pending, still up.
 	quiet := time.After(2 * time.Second)
 	for {
 		select {

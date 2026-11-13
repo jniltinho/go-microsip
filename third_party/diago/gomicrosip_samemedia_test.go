@@ -42,7 +42,11 @@ func TestSameMedia(t *testing.T) {
 		"the keys in another order": change(
 			"a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA\r\na=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB",
 			"a=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB\r\na=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA"),
-		"no keys":                         change("RTP/SAVP", "RTP/AVP"),
+		"another profile": change("RTP/SAVP", "RTP/AVP"),
+		"no keys":         change("a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA\r\na=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB\r\n", ""),
+		"two connections in another order": "v=0\r\no=- 1 1 IN IP4 192.0.2.1\r\ns=-\r\nc=IN IP4 192.0.2.9\r\nc=IN IP4 192.0.2.1\r\nt=0 0\r\n" +
+			"m=audio 40000 RTP/SAVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\n" +
+			"a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:AAAA\r\na=crypto:2 AES_CM_128_HMAC_SHA1_80 inline:BBBB\r\na=sendrecv\r\n",
 		"an address in the media section": change("m=audio 40000 RTP/SAVP 0 101\r\n", "m=audio 40000 RTP/SAVP 0 101\r\nc=IN IP4 192.0.2.9\r\n"),
 		"nothing":                         "",
 	}

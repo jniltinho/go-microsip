@@ -367,9 +367,9 @@ func engineRingStops(ctx context.Context, l *Lab) (map[string]any, error) {
 }
 
 // engineEarlyMedia: what the PBX plays before it answers is heard while the call rings, in place
-// of the ringback; the microphone is not opened for anything to be sent of it (the PBX gets
-// frames of silence only, which this scenario does not see); and the call ends when the PBX gives
-// it up, never having been answered.
+// of the ringback (the call's sound, microphone and speaker, is open for it; what reaches the PBX
+// before the answer, frames of silence, this scenario does not see); and the call ends without
+// ever having been answered.
 func engineEarlyMedia(ctx context.Context, l *Lab) (map[string]any, error) {
 	p, err := l.phone(ctx, "1001", toneA)
 	if err != nil {

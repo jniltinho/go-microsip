@@ -48,9 +48,9 @@ var ErrInsecureAnswer = errors.New("the peer answered without SRTP; the call was
 // ErrNoCommonCodec means the peer answered with no codec this endpoint has: there is no call.
 var ErrNoCommonCodec = errors.New("the peer answered with no codec in common")
 
-// ErrNoCABundle means a TLS account has no CA bundle: nothing vouches for its registrar, and the
-// system's certificates are not used in its place.
-var ErrNoCABundle = errors.New("a TLS account needs a CA bundle (account.ca_file)")
+// ErrNoCABundle means a TLS account has no CA bundle, or one that holds no certificate: nothing
+// vouches for its registrar, and the system's certificates are not used in its place.
+var ErrNoCABundle = errors.New("a TLS account needs a CA bundle with a certificate in it (account.ca_file)")
 
 // TLSConfig builds the client TLS configuration of a TLS account. The configured bundle is the only
 // trust anchor: system roots are never added, so a certificate the operating system trusts but the
@@ -61,7 +61,7 @@ func TLSConfig(server string, pem []byte) (*tls.Config, error) {
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(pem) {
-		return nil, errors.New("the CA bundle holds no certificate")
+		return nil, ErrNoCABundle
 	}
 	return &tls.Config{RootCAs: roots, ServerName: server, MinVersion: tls.VersionTLS12}, nil
 }
@@ -135,11 +135,12 @@ func (e *Endpoint) AnsweredElsewhere(callID string) bool {
 }
 
 // completedElsewhere reads the Reason headers of a CANCEL (RFC 3326): a SIP cause of 200 is a
-// call that was answered by another of the phones that rang.
+// call that was answered by another of the phones that rang. What a quoted text holds is text,
+// whatever it looks like.
 func completedElsewhere(reasons []gosip.Header) bool {
 	for _, h := range reasons {
-		for _, reason := range strings.Split(h.Value(), ",") {
-			fields := strings.Split(reason, ";")
+		for _, reason := range outsideQuotes(h.Value(), ',') {
+			fields := outsideQuotes(reason, ';')
 			if !strings.EqualFold(strings.TrimSpace(fields[0]), "SIP") {
 				continue
 			}
@@ -151,6 +152,25 @@ func completedElsewhere(reasons []gosip.Header) bool {
 		}
 	}
 	return false
+}
+
+// outsideQuotes splits text at a separator, except inside a quoted string, where a backslash
+// escapes the next character.
+func outsideQuotes(text string, separator byte) []string {
+	var parts []string
+	quoted, start := false, 0
+	for i := 0; i < len(text); i++ {
+		switch c := text[i]; {
+		case quoted && c == '\\':
+			i++
+		case c == '"':
+			quoted = !quoted
+		case c == separator && !quoted:
+			parts = append(parts, text[start:i])
+			start = i + 1
+		}
+	}
+	return append(parts, text[start:])
 }
 
 // ErrAddressGone means the address the endpoint was bound to is no longer one of this machine's:
@@ -215,7 +235,17 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 		return nil, fmt.Errorf("resolve registrar: %w", err)
 	}
 	local := bindHost(peers, int(s.Port))
+	e := &Endpoint{Account: a, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, local: local}
 	tran := diago.Transport{
+		// Nothing reaches the SIP stack that does not come from the registrar: the stack acts on
+		// a CANCEL that matches a ringing call before any handler could ask where it came from.
+		AcceptSource: func(source net.Addr) bool {
+			if e.AcceptAnySource || e.fromRegistrar(source.String()) {
+				return true
+			}
+			e.RefusedSources.Add(1)
+			return false
+		},
 		Transport:    s.Transport.String(),
 		BindHost:     local,
 		BindPort:     0,
@@ -254,7 +284,7 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Endpoint{Account: a, ua: ua, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, product: name, local: local}
+	e.ua, e.product = ua, name
 	e.dg = diago.NewDiago(ua,
 		diago.WithLogger(log),
 		diago.WithServerRequestMiddleware(e.registrarOnly),
@@ -458,8 +488,14 @@ func (e *Endpoint) DialEarly(ctx context.Context, target string, onProgress func
 		// acknowledged and hung up.
 		if res := d.InviteResponse; ctx.Err() != nil && res != nil && res.IsSuccess() {
 			hctx, done := context.WithTimeout(context.Background(), 3*time.Second)
-			if d.Ack(hctx) == nil {
+			switch d.LoadState() {
+			case gosip.DialogStateEnded: // the library ended it already: nothing is sent twice
+			case gosip.DialogStateConfirmed:
 				_ = d.Bye(hctx)
+			default:
+				if d.Ack(hctx) == nil {
+					_ = d.Bye(hctx)
+				}
 			}
 			done()
 		}
@@ -514,6 +550,9 @@ func (e *Endpoint) registrarOnly(next sipgo.RequestHandler) sipgo.RequestHandler
 				tx.OnCancel(func(cancel *gosip.Request) {
 					if completedElsewhere(cancel.GetHeaders("Reason")) {
 						e.elsewhere.Store(call, true)
+						// A call that never rang here (refused as busy, or canceled before it
+						// was a dialog) has nobody to ask for it.
+						time.AfterFunc(time.Minute, func() { e.elsewhere.Delete(call) })
 					}
 				})
 			}

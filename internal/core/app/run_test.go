@@ -114,7 +114,9 @@ func labWith(t *testing.T, invite int, keys bool) (port int) {
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))
 	})
 	srv.OnRefer(func(req *gosip.Request, tx gosip.ServerTransaction) { // accepted, and no NOTIFY ever follows
-		_ = tx.Respond(gosip.NewResponseFromRequest(req, 202, "Accepted", nil))
+		if tx.Respond(gosip.NewResponseFromRequest(req, 202, "Accepted", nil)) == nil {
+			sent.Store(fmt.Sprintf("%d REFER answered", port), "202")
+		}
 	})
 	srv.OnCancel(func(req *gosip.Request, tx gosip.ServerTransaction) {
 		_ = tx.Respond(gosip.NewResponseFromRequest(req, 200, "OK", nil))

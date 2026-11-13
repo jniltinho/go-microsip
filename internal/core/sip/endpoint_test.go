@@ -187,6 +187,9 @@ func TestACancelSaysWhenTheCallWasAnsweredElsewhere(t *testing.T) {
 		reason(`Q.850;cause=200`),
 		reason(`SIP;text="cause=200"`),
 		reason(`SIP;cause=2000`),
+		reason(`SIP;cause=487;text="caller canceled;cause=200;diagnostic"`),
+		reason(`Q.850;cause=16;text="x, SIP;cause=200"`),
+		reason(`SIP;cause=487;text="a \" quote;cause=200"`), // an escaped quote inside the text
 		reason(``),
 	} {
 		if completedElsewhere(no) {
