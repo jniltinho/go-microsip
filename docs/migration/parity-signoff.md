@@ -6,13 +6,13 @@ Prepared on 2026-11-13 for the owner. Nothing here is decided. The gate (task 7.
 
 | Status | Rows |
 | --- | --- |
-| proven | 30 |
+| proven | 31 |
 | accepted difference (decisions of 2026-11-12) | 24 |
 | dropped (same decisions) | 2 |
-| partial | 70 |
+| partial | 69 |
 | nothing shown | 14 |
 
-The 84 rows of the last two lines are what a sign-off has to cover. [The receipt](../receipts/go-m5-parity-2026-11-12.md) ("Task 7.4, 2026-11-13") lists them by what each waits for.
+The 83 rows of the last two lines are what a sign-off has to cover. [The receipt](../receipts/go-m5-parity-2026-11-12.md) ("Task 7.4, 2026-11-13") lists them by what each waits for.
 
 ## Five groups, and a recommendation for each
 
@@ -22,7 +22,7 @@ The 84 rows of the last two lines are what a sign-off has to cover. [The receipt
 | S2 | Needs steps the Windows VM does not have yet: a second user, `mcp` on Windows, where the files land, a link, a failing Credential Manager | 13 | add the steps before the cutover; or accept for the pre-release | **Add the steps before the cutover.** No decision is needed for the work; the cutover would wait for it |
 | S3 | Needs the CI and release work itself (tasks 7.5, 7.6, 7.10) | 10 | they cannot be shown before that work exists | **Accept as shown by the tasks that follow**: each of those tasks has its own verification, and the pre-release is not published without them |
 | S4 | Two differences with no decision | 2 | see below | see below |
-| S5 | More tests in the lab, no decision needed | 33 (25 that need only this, and 8 whose difference is already decided) | go on writing them; or accept the rows as partial for the pre-release | **Go on, and accept what is left as partial for the pre-release.** None of these clauses is known to fail; they are not shown |
+| S5 | More tests in the lab, no decision needed | 32 (24 that need only this, and 8 whose difference is already decided) | go on writing them; or accept the rows as partial for the pre-release | **Go on, and accept what is left as partial for the pre-release.** None of these clauses is known to fail; they are not shown |
 
 The two differences of S4:
 
@@ -33,6 +33,6 @@ The two differences of S4:
 
 ## What a sign-off in these terms would mean
 
-That the cutover goes ahead with 30 rows proven, 26 dropped or accepted, the Windows steps of S2 added, and the rest carried as stated limitations of a pre-release: mostly things nobody has checked on a real machine. It would not say that the softphone was verified on real hardware, and the final version would still need task 7.2.
+That the cutover goes ahead with 31 rows proven, 26 dropped or accepted, the Windows steps of S2 added, and the rest carried as stated limitations of a pre-release: mostly things nobody has checked on a real machine. It would not say that the softphone was verified on real hardware, and the final version would still need task 7.2.
 
 What is known to be wrong or unsettled on the day this was written, whatever is signed: the runs of the night of 2026-11-13 were made on a machine under heavy load and have to be made again ([receipt](../receipts/go-m5-parity-2026-11-12.md)); the changes since the sixth review round (the owner's four decisions, the TLS classification, the crossing hang-up) have not been read by the independent reviewer; and no real call was placed after the review's changes.

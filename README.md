@@ -157,6 +157,11 @@ go-microsip import rust-microsip --apply    # --credential also copies the keyri
 
 Platform notes:
 
+- **The AppImage without FUSE.** `go-microsip-<version>-x86_64.AppImage` is run directly
+  where FUSE is available. Where it is not (a container, a minimal installation), run it
+  with `APPIMAGE_EXTRACT_AND_RUN=1` in the environment, or with `--appimage-extract-and-run`
+  as its first argument: it unpacks itself to a temporary folder and runs from there. The
+  project's own checks in containers and in the test VMs run it this way.
 - **Linux** (Ubuntu 26.04 and later, Debian 13; x86_64). The window uses the system's GTK 4 and
   WebKitGTK 6.0 (`libgtk-4-1`, `libwebkitgtk-6.0-4`), which the default GNOME desktop of both
   already has and another desktop may have to install, and the desktop's sound service (PipeWire
