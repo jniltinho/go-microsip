@@ -79,11 +79,6 @@ type Transport struct {
 
 	RewriteContact bool
 
-	// AcceptSource, when set, is asked for every UDP packet and every TCP connection that
-	// arrives at this transport's listener: what it refuses is dropped before the SIP stack
-	// sees it. (go-microsip, gomicrosip_sources.go)
-	AcceptSource func(source net.Addr) bool
-
 	client *sipgo.Client
 }
 
@@ -514,12 +509,6 @@ func (dg *Diago) serve(ctx context.Context, f ServeDialogFunc, readyCh func()) e
 			if tran.TLSConf != nil || tran.Transport == "tls" || tran.Transport == "wss" {
 				errCh <- server.ListenAndServeTLS(ctx, tran.network, hostport, tran.TLSConf)
 				return
-			}
-			if tran.AcceptSource != nil { // go-microsip
-				if served, err := serveAccepted(ctx, server, tran.network, hostport, tran.AcceptSource); served {
-					errCh <- err
-					return
-				}
 			}
 			errCh <- server.ListenAndServe(ctx, tran.network, hostport)
 		}(i, tran)

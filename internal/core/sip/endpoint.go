@@ -237,15 +237,6 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	local := bindHost(peers, int(s.Port))
 	e := &Endpoint{Account: a, peers: peers, Incoming: make(chan *diago.DialogServerSession, 1), log: log, local: local}
 	tran := diago.Transport{
-		// Nothing reaches the SIP stack that does not come from the registrar: the stack acts on
-		// a CANCEL that matches a ringing call before any handler could ask where it came from.
-		AcceptSource: func(source net.Addr) bool {
-			if e.AcceptAnySource || e.fromRegistrar(source.String()) {
-				return true
-			}
-			e.RefusedSources.Add(1)
-			return false
-		},
 		Transport:    s.Transport.String(),
 		BindHost:     local,
 		BindPort:     0,
@@ -261,7 +252,18 @@ func NewEndpoint(a Account, log *slog.Logger) (*Endpoint, error) {
 	// The library puts its user agent's name in the user part of every Contact address, where a
 	// PBX, and whatever inspects SIP on the way to it, expects the extension: the name it gets
 	// is the account's. The product goes in the User-Agent header of each request instead.
-	uaOpts := []sipgo.UserAgentOption{sipgo.WithUserAgent(s.Username), sipgo.WithUserAgentHostname(s.Domain)}
+	uaOpts := []sipgo.UserAgentOption{sipgo.WithUserAgent(s.Username), sipgo.WithUserAgentHostname(s.Domain),
+		// Nothing is parsed, on any socket the stack reads, that does not come from the registrar:
+		// the stack acts on a CANCEL that matches a ringing call before any handler could ask
+		// where it came from.
+		sipgo.WithUserAgentTransportLayerOptions(gosip.WithTransportLayerReadFilter(
+			func(from gosip.TransportReadProps, data []byte) ([]byte, error) {
+				if e.AcceptAnySource || e.fromRegistrar(from.RemoteAddr.String()) {
+					return data, nil
+				}
+				e.RefusedSources.Add(1)
+				return nil, nil
+			}))}
 	if s.Transport == domain.TLS {
 		conf, err := TLSConfig(s.Server, a.CA)
 		if err != nil {

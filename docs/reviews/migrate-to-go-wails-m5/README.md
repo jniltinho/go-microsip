@@ -7,6 +7,7 @@ Each round reviews a sanitized extract made with `git archive` (the Go code, the
 | 4 | `c43ba37` | the answers to round 3 of M4, task 7.3, tasks 8.1 to 8.9, and the call-path changes made after real calls (early media, the frame of silence, the lost address, Contact and User-Agent, the change to the vendored library) | section 8: SOUND WITH CHANGES; call path: UNSOUND, 1 major; 9 minor in all (7 of round 3's 9 findings resolved, 2 in part) | [codex-round4.md](codex-round4.md) |
 | 5 | `80a9b06` | the answers to round 4 | section 8: UNSOUND, 1 major; call path: UNSOUND, 1 major; 3 minor. Both major findings are defects of the answers to round 4, not of the work round 4 read (of the 12 earlier findings: 6 resolved, 4 in part, 2 accepted as stated limitations) | [codex-round5.md](codex-round5.md) |
 | 6 | `d71769c` | the answers to round 5 | section 8: SOUND; call path: SOUND WITH CHANGES, 1 minor (of round 5's 5 findings: 4 resolved, 1 in part) | [codex-round6.md](codex-round6.md) |
+| 7 | `2e4ffba` | everything since round 6: the answer to its finding, the owner's four decisions, the tests for the parity matrix, the TLS classification, the hang-up that crosses the answer | UNSOUND: 1 major (inherited from the SIP library, in the path under review), 6 minor; round 6's finding resolved | [codex-round7.md](codex-round7.md) |
 
 ## What was done about round 4
 
@@ -51,3 +52,19 @@ Round 3's two findings that round 4 found resolved in part:
 Round 6 also said two claims above were too strong; both are reworded in place: that the answer's comparison was fixed by a set comparison (round 5's 3), and that a stopped test with open devices "ends within moments" (round 5's 1).
 
 Where the rounds leave it: section 8's work is SOUND by round 6; the call path is SOUND WITH CHANGES with its one minor finding answered and not read again. No round saw a call: what the changes do on a network is in the receipts, and for the calls on the owner's desktop it is not recorded at all.
+
+## What was done about round 7
+
+| # | Severity | Finding | Response |
+| --- | --- | --- | --- |
+| 1 | major | A CANCEL that matches a ringing call was obeyed from any address: the SIP stack matches it by its Via and acts on it before the handler that refuses other sources runs. With a Reason header it also hid the call from the missed ones | Fixed. The SIP library has a filter that is asked before anything read from a socket is parsed (`WithTransportLayerReadFilter`), on the listening socket and on the sockets it opens itself for what it sends; the endpoint gives it the rule its handler had (the registrar's address and port), and what it refuses is dropped and counted. `TestACancelFromAnotherAddressDoesNotEndARingingCall`: registered through the loopback, where the softphone listens on every interface and the library sends from a socket of its own, the intruder's CANCEL (same Via, Call-ID and CSeq, with a Reason that would hide the call) changes nothing and the registrar's ends the call. A first answer (commit `13093cd`) filtered the listener alone, in the vendored library, and that same test showed the intruder's CANCEL obeyed on the library's own socket; it was replaced by this one and the vendored change removed. The handler's check stays behind it. The lab's foreign-source probe (`peer/sip-foreign-source-dropped`) passes, with the refusals counted at the socket. |
+| 2 | minor | A quoted text in a Reason header could manufacture a SIP cause | Fixed. The header is split outside its quoted strings, with escapes: three cases added to `TestACancelSaysWhenTheCallWasAnsweredElsewhere`. |
+| 3 | minor | The crossing answer could be acknowledged and hung up a second time when the library had already ended the dialog | Fixed. What is sent follows the dialog's state: nothing when it has ended, BYE alone when it is confirmed, ACK then BYE otherwise. No test brings about the library's rejection and a cancellation at the same moment. |
+| 4 | minor | Two connection lines in another order compared as the same | Fixed. Connection lines keep their order, as key lines do. `TestSameMedia` has the case; its "no keys" case now removes the key lines, as the report noted it did not. |
+| 5 | minor | A CA bundle with no certificate in it stayed a network failure, retried | Fixed. It is the same failure as no bundle: `TestNoBundleIsACertificateFailure` has both. The receipt said "retried for ever": the softphone retries eight times; reworded. |
+| 6 | minor | A marker of "answered elsewhere" that nobody asked for stayed for the endpoint's life | Fixed. It is dropped after a minute. No test. |
+| 7 | minor | The transfer test watched from the softphone's own "pending", not from the PBX's 202 | Fixed. The tests' PBX records that it answered the REFER with 202, and the two seconds are counted from there. |
+
+Also taken from the report's notes: the comment of the lab scenario for early media said the microphone was not opened (the call's sound is open, and nothing of the microphone is sent); and Dial is not bounded by three seconds when an answer crosses the cancellation (the cancellation's own waits and the transport's writes are not), which is stated here and not changed.
+
+Where the rounds leave it: the changes read by round 7 were UNSOUND for the CANCEL from another address. Its answers have been read by nobody but their author.

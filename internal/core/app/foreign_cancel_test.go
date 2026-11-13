@@ -15,24 +15,13 @@ import (
 
 // A CANCEL that matches a ringing call and comes from another address than the registrar's does
 // nothing: the call rings on. The SIP stack matches a CANCEL by its Via and acts on it before any
-// request handler runs, so the softphone's socket itself gives the stack only what the registrar
-// sends. The registrar's own CANCEL then ends the call.
+// request handler runs, so the stack is given only what the registrar sends, on every socket it
+// reads. The registrar's own CANCEL then ends the call.
 //
-// The test needs an address of this machine that is not the loopback: registered through the
-// loopback the softphone listens on every interface and the SIP library opens further sockets of
-// its own for what it sends, which this filter does not cover (see the endpoint's AcceptSource).
+// Through the loopback the softphone listens on every interface and the SIP library opens a
+// socket of its own for what it sends: the INVITE and both CANCELs go to that one.
 func TestACancelFromAnotherAddressDoesNotEndARingingCall(t *testing.T) {
-	var here net.IP
-	addrs, _ := net.InterfaceAddrs()
-	for _, a := range addrs {
-		if n, ok := a.(*net.IPNet); ok && n.IP.To4() != nil && !n.IP.IsLoopback() {
-			here = n.IP.To4()
-			break
-		}
-	}
-	if here == nil {
-		t.Skip("this machine has no IPv4 address besides the loopback")
-	}
+	here := net.IPv4(127, 0, 0, 1)
 	registrar, err := net.ListenUDP("udp", &net.UDPAddr{IP: here})
 	if err != nil {
 		t.Fatal(err)
