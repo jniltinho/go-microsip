@@ -9,8 +9,8 @@ Prepared on 2026-11-13 for the owner. Nothing here is decided. The gate (task 7.
 | proven | 31 |
 | accepted difference (decisions of 2026-11-12) | 24 |
 | dropped (same decisions) | 2 |
-| partial | 69 |
-| nothing shown | 14 |
+| partial | 70 |
+| nothing shown | 13 |
 
 The 83 rows of the last two lines are what a sign-off has to cover. [The receipt](../receipts/go-m5-parity-2026-11-12.md) ("Task 7.4, 2026-11-13") lists them by what each waits for.
 

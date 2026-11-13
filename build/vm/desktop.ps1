@@ -50,17 +50,6 @@ if ($ControlTest) {
     Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -match 'session_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: control: $_" }
     if ($p.ExitCode -ne 0) { Fail 'control: the session test' }
 }
-# 2b. The MCP server, started as an agent starts it beside this window: it initializes, lists its
-# tools, reaches the window, and is refused what needs a grant.
-if ($McpTest -and (Test-Path $McpTest)) {
-    $env:GO_MICROSIP_MCP_EXE = $Exe
-    $log = "$Work\mcp.log"
-    $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"`"$McpTest`" -test.v -test.run TestTheMCPServerReachesTheWindowOfThisSession > `"$log`" 2>&1`"" -PassThru -WindowStyle Hidden
-    if (-not $p.WaitForExit(90000)) { $p.Kill(); Fail 'mcp: the session test did not end' }
-    Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -match 'session_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: mcp: $_" }
-    if ($p.ExitCode -ne 0) { Fail 'mcp: the session test' }
-}
-
 # 3. A second start with a link ends by itself, and the running window asks before it calls.
 $link = Run 'tel:600'
 if ($link.Code -eq 0 -and (Shows 'A link asks to call 600' 20)) {
@@ -129,6 +118,18 @@ if ($w) {
         else { Fail "tray: a second start exit $($again.Code), window in sight: $([bool](Window))" }
     } else { Fail "tray: after the close button $($alive.Count) softphone processes run, window in sight: $([bool](Window))" }
 } else { Fail 'tray: no window to close' }
+
+# 5b. The MCP server, started as an agent starts it beside this window: it initializes, lists its
+# tools, reaches the window, and is refused what needs a grant. After the steps that send the
+# window keys, and before the softphone is ended.
+if ($McpTest -and (Test-Path $McpTest)) {
+    $env:GO_MICROSIP_MCP_EXE = $Exe
+    $log = "$Work\mcp.log"
+    $p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"`"$McpTest`" -test.v -test.run TestTheMCPServerReachesTheWindowOfThisSession > `"$log`" 2>&1`"" -PassThru -WindowStyle Hidden
+    if (-not $p.WaitForExit(90000)) { $p.Kill(); Fail 'mcp: the session test did not end' }
+    Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -match 'session_test|^(--- |FAIL|panic)' } | ForEach-Object { "desktop: mcp: $_" }
+    if ($p.ExitCode -ne 0) { Fail 'mcp: the session test' }
+}
 
 Get-Process go-microsip -ErrorAction SilentlyContinue | Stop-Process -Force
 
