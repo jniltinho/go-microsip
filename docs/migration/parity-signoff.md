@@ -1,6 +1,6 @@
 # The parity gate: what a sign-off would cover
 
-Prepared on 2026-11-13 for the owner. Nothing here is decided. The gate (task 7.4) asks that every row of [the matrix](parity-matrix.md) be proven, or dropped or accepted as a difference with the owner's written approval, on one commit; the cutover that archives the Rust workspace (tasks 7.5 to 7.7), the repository's rename (7.8) and the pre-release (7.10) come after it.
+Prepared on 2026-11-13 for the owner, who decided the same day: see [The owner's decision](#the-owners-decision-2026-11-13) at the end. The text before it is the proposal as it was put to him. The gate (task 7.4) asks that every row of [the matrix](parity-matrix.md) be proven, or dropped or accepted as a difference with the owner's written approval, on one commit; the cutover that archives the Rust workspace (tasks 7.5 to 7.7), the repository's rename (7.8) and the pre-release (7.10) come after it.
 
 ## Where the rows stand
 
@@ -44,3 +44,23 @@ Nothing above is changed by it, and nothing is decided. What a sign-off would re
 - **The cutover was rehearsed** in a clone ([receipt](../receipts/go-m5-cutover-rehearsal-2026-11-13.md)). It adds one decision to the ones above, which the cutover cannot do without: the publication scan that CI runs on `main` fails on the Go tree, for a fictional database of the tests and for old file names and fictional paths in the branch's history. Either the scan is given those exceptions by the owner, as it was once before, or the branch reaches `main` as one commit and only the database needs one.
 
 What is still unsettled, whatever is signed: the machine these runs were made on was under heavy load all night (a language server of the editor integration at twenty-two processors, which the session could not stop), and the walkthrough's sound measurement missed its threshold in some of the night's runs and passed when repeated (the receipt has each); no real call was placed after the night's changes; and everything after round 12's two corrections has been read by nobody but its author.
+
+## The owner's decision (2026-11-13)
+
+The owner read the report of the night, which listed what waited for him (the real call, this sign-off with S4a and S4b, the publication scan, then the cutover, the rename and the pre-release), and answered in these words:
+
+> Pode já subir um novo release, e antes fazer archive dos arquivos Rust, as outras coisas eu testo manual mesmo
+
+("You can already put up a new release, and before that archive the Rust files; the other things I test by hand myself"), and then:
+
+> Ajustar todo repo, mudar nome. Atualizar docs, readme e tudo que precisar. Deixar Golang na raiz do projeto
+
+("Adjust the whole repository, change the name. Update the docs, the readme and whatever needs it. Leave Go at the root of the project").
+
+What that is taken to decide, and what it is not:
+
+- **The gate is passed for the pre-release `v0.2.0-rc.1`.** The cutover (7.5 to 7.7), the rename (7.8) and the pre-release (7.10) go ahead with 31 rows proven and 26 dropped or accepted. The 83 rows that are partial or have nothing shown are not proven and not dropped: they are carried as limitations of the pre-release, which its notes name, and the owner tests them by hand. Task 7.2 stays open, and a final version still needs it.
+- **S1, S3 and S5** go as recommended. **S2**: the Windows VM gained the extracted zip, the data folder, the `sip:` link and its refusal, and `mcp` (matrix rows A22, A25, A35, A37, A43, A116); a second Windows user and a failing Credential Manager were not added and stay with the owner's manual checks.
+- **S4a and S4b were not answered.** Nothing is changed for them: an unknown `ui.theme` still resolves to `system`, and a TLS account still needs a CA bundle named in its settings. Both are named as open differences in the pre-release's notes.
+- **The publication scan**: the report recommended giving it the exceptions (the fixture by its path, the eleven historical names and blobs) instead of squashing the branch, and the owner answered it with the go-ahead. The exceptions are added with task 7.6 and say where they come from.
+- **Not covered by these words**: no real call was placed after the night's changes, and what was written after the twelfth review has been read by its author alone. A review, a build and a VM run are not call evidence.
