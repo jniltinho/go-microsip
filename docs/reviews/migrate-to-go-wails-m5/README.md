@@ -29,7 +29,7 @@ Round 3's two findings that round 4 found resolved in part:
 
 | # | Finding | Response |
 | --- | --- | --- |
-| 3 | The second call `pbx.sh ring` originates did not check Asterisk's answer | Fixed: checked as the first one is. Not run again in the VM. |
+| 3 | The second call `pbx.sh ring` originates did not check Asterisk's answer | Fixed: checked as the first one is. Run in the VM on commit `991688f`: "the PBX called 1002 again and gave up after six seconds", and the missed-call step of the Windows walkthrough passed ([log](../../receipts/go-m5/vm-lab-final.log)). |
 | 5 | `Asked` in `call.ps1` identifies the firewall's question indirectly | Not changed: stated in the M4 receipt. The question cannot be read by UI automation; the script answers only when new firewall rules for go-microsip appeared and a window that is not the softphone's holds the keyboard. |
 
 ## What was done about round 5
