@@ -212,8 +212,13 @@ Limits of this version, known and accepted for it:
   with this frame: that is one installation's behavior, not a guarantee for others. With an account that
   requires SRTP, audio before the answer that is not encrypted is not played.
 - **A call answered on another phone.** When a PBX rings this softphone and another phone
-  of the same extension, and the other one answers, the call is notified and listed here as
-  missed: the softphone does not read why the PBX stopped ringing it.
+  of the same extension, and the other one answers, the call is not notified as missed and
+  is listed as answered, with no duration. This rests on the PBX saying why it stopped
+  ringing (the Reason header of its CANCEL, as Asterisk and FreePBX send it); from a PBX
+  that does not say, such a call is a missed one.
+- **A PBX without RFC 4733 keys.** A call whose answer does not agree to `telephone-event`
+  has its audio; keys pressed during it are refused, and nothing is sent in their place.
+- **A call nobody answers** ends after 60 seconds.
 - **A network that goes away.** When the address the account registered from leaves the
   machine (a VPN that dropped, a cable pulled), the window says so within a few seconds and
   the account registers again by itself once the network is back: tried after 5 s, then at
