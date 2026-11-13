@@ -38,8 +38,10 @@ What this shows and what it does not:
 - The Ubuntu VM's sound measurement passed in one run and missed in the other. Sound on a real sound card was not measured on any system.
 - No call was made on a production PBX with these files.
 
-## What is left for the publication
+## What happened next
 
-- **`12a1786` should not be tagged.** Its release notes say the tag is pushed only after its files pass the checks in the VMs, and no run above was clean. The notes are corrected in the commit that adds this receipt: they say the checks were run and point here for what failed. A tag on that commit, or on a later one, publishes files CI builds from it, with other checksums than the ones above: the same code, since only documents and one test changed after `12a1786`, but not the same files, so the VM run has to be made again on them, preferably on a host that is not loaded, and this receipt extended with it.
-- **Which version.** The owner asked for a release instead of a pre-release. That needs the release gates and is recorded in [the sign-off](../migration/parity-signoff.md); `v0.2.0-rc.1` needs none. Either way the workflow waits for the owner's approval of the `release` environment.
-- After the publication: download each asset and compare its checksum with the receipt's (task 7.10).
+The owner chose the pre-release `v0.2.0-rc.1` and had the VMs shut down and removed, in that order, before the run could be repeated. All five (`ubuntu2604`, `debian13`, `windows11`, `pbx`, `freepbx`) were destroyed with `vagrant destroy -f`. So:
+
+- The tagged commit is a later one than `12a1786`. Between the two only documents, this receipt, the OpenSpec integration files and one test changed; no file that goes into the executables.
+- The files of the tagged commit were checked by CI alone. They were not run on a VM, and task 7.7, which asks for that, stays open. The release's notes say this.
+- Their checksums, and the comparison with the published assets (task 7.10), are added below once CI has built them and the release is published.

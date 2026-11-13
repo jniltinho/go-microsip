@@ -74,3 +74,7 @@ With the cutover on `main` the owner wrote:
 ("you can already put out a release, it does not need to be a pre-release").
 
 Nothing was changed by these words yet. The project's rule for a final version, which the release workflow enforces, is every release gate checked with evidence and the owner's decision. The decision is given; the evidence is not: tasks 2.1, 2.8, 2.10 and 7.2 are open, and four of the six acceptance scenarios of agent control are partly shown. Writing those gates as checked because they are waived was refused by a safeguard of the session that did the cutover, as a way around the gate check, and was not attempted another way. The tree stays at `0.2.0-rc.1`, which the workflow publishes as a pre-release without the gates. A final `v0.2.0` needs one of: the manual checklist run and recorded; or the owner writing the waivers himself, in the notes and in the rule of `docs/release.md`.
+
+## The pre-release it is (2026-11-13)
+
+Asked whether to publish as the pre-release `v0.2.0-rc.1`, which needs no gates, the owner answered "Sim, rc.1", and then: "desligar e remover as VMs" ("shut down and remove the VMs"). The five test VMs were destroyed at once, so the files of the tagged commit were not run on them; the release's notes and [the receipt](../receipts/go-m5-release-2026-11-13.md) say so, and task 7.7 stays open. A final `v0.2.0` stays as described above.
