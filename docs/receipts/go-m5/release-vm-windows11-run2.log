@@ -1,0 +1,90 @@
+vm-check: Microsoft Windows 11 Enterprise Evaluation 10.0.26200
+vm-check: WebView2 runtime 157.0.4341.57 (part of Windows; nothing was installed)
+vm-check: go-microsip 0.2.0-rc.1 (12a1786302cc)
+vm-check: doctor {"build":{"version":"0.2.0-rc.1","commit":"12a1786302cc","os":"windows","arch":"amd64","window":"webview2"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"unknown_theme":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: the .zip extracts to go-microsip.exe, LICENSE.txt, THIRD_PARTY_NOTICES.txt, and its program says the same version
+vm-check: with LOCALAPPDATA not an absolute path, config import --apply ends with 1, names it, and creates nothing
+vm-check: lock: --- PASS: TestLockIsExclusiveAndReleased (0.00s)
+vm-check: lock: PASS
+vm-check: the instance lock is exclusive and released on Windows
+vm-check: control: --- PASS: TestAClientReachesTheOwnerOnWindows (0.02s)
+vm-check: control: --- PASS: TestGrantFilesOnWindows (0.02s)
+vm-check: control: PASS
+vm-check: the control transport serves one owner and names its peers on Windows
+vm-check: audio: --- PASS: TestWASAPIFromAThreadWithCOMInAnotherMode (0.01s)
+vm-check: audio:     wasapi_windows_test.go:77: the speaker alone played 1.5 s (80 samples of silence filled in by the device thread)
+vm-check: audio: --- PASS: TestWASAPIOutputAlone (1.60s)
+vm-check: audio:     wasapi_windows_test.go:106: device "Microphone (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:106: device "Speakers (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:162: 60 s: capture 2932 of 3000 frames (longest miss 2 ticks, gap 84 ms, 669 samples dropped); speaker 5824 of 5992 10 ms pieces (longest silence 4 pieces, arrival gap 120 ms, 8640 samples dropped or silent)
+vm-check: audio:     wasapi_windows_test.go:164: capture: 68 of 3000 frames missing, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:164: capture: 669 samples dropped
+vm-check: audio:     wasapi_windows_test.go:164: playback: 168 of 5992 10 ms pieces missing on the speaker, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:164: playback: gap over 60 ms (4 silent pieces in a row, 120 ms without samples)
+vm-check: audio:     wasapi_windows_test.go:164: playback: 8640 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:172: control: a 300 ms stall is caught: capture: 18 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (2 ticks missed in a row, 323 ms between frames); capture: 2360 samples dropped; playback: 39 of 193 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (6 silent pieces in a row, 343 ms without samples); playback: 1680 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:181: NOT VERIFIED: the loss of the sound card could not be provoked on this machine: Disable-PnpDevice: exit status 1: Disable-PnpDevice : Generic failure 
+vm-check: audio: --- FAIL: TestWASAPI (69.18s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.02s)
+vm-check: keyring: PASS
+vm-check: the Credential Manager stores, replaces and deletes a password
+vm-check: keyring: --- PASS: TestAStoredPasswordOutlivesTheRunThatLeftIt (0.01s)
+vm-check: a stored password outlives the removal of the application folder that stored it
+vm-check: window opened on WebView2 and the page called the backend
+vm-check: self-test: inline script and eval refused; a new window and navigation not probed (no guard on this platform); listening sockets not checked on this platform
+vm-check: listening ports: none in 7 looks at the running softphone
+vm-check: skin: light drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: dark drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: xp drawn on WebView2 in DejaVu Sans 400, DejaVu Sans 700, no font failed
+vm-check: skin: macos drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: ubuntu drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: win98 drawn on WebView2 in Liberation Sans 400, Liberation Sans 700, no font failed
+vm-check: skin: matrix drawn on WebView2 in JetBrains Mono 400, JetBrains Mono 600, no font failed
+vm-check: the seven skins drawn on WebView2, each with its bundled font
+vm-check: desktop: the window is open
+vm-check: desktop: links: registered for sip: and tel: under the current user, with this executable; not made the default
+vm-check: desktop: control: status --json is answered by the window (mode gui)
+vm-check: desktop: control: history list without a grant is refused (grant_required, exit 3)
+vm-check: desktop: control:     session_test.go:39: go-microsip's window answers on its own socket: protocol go-microsip-control, epoch 297, registration disabled
+vm-check: desktop: control: --- PASS: TestTheWindowOfThisSessionAnswers (0.01s)
+vm-check: desktop: single instance: a second start with tel:600 ended with 0 and the running window asks "A link asks to call 600. Call it?"
+vm-check: desktop: links: a second start with sip:601@pbx.invalid ended with 0 and the running window asks "A link asks to call 601" (the host is not part of it)
+vm-check: desktop: links: a link with parameters is refused (exit 2), the refusal does not repeat it, and the window asks nothing
+vm-check: desktop: control: call dial 600 waits (approval_required, exit 3) and the window shows who asks and for what
+vm-check: desktop: control: Escape denied it, and operation get says denied
+vm-check: desktop: tray: the close button hid the window and the softphone goes on
+vm-check: desktop: tray: a second start brought the window back and ended with 0
+vm-check: desktop: mcp:     session_test.go:47: go-microsip mcp: initialized, 15 tools, the window answers (mode gui, registration disabled), history_list without a grant is refused
+vm-check: desktop: mcp: --- PASS: TestTheMCPServerReachesTheWindowOfThisSession (0.08s)
+vm-check: desktop: notifications:     notify_windows_test.go:23: Windows took the toast of call 41
+vm-check: desktop: notifications:     notify_windows_test.go:35: NOT VERIFIED: no button of the toast was pressed
+vm-check: desktop: notifications: --- PASS: TestAToastOnThisDesktop (45.24s)
+vm-check: desktop: notifications: Windows took the toast and holds 1 notification(s) of go-microsip in its notification center; NOT VERIFIED: its buttons (the check did not find one to press, on the screen or in the notification center)
+vm-check: links, agent control, the second start and the tray pass on Windows; the notification reaches Windows
+vm-check: the window's database is C:\Users\vagrant\AppData\Local\go-microsip\go-microsip.sqlite3; no config.toml was written under APPDATA
+vm-check: desktop: call: 1001 over udp: the window is open and registered at the lab PBX
+vm-check: desktop: call: 1001 over udp: 600 typed in the number field and Enter: the call is connected
+vm-check: desktop: call: 1001 over udp: Escape hung up after 8 s in the call
+vm-check: desktop: call: 1101 over tcp: the window is open and registered at the lab PBX
+vm-check: desktop: call: 1101 over tcp: 600 typed in the number field and Enter: the call is connected
+vm-check: desktop: call: 1101 over tcp: Escape hung up after 8 s in the call
+vm-check: desktop: call: an incoming call for 1002 over udp: it rings in the window
+vm-check: desktop: call: an incoming call for 1002 over udp: Windows holds 1 notification(s) of go-microsip while it rings
+vm-check: desktop: call: an incoming call for 1002 over udp: Enter answered it
+vm-check: desktop: call: an incoming call for 1002 over udp: Escape hung up
+vm-check: desktop: call: an incoming call for 1002 over udp: after the call Windows holds no notification of go-microsip: the one it held while the call rang was taken away
+vm-check: desktop: call: a call for 1002 that the caller gives up: it rang in the window and ended with nobody answering
+vm-check: desktop: call: a call for 1002 that the caller gives up: Windows holds one notification of go-microsip, 'Missed call', with no button
+vm-check: the window registers, calls the lab PBX over UDP and TCP, is called by it, and hangs up, on Windows
+vm-check: FAIL Microsoft Windows 11 Enterprise Evaluation: audio
+vm-lab: the PBX answers on 192.168.77.10 for 192.168.77.99
+vm-lab: the PBX does not answer 192.168.77.20 while its list names another address
+vm-lab: the PBX answers on 192.168.77.10 for 192.168.77.20
+vm-lab: the PBX answers 192.168.77.20 once it is on the list
+vm-lab: the PBX called 1002
+vm-lab: the PBX called 1002 again and gave up after six seconds
+vm-lab: RTP packets from 192.168.77.20 to the PBX: 1279
+vm-lab: RTP packets from the PBX to 192.168.77.20: 1279
+vm-lab: packets of anyone else dropped: 0

@@ -1,0 +1,37 @@
+vm-check: Debian GNU/Linux 13 (trixie), kernel 6.12.48+deb13-amd64
+vm-check: libgtk-4-1 4.18.6+ds-2 (ii )
+vm-check: libwebkitgtk-6.0-4 2.54.0-1~deb13u3 (ii )
+go-microsip 0.2.0-rc.1 (12a1786302cc)
+{"build":{"version":"0.2.0-rc.1","commit":"12a1786302cc","os":"linux","arch":"amd64","window":"purego"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"unknown_theme":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 60 s: capture 3000 of 3000 frames (longest miss 0 ticks, gap 30 ms, 0 samples dropped); speaker 5990 of 5995 10 ms pieces (longest silence 0 pieces, arrival gap 81 ms, 0 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 321 ms between frames); capture: 2400 samples dropped; playback: 28 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (29 silent pieces in a row, 321 ms without samples); playback: 2272 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 240.758µs, microphone back after 156.50659ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (68.29s)
+vm-check: audio: PASS
+vm-check: audio adapter OK on the distribution's audio service
+vm-check: desktop session: GNOME on wayland, GNOME Shell 48.7
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: system skin: followed the desktop to dark in 125 ms and back to light in 228 ms
+vm-check: tray: this desktop has no tray host: the window has no tray icon
+vm-check: notifications:     desktop_linux_test.go:31: the desktop's notification service: gnome-shell 48.7 (GNOME); buttons offered: true
+vm-check: notifications:     desktop_linux_test.go:47: the service took notification 16 away (reason 3) when the call was over
+vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.06s)
+vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 10ms, no prompt left open
+vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.01s)
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.03s)
+vm-check: keyring: --- PASS: TestALockedKeyringIsReportedAndNotPrompted (0.02s)
+vm-check: keyring: started with the login password, the desktop's keyring stores, replaces and removes a password, and says so when it is locked
+vm-check: beside: the Rust candidate runs (rust-microsip 0.1.0-rc.3)
+vm-check: beside: FAILED: the Rust candidate's client got no status (status:ok mode:gui )
+vm-check: beside: with go-microsip's window open, the Rust candidate's client is told: status:error code:timeout (its owner answers, or times out while its window is covered)
+vm-check: beside: --- PASS: TestTheWindowOfThisSessionAnswers (0.01s)
+vm-check: beside: after a second start of each, one go-microsip and one Rust candidate run
+vm-check: beside: the Rust candidate's files are as they were before go-microsip ran
+vm-check: beside: after go-microsip left, the Rust candidate's client is answered again
+vm-check: beside: go-microsip's files are as they were before the Rust candidate was used
+vm-check: FAIL Debian GNU/Linux 13 (trixie):  beside-rust

@@ -1,0 +1,37 @@
+vm-check: Ubuntu 26.04 LTS, kernel 7.0.0-22-generic
+vm-check: libgtk-4-1 4.22.4+ds-0ubuntu0.1 (ii )
+vm-check: libwebkitgtk-6.0-4 2.52.6-0ubuntu0.26.04.1 (ii )
+go-microsip 0.2.0-rc.1 (12a1786302cc)
+{"build":{"version":"0.2.0-rc.1","commit":"12a1786302cc","os":"linux","arch":"amd64","window":"purego"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"unknown_theme":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.02s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.6.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 60 s: capture 2999 of 3000 frames (longest miss 0 ticks, gap 65 ms, 0 samples dropped); speaker 5988 of 5993 10 ms pieces (longest silence 4 pieces, arrival gap 65 ms, 75 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 16 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (2 ticks missed in a row, 319 ms between frames); capture: 2720 samples dropped; playback: 28 of 196 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (28 silent pieces in a row, 319 ms without samples); playback: 2218 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 94.71µs, microphone back after 168.766381ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (68.26s)
+vm-check: audio: PASS
+vm-check: audio adapter OK on the distribution's audio service
+vm-check: desktop session: ubuntu:GNOME on wayland, GNOME Shell 50.1
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: system skin: followed the desktop to dark in 447 ms and back to light in 363 ms
+vm-check: tray: the desktop's tray host holds the window's icon: (<[':1.24@/org/ayatana/NotificationItem/software_update_available', ':1.24@/org/ayatana/NotificationItem/unattended_upgrade', ':1.24@/org/ayatana/NotificationItem/un_reboot', ':1.783@/StatusNotifierItem']>,) (before the window: (<[':1.24@/org/ayatana/NotificationItem/software_update_available', ':1.24@/org/ayatana/NotificationItem/unattended_upgrade', ':1.24@/org/ayatana/NotificationItem/un_reboot']>,))
+vm-check: notifications:     desktop_linux_test.go:31: the desktop's notification service: gnome-shell 50.1 (GNOME); buttons offered: true
+vm-check: notifications:     desktop_linux_test.go:47: the service took notification 17 away (reason 3) when the call was over
+vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.04s)
+vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 7ms, no prompt left open
+vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.01s)
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.03s)
+vm-check: keyring: --- PASS: TestALockedKeyringIsReportedAndNotPrompted (0.01s)
+vm-check: keyring: started with the login password, the desktop's keyring stores, replaces and removes a password, and says so when it is locked
+vm-check: beside: the Rust candidate runs (rust-microsip 0.1.0-rc.3)
+vm-check: beside: alone, the Rust candidate's client is answered by the Rust candidate's window
+vm-check: beside: with go-microsip's window open, the Rust candidate's client is told: status:error code:timeout (its owner answers, or times out while its window is covered)
+vm-check: beside: --- PASS: TestTheWindowOfThisSessionAnswers (0.04s)
+vm-check: beside: after a second start of each, one go-microsip and one Rust candidate run
+vm-check: beside: the Rust candidate's files are as they were before go-microsip ran
+vm-check: beside: FAILED: after go-microsip left the Rust candidate's client is told: status:error code:timeout 
+vm-check: beside: go-microsip's files are as they were before the Rust candidate was used
+vm-check: FAIL Ubuntu 26.04 LTS:  beside-rust
