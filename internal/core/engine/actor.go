@@ -217,14 +217,21 @@ func (a *actor) dropAccount() {
 		a.retry.Stop()
 		a.retry = nil
 	}
-	if a.cancel != nil {
-		a.cancel()
-		a.cancel = nil
+	cancel := a.cancel
+	a.cancel = nil
+	if cancel == nil {
+		cancel = func() {}
 	}
 	if ep := a.endpoint; ep != nil {
 		a.endpoint = nil
-		go ep.Close()
+		// The binding is removed first: canceling closes the socket it would be removed through.
+		go func() {
+			ep.Close()
+			cancel()
+		}()
+		return
 	}
+	cancel()
 }
 
 // connect creates the endpoint and registers it, beside the actor.
@@ -978,12 +985,12 @@ func (a *actor) shutdown() {
 	if a.retry != nil {
 		a.retry.Stop()
 	}
-	if a.cancel != nil {
-		a.cancel()
-	}
 	if ep := a.endpoint; ep != nil {
 		a.endpoint = nil
-		within(accountBy, ep.Close)
+		within(accountBy, ep.Close) // before the cancellation, which closes the socket it uses
+	}
+	if a.cancel != nil {
+		a.cancel()
 	}
 	// Stopped means the sound devices are closed too, of every call there was, unless the sound
 	// service itself does not answer within the time: the last part of it is theirs alone.
@@ -1008,13 +1015,19 @@ func (a *actor) release() {
 		c.release()
 		a.call = nil
 	}
-	if a.cancel != nil {
-		a.cancel()
+	cancel := a.cancel
+	if cancel == nil {
+		cancel = func() {}
 	}
 	if ep := a.endpoint; ep != nil {
 		a.endpoint = nil
-		go ep.Close()
+		go func() { // the binding first, as in dropAccount
+			ep.Close()
+			cancel()
+		}()
+		return
 	}
+	cancel()
 }
 
 func closeDialog(d dialog, med *diago.DialogMedia) {
