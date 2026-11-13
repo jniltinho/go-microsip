@@ -518,6 +518,7 @@ func TestCallThroughTheWindow(t *testing.T) {
 		})
 	}
 	t.Run("wrong password", func(t *testing.T) { wrongPasswordInTheWindow(t, bin, server) })
+	t.Run("an untrusted certificate", func(t *testing.T) { untrustedCertificateInTheWindow(t, bin, server, passwords["1202"]) })
 	t.Run("the System skin without a color-preference service", func(t *testing.T) { systemSkinWithoutAService(t, bin) })
 	t.Run("every skin", func(t *testing.T) { skinsInTheWindow(t, bin, server, passwords["1002"]) })
 	t.Run("links", func(t *testing.T) { linksInTheWindow(t, bin, server, passwords["1002"]) })
@@ -1351,6 +1352,27 @@ func wrongPasswordInTheWindow(t *testing.T, bin, server string) {
 	w := &window{t: t, lines: follow(t, trace)}
 	w.until(60*time.Second, "the refusal shown", func() bool {
 		return w.registered == "failed" && w.failure == "unauthorized" && w.shows("Failed: wrong credentials")
+	})
+	if w.shows("Registered") {
+		t.Error("the window shows a registration the engine does not have")
+	}
+}
+
+// A TLS account whose PBX presents a certificate that the system does not trust, and no CA
+// bundle of its own (A129): the window says that the certificate was rejected, and shows no
+// registration.
+func untrustedCertificateInTheWindow(t *testing.T, bin, server, password string) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "config.toml")
+	text := fmt.Sprintf("schema = 1\n[account]\nusername = \"1202\"\ndomain = %q\nport = 5061\ntransport = \"tls\"\nmedia = \"srtp\"\n", server)
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "ui-trace.jsonl")
+	softphone(t, bin, dir, password, "--config", file, "--ui-trace", trace)
+	w := &window{t: t, lines: follow(t, trace)}
+	w.until(60*time.Second, "the certificate's refusal shown", func() bool {
+		return w.registered == "failed" && w.failure == "certificate" && w.shows("Failed: certificate rejected")
 	})
 	if w.shows("Registered") {
 		t.Error("the window shows a registration the engine does not have")
