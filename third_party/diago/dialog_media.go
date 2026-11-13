@@ -1007,31 +1007,43 @@ func (w *ComfortNoiseWriter) Write(buf []byte) (n int, err error) {
 	return w.comfortNoiseWriter.Write(buf)
 }
 
-// sameMedia reports whether two SDP bodies describe the same media: their connection, media and
-// attribute lines (addresses, ports, codecs, direction, keys), section by section. Within a
-// section the order of the lines and a repeated line say nothing; the order of the payload types
-// is in the m= line itself. The origin, whose version a server may raise between its 183 and its
-// answer, the session's name and its times say nothing of the media. (go-microsip)
+// sameMedia reports whether two SDP bodies describe the same media, section by section: the m=
+// line as it is (it holds the order of the payload types), the key lines in their order (the
+// first one the session supports is the one used), the last direction (the one that counts), and
+// the connection and other attribute lines as a set, where order and a repeated line say
+// nothing. The origin, whose version a server may raise between its 183 and its answer, the
+// session's name and its times say nothing of the media. (go-microsip)
 func sameMedia(a, b []byte) bool {
 	if len(a) == 0 || len(b) == 0 {
 		return false
 	}
-	sections := func(sdp []byte) [][]string {
-		out := [][]string{nil} // the session's own lines, then one section for each m= line
+	type section struct {
+		media, direction string
+		keys, rest       []string
+	}
+	sections := func(sdp []byte) []section {
+		out := []section{{}} // the session's own lines, then one section for each m= line
 		for _, line := range strings.Split(string(sdp), "\n") {
 			line = strings.TrimRight(line, "\r")
+			at := &out[len(out)-1]
 			switch {
 			case strings.HasPrefix(line, "m="):
-				out = append(out, []string{line})
+				out = append(out, section{media: line})
+			case strings.HasPrefix(line, "a=crypto:"):
+				at.keys = append(at.keys, line)
+			case line == "a=sendrecv", line == "a=sendonly", line == "a=recvonly", line == "a=inactive":
+				at.direction = line
 			case strings.HasPrefix(line, "c="), strings.HasPrefix(line, "a="):
-				out[len(out)-1] = append(out[len(out)-1], line)
+				at.rest = append(at.rest, line)
 			}
 		}
-		for i, section := range out {
-			slices.Sort(section)
-			out[i] = slices.Compact(section)
+		for i := range out {
+			slices.Sort(out[i].rest)
+			out[i].rest = slices.Compact(out[i].rest)
 		}
 		return out
 	}
-	return slices.EqualFunc(sections(a), sections(b), func(x, y []string) bool { return slices.Equal(x, y) })
+	return slices.EqualFunc(sections(a), sections(b), func(x, y section) bool {
+		return x.media == y.media && x.direction == y.direction && slices.Equal(x.keys, y.keys) && slices.Equal(x.rest, y.rest)
+	})
 }
