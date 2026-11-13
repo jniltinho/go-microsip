@@ -1,13 +1,14 @@
 #!/bin/sh
 # Prove that the CI gates block injected failures, using temporary copies of
 # the committed tree only (nothing is committed or pushed).
-#   1. Publication scan: a clean copy passes; a staged base/ path, a fictional
+#   Publication scan: a clean copy passes; a staged base/ path, a fictional
 #      lab password, private key, token (also inside a binary or UTF-16 file,
 #      or only in history), personal home path, literal TOML password or
 #      secret-named file fails, in the Git index, in history and in an
 #      artifact directory.
-#   2. Docker verify target: an injected rustfmt violation fails the build.
-# Usage: sh packaging/release/ci-selftest.sh [--no-docker]
+#      The owner-approved exceptions stay narrow: another database beside the
+#      allowed fixture, and a history-only name staged again, fail.
+# Usage: sh build/release/ci-selftest.sh
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
@@ -117,13 +118,22 @@ fresh_copy
 echo fictional > "$work/copy/.env"; git -C "$work/copy" add -f .env; commit "fictional env"
 git -C "$work/copy" rm --quiet --cached .env; rm "$work/copy/.env"; commit "remove fictional env"
 expect_block "forbidden path only in history" forbidden-path
+fresh_copy
+echo x > "$work/copy/internal/core/store/testdata/other.sqlite3"
+git -C "$work/copy" add -f internal/core/store/testdata/other.sqlite3
+expect_block "a database beside the allowed fixture" forbidden-path
+fresh_copy
+mkdir -p "$work/copy/internal/platform/secrets"
+echo fictional > "$work/copy/internal/platform/secrets/secrets.go"
+git -C "$work/copy" add internal/platform/secrets/secrets.go
+expect_block "a history-only exempt name in the index" secret-file-name
 
 fresh_copy
-mkdir "$work/dist"; echo 'fictional artifact' > "$work/dist/rust-microsip"
+mkdir "$work/dist"; echo 'fictional artifact' > "$work/dist/go-microsip"
 expect_pass "clean artifact directory" "$work/dist"
-printf 'prefix\000%s\000suffix' "$fake_password" > "$work/dist/rust-microsip"
+printf 'prefix\000%s\000suffix' "$fake_password" > "$work/dist/go-microsip"
 expect_block "lab password inside binary artifact" lab-secret "$work/dist"
-echo 'fictional artifact' > "$work/dist/rust-microsip"; echo x > "$work/dist/profile.sqlite3"
+echo 'fictional artifact' > "$work/dist/go-microsip"; echo x > "$work/dist/profile.sqlite3"
 expect_block "database in artifact directory" forbidden-path "$work/dist"
 rm "$work/dist/profile.sqlite3"
 printf 'token=%s\n' "$fake_token" | iconv -f UTF-8 -t UTF-16LE > "$work/dist/notes.txt"
@@ -131,26 +141,17 @@ expect_block "UTF-16 token in artifact directory" token "$work/dist"
 rm "$work/dist/notes.txt"
 # Compressed Windows packages are scanned unpacked (zip members, MSI payload).
 zip_with() { python3 -I -c 'import sys, zipfile
-with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z: z.writestr(sys.argv[2], sys.argv[3])' "$work/dist/rust-microsip.zip" "$@"; }
-zip_with rust-microsip/README.txt "see ${fake_home}project"
+with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z: z.writestr(sys.argv[2], sys.argv[3])' "$work/dist/go-microsip.zip" "$@"; }
+zip_with go-microsip/README.txt "see ${fake_home}project"
 expect_block "personal home path inside a zip member" personal-home "$work/dist"
-zip_with rust-microsip/.env fictional
+zip_with go-microsip/.env fictional
 expect_block "forbidden path inside a zip" forbidden-path "$work/dist"
-zip_with rust-microsip/notes.txt "token=$fake_token"
+zip_with go-microsip/notes.txt "token=$fake_token"
 expect_block "token inside a zip member" token "$work/dist"
-rm "$work/dist/rust-microsip.zip"
+rm "$work/dist/go-microsip.zip"
 if ! command -v msiextract > /dev/null; then
-    echo fictional > "$work/dist/rust-microsip.msi"
+    echo fictional > "$work/dist/go-microsip.msi"
     expect_block "MSI without msitools fails closed" msitools-missing "$work/dist"
-    rm "$work/dist/rust-microsip.msi"
+    rm "$work/dist/go-microsip.msi"
 fi
-
-[ "${1:-}" = --no-docker ] && { echo "docker checks skipped"; exit 0; }
-fresh_copy
-printf '\nfn  injected_rustfmt_violation ( ) {}\n' >> "$work/copy/crates/core/src/lib.rs"
-if docker buildx build --progress plain --platform linux/amd64 --target verify "$work/copy" > "$work/verify.log" 2>&1; then
-    echo "FAIL rustfmt violation: verify target passed" >&2; exit 1
-fi
-grep -q 'Diff in .*crates/core/src/lib.rs' "$work/verify.log" || {
-    tail -40 "$work/verify.log"; echo "FAIL rustfmt violation: verify failed for another reason" >&2; exit 1; }
-echo "ok   rustfmt violation: verify target blocked"
+echo "scanner selftest passed"

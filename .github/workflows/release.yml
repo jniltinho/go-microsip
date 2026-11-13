@@ -1,8 +1,10 @@
-# The only workflow that builds and publishes binaries: runs on version tags
-# (v0.1.0, v0.1.0-rc.1). It publishes only a commit on main whose ci.yml push
-# run is green, only after the owner approves the `release` environment, and a
-# final version only when docs/release/vX.Y.Z.md checks every release gate.
-# -rc.N tags are published as pre-releases.
+# The only workflow that publishes binaries: runs on version tags (v0.2.0,
+# v0.2.0-rc.1). It publishes only a commit on main whose ci.yml push run is
+# green, only after the owner approves the `release` environment, and a final
+# version only when docs/release/vX.Y.Z.md checks every release gate.
+# It builds nothing: it publishes the files that green run built from the
+# tagged commit, so what was checked is what is released. -rc.N tags are
+# published as pre-releases.
 name: release
 
 on:
@@ -39,7 +41,7 @@ jobs:
   release:
     needs: environment-check
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 30
     # Required reviewer (the owner) and a v* tag policy are set on this
     # environment in the repository settings: the job waits for approval.
     environment: release
@@ -53,26 +55,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Require a green CI run for this commit
+        id: ci
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          conclusion=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
-            --branch main --event push --status success --json conclusion -q '.[0].conclusion')
-          if [ "$conclusion" != success ]; then
+          run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+            --branch main --event push --status success --json databaseId -q '.[0].databaseId')
+          if [ -z "$run" ]; then
             echo "no successful ci.yml push run on main for $GITHUB_SHA; release only green main commits" >&2
             exit 1
           fi
           git fetch --no-tags origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
             || { echo "$GITHUB_SHA is not on main" >&2; exit 1; }
-      - name: Tag matches the workspace version
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Tag matches the version of the build
         id: version
         run: |
           version=${GITHUB_REF_NAME#v}
-          workspace=$(awk '/^\[workspace.package\]/ { in_section = 1; next } /^\[/ { in_section = 0 }
-            in_section && /^version = / { gsub(/"/, "", $3); print $3; exit }' Cargo.toml)
-          if [ "$version" != "$workspace" ]; then
-            echo "tag $GITHUB_REF_NAME does not match workspace version $workspace" >&2
+          declared=$(sed -n 's/^GO_VERSION ?= //p' build/go.mk)
+          if [ "$version" != "$declared" ]; then
+            echo "tag $GITHUB_REF_NAME does not match GO_VERSION $declared of build/go.mk" >&2
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -84,34 +87,34 @@ jobs:
             echo "pre-release: gates are not required"; exit 0
           fi
           case "$VERSION" in *-*) echo "only -rc.N pre-releases are allowed" >&2; exit 1 ;; esac
-          sh packaging/release/check-gates-selftest.sh
-          sh packaging/release/check-gates.sh "$VERSION"
-      - name: Build artifacts
-        run: docker buildx build --progress plain --platform linux/amd64 --target artifacts --output type=local,dest=dist .
-      - name: Build Windows artifacts (portable zip and per-user MSI)
-        run: docker buildx build --progress plain --platform linux/amd64 --target windows-artifacts --output type=local,dest=dist-windows .
+          sh build/release/check-gates-selftest.sh
+          sh build/release/check-gates.sh "$VERSION"
+      - name: Fetch the artifacts CI built from this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ steps.ci.outputs.run }}
+        run: gh run download "$RUN" --repo "$GITHUB_REPOSITORY" --name dist --dir release
       - name: Check artifacts
-        run: |
-          (cd dist && sha256sum --check --strict SHA256SUMS)
-          (cd dist-windows && sha256sum --check --strict SHA256SUMS)
-          sh packaging/appimage/verify.sh dist/rust-microsip-*-x86_64.AppImage dist/rust-microsip
-          { command -v unsquashfs && command -v msiextract; } || { sudo apt-get update \
-            && sudo apt-get install -y --no-install-recommends squashfs-tools msitools; }
-          rm -rf dist-windows/tests dist-windows/upgrade-test
-          sh packaging/release/scan-publication.sh dist dist-windows
-      - name: Assemble release assets
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          mkdir -p release
-          cp dist/rust-microsip "release/rust-microsip-$VERSION-x86_64"
-          cp dist/rust-microsip-*-x86_64.AppImage "release/rust-microsip-$VERSION-x86_64.AppImage"
-          cp dist/scaffold-sbom.cdx.json "release/rust-microsip-$VERSION-sbom.cdx.json"
-          cp "dist-windows/rust-microsip-$VERSION-windows-x86_64.zip" "dist-windows/rust-microsip-$VERSION-x86_64.msi" \
-            "dist-windows/rust-microsip-$VERSION-windows-sbom.cdx.json" release/
-          tar -C dist -czf "release/rust-microsip-$VERSION-licenses.tar.gz" \
-            LICENSE NOTICE cargo-licenses toolchain-licenses build-manifest.json toolchain.txt
-          (cd release && sha256sum -- * > SHA256SUMS)
+          cd release
+          sha256sum --check --strict SHA256SUMS
+          # The files are those of this version and this commit, built from a clean checkout.
+          jq -e --arg v "$VERSION" --arg c "$(git rev-parse --short=12 "$GITHUB_SHA")" \
+            '.version == $v and .commit == $c and .dirty == false' build-manifest.json
+          # Every file is one the checksums name, and nothing else is published.
+          ls | grep -v -x -e SHA256SUMS -e build-manifest.json | sort > ../present
+          awk '{ sub(/^\*/, "", $2); print $2 }' SHA256SUMS | sort > ../listed
+          cmp ../present ../listed || { diff ../listed ../present; exit 1; }
+          for f in "go-microsip-$VERSION-linux-amd64" "go-microsip-$VERSION-x86_64.AppImage" \
+            "go-microsip-$VERSION-windows-amd64.exe" "go-microsip-$VERSION-windows-amd64.zip" \
+            THIRD_PARTY_NOTICES.txt sbom.cdx.json; do
+            [ -s "$f" ] || { echo "missing $f" >&2; exit 1; }
+          done
+          cd ..
+          command -v unsquashfs || { sudo apt-get update && sudo apt-get install -y --no-install-recommends squashfs-tools; }
+          sh build/release/scan-publication.sh release
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -119,7 +122,8 @@ jobs:
         run: |
           prerelease=
           case "$VERSION" in *-rc.*) prerelease=--prerelease ;; esac
-          notes=--generate-notes
-          [ -f "docs/release/v$VERSION.md" ] && notes="--notes-file docs/release/v$VERSION.md"
-          gh release create "$GITHUB_REF_NAME" release/* --verify-tag $notes \
-            --title "rust-microsip $VERSION" $prerelease
+          # The notes of the tagged commit, with the checksums of the files published beside them.
+          if [ -f "docs/release/v$VERSION.md" ]; then cat "docs/release/v$VERSION.md"; else echo "go-microsip $VERSION"; fi > notes.md
+          { printf '\n## Checksums (SHA-256)\n\n```\n'; cat release/SHA256SUMS; printf '```\n'; } >> notes.md
+          gh release create "$GITHUB_REF_NAME" release/* --verify-tag --notes-file notes.md \
+            --title "go-microsip $VERSION" $prerelease

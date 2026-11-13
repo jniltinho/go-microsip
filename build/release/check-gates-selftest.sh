@@ -1,5 +1,6 @@
 #!/bin/sh
-# Negative and positive controls for check-gates.sh on a synthetic tree.
+# Negative and positive controls for check-gates.sh on a synthetic tree with two changes (named
+# after the two the Rust releases were gated on).
 set -eu
 script=$(cd "$(dirname "$0")" && pwd)/check-gates.sh
 root=$(mktemp -d)
@@ -19,7 +20,7 @@ good='- [x] create-native-rust-linux-release 1.1 done
 - [x] AG-05
 - [x] AG-06
 - [x] Owner decision: publish'
-run() { CHECK_GATES_ROOT="$root" sh "$script" 9.9.9 >/dev/null 2>&1; }
+run() { CHECK_GATES_ROOT="$root" CHECK_GATES_CHANGES="create-native-rust-linux-release add-agent-cli-mcp" sh "$script" 9.9.9 >/dev/null 2>&1; }
 expect_fail() {
     printf '%s\n' "$2" > "$notes"
     if run; then echo "FAIL (accepted): $1" >&2; exit 1; fi

@@ -6,7 +6,7 @@ softphone, open its database or register SIP themselves. Without a running softp
 command answers `engine_unavailable` and exits 4.
 
 This page is about go-microsip, the Go rewrite. The Rust application's own page is
-[agent-cli-mcp-rust.md](agent-cli-mcp-rust.md); the two applications never answer each other's
+[agent-cli-mcp-rust.md](../archive/rust/docs/agent-cli-mcp-rust.md); the two applications never answer each other's
 clients. Agent control works on Linux and on Windows; where this page names a directory of
 Linux, Windows uses `%LOCALAPPDATA%\go-microsip\control\` for the socket and the grant files.
 

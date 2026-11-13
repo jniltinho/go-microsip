@@ -10,7 +10,7 @@ Notes of the frontend work done in parallel with the G0 spike of `openspec/chang
 | --- | --- | --- |
 | Backend contract | `frontend/src/api.ts` | The only module that reaches the backend. Types for the commands and events of `docs/migration/parity-matrix.md` B1/B2, the read queries, and two transports chosen by the Vite mode. |
 | Mock engine | `frontend/src/mock.ts` | Imported only by `api.ts`, only in the mock build. Registration, outgoing and incoming calls, hold, mute, DTMF, blind transfer, DND, agent requests, notices and failures, with fictional data (`pbx.invalid`, `192.0.2.1`, extensions 1001 to 1009). |
-| Reducer | `frontend/src/state.ts`, `state.test.ts` | Port of `apps/rust-microsip/src/ui/state.rs`: intents go through `dispatch` (at most one command each); registration and call state change only in `applyEvent`. |
+| Reducer | `frontend/src/state.ts`, `state.test.ts` | Port of `archive/rust/apps/rust-microsip/src/ui/state.rs`: intents go through `dispatch` (at most one command each); registration and call state change only in `applyEvent`. |
 | Store | `frontend/src/store.ts` | The reducer made reactive, fed by `subscribe`; calls `ready()` once the page has drawn, also when the backend is missing. |
 | Screens | `frontend/src/App.vue`, `src/components/*.vue` | Layout B of `docs/ui/layouts/` (owner's decision of 2026-11-11): the header, Home, Calls, Contacts, Keypad, the call view, the incoming-call sheet, contact editor, settings, menu, agent approval and confirmation dialogs, engine-unavailable and stopped states. |
 | Skins | `frontend/src/themes/` | Registry `index.ts`, one CSS file per skin (`light`, `dark`, `xp`, `macos`, `ubuntu`, `win98`, `matrix`) and `system`. Tests in `themes.test.ts`. See "Skins at AAA" below. |

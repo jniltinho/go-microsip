@@ -3,8 +3,9 @@
 # every task id of the release changes ("- [x] <change> <id> ...", one id per
 # item), every AG-0N gate and the owner's decision, and contain no open
 # checkbox in any task-list syntax (also inside blockquotes).
-# Usage: sh packaging/release/check-gates.sh X.Y.Z
-# CHECK_GATES_ROOT points at another tree (used by check-gates-selftest.sh).
+# Usage: sh build/release/check-gates.sh X.Y.Z
+# CHECK_GATES_ROOT points at another tree and CHECK_GATES_CHANGES names its changes (both used by
+# check-gates-selftest.sh alone).
 set -eu
 cd "${CHECK_GATES_ROOT:-$(dirname "$0")/../..}"
 version=${1:?usage: check-gates.sh X.Y.Z}
@@ -21,7 +22,7 @@ checked() {
     grep -qE "$item\\[[xX]\\][[:space:]]+$label([[:space:]:]|$)" "$notes"
 }
 missing=0
-for change in create-native-rust-linux-release add-agent-cli-mcp; do
+for change in ${CHECK_GATES_CHANGES:-migrate-to-go-wails}; do
     tasks="openspec/changes/$change/tasks.md"
     [ -f "$tasks" ] || { echo "missing $tasks" >&2; exit 1; }
     ids=$(sed -nE 's/^[[:space:]]*[-*+][[:space:]]+\[[ xX]\][[:space:]]+([0-9]+(\.[0-9]+)+)([[:space:]].*)?$/\1/p' "$tasks")

@@ -1,7 +1,7 @@
 # Start-up time and memory of go-microsip's .exe and of the Rust candidate's on Windows (task
 # 7.3), measured the same way, one after the other, each start with new, empty folders for its
 # settings and data and no account.
-#   powershell -File C:\vagrant\measure.ps1 [-Version 0.3.0-m3] [-Runs 10]      over WinRM
+#   powershell -File C:\vagrant\measure.ps1 [-Version 0.2.0-rc.1] [-Runs 10]      over WinRM
 # Over WinRM there is no desktop: the script starts itself again in the logged-on desktop
 # session through a scheduled task, as check.ps1 does, and prints what that run wrote.
 #
@@ -9,7 +9,7 @@
 # window reports its first drawn page (the Rust candidate has no such report). Memory is taken
 # 20 s after the last start: the working set and the private bytes of the process and of every
 # process it started (go-microsip's web view runs in processes of its own).
-param([string]$Version = '0.3.0-m3', [int]$Runs = 10, [switch]$Desktop)
+param([string]$Version = '0.2.0-rc.1', [int]$Runs = 10, [switch]$Desktop)
 $ErrorActionPreference = 'Stop'
 $work = 'C:\g0work'
 $log = "$work\measure.log"

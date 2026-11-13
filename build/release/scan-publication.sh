@@ -6,7 +6,7 @@
 # UTF-16 text is covered too. Findings print only a path, a category and a
 # match count, never the match.
 #
-# Usage: sh packaging/release/scan-publication.sh [artifact-dir ...]
+# Usage: sh build/release/scan-publication.sh [artifact-dir ...]
 # Env:   LAB_DIR        generated Asterisk lab directory whose fictional
 #                       passwords must never be published (default:
 #                       <repo>/artifacts/asterisk-lab; skipped when absent).
@@ -29,10 +29,17 @@ fail() { echo "FAIL [$1] $2"; failures=$((failures + 1)); }
 # captures, credential stores, generated lab credentials and build output.
 forbidden_path='(^|/)(base|artifacts|dist|target)(/|$)|(^|/)\.env($|\.)|\.(sqlite3?|db|db-wal|db-shm|sqlite3?-(wal|shm|journal))$|\.AppImage$|\.(pem|key|p12|pfx|jks|pcapng?|csr|kdbx|ppk)$|(^|/)(credentials\.json|id_(rsa|ecdsa|ed25519)|\.netrc|\.pgpass|\.git-credentials|\.pypirc)$'
 allowed_path='(^|/)\.env\.example$'
+# Owner decision of 2026-11-13 (docs/migration/parity-signoff.md): the fictional database of the
+# Rust candidate that the store's tests open, by its exact path, in the repository only (an
+# artifact directory still refuses every database).
+fixture_allowed='^internal/core/store/testdata/rust-0\.1\.0-rc\.3\.sqlite3$'
 # Repository files whose basename mentions a password or secret (checked
 # case-insensitively) are app secret stores unless they are known sources.
 secret_name='(^|/)[^/]*(password|secret)[^/]*$'
-secret_name_allowed='^crates/platform/src/secrets\.rs$'
+secret_name_allowed='^(archive/rust/)?crates/platform/src/secrets\.rs$'
+# Same decision: the names the Go keyring adapter and its check had before they were renamed.
+# Exempt only as history: the same name in the index fails.
+history_secret_name_allowed='^(build/qa/secrets\.sh|internal/platform/secrets/secrets(_linux|_other|_test|_windows)?\.go)$'
 # Content patterns are written so this file never matches itself; it is
 # scanned like any other file.
 # Unsplit PEM header (the text BEGIN ... PRIVATE KEY between five dashes) or
@@ -58,6 +65,10 @@ home_allowed='/(home|Users)/(builder|runner|user|username|example|USER)$'
 # exempt from the personal-home check, and only while they are absent from
 # the index, so the current tree must stay clean.
 history_home_allowed='a618a98cecb802635c863a83e804e47ff55737eb ddad2829bbbc868b5fa0293fa51c5f51a501ffe1 373601a9aaad5eb778b993217f303b8fb61dc672'
+# Owner decision of 2026-11-13 (same record): five historical versions of the Go store and its
+# tests, whose fictional example paths (a one-letter user, "lab", an ellipsis) this check counts as
+# personal. Exempt on the same terms.
+history_home_allowed="$history_home_allowed 47ffedc4c66df172626c51518a8e29f32eb3bc90 b890b1005d7b2317bb8ca3f671869e8c0c087070 4caadc3b8e09a9abfa456ed62359bd7bb80e0d2f e9b14eca1715db0850e531e0416033bb0922483e fd3f4a465fca0b25ef2ebc9c3b89e17d1cdf04bb"
 
 # Fictional lab passwords: fixed strings in a private temporary file only.
 : > "$work/lab-values"
@@ -159,9 +170,13 @@ cut -f2- "$work/inventory" | sed -n 's/^index://p' > "$work/index-paths"
 git log --all -m --no-renames --format= --name-only -z | tr '\0' '\n' | sed '/^$/d' | sort -u |
     awk 'NR == FNR { indexed[$0] = 1; next } !($0 in indexed)' "$work/index-paths" - > "$work/history-paths"
 for scope in index history; do
-    { grep -E "$forbidden_path" "$work/$scope-paths" | grep -v -E "$allowed_path" || true; } > "$work/bad"
+    { grep -E "$forbidden_path" "$work/$scope-paths" | grep -v -E "$allowed_path" | grep -v -E "$fixture_allowed" || true; } > "$work/bad"
     while IFS= read -r path; do fail forbidden-path "$scope:$path"; done < "$work/bad"
     { grep -i -E "$secret_name" "$work/$scope-paths" | grep -v -E "$secret_name_allowed" || true; } > "$work/bad"
+    if [ "$scope" = history ]; then
+        { grep -v -E "$history_secret_name_allowed" "$work/bad" || true; } > "$work/bad-history"
+        mv "$work/bad-history" "$work/bad"
+    fi
     while IFS= read -r path; do fail secret-file-name "$scope:$path"; done < "$work/bad"
 done
 git ls-files -s | awk '$1 == "160000" { print $4 }' > "$work/submodules"

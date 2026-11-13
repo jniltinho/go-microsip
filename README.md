@@ -1,50 +1,56 @@
 <div align="center">
 
-<img src="apps/rust-microsip/assets/icons/rust-microsip.svg" width="96" alt="rust-microsip logo">
+<img src="build/linux/go-microsip.svg" width="96" alt="go-microsip logo">
 
-# rust-microsip
+# go-microsip
 
-**A fast, native SIP softphone for Linux, written in Rust, with the compact MicroSIP layout you already know.**
+**A compact SIP softphone for Linux and Windows, written in Go, with the MicroSIP layout you already know.**
 
-[![Release](https://img.shields.io/github/v/release/jniltinho/rust-microsip?include_prereleases&sort=semver&color=blue)](https://github.com/jniltinho/rust-microsip/releases)
-[![CI](https://github.com/jniltinho/rust-microsip/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jniltinho/rust-microsip/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jniltinho/go-microsip?include_prereleases&sort=semver&color=blue)](https://github.com/jniltinho/go-microsip/releases)
+[![CI](https://github.com/jniltinho/go-microsip/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jniltinho/go-microsip/actions/workflows/ci.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
-[Install](#install) · [Quick start](#quick-start) · [Screenshots](#screenshots) · [CLI and MCP](#cli-and-mcp) · [Build](#build-from-source) · [Docs](#documentation)
+[Install](#install) · [Quick start](#quick-start) · [Screenshots](#screenshots) · [CLI and MCP](#cli-and-mcp) · [Platforms](#platforms) · [Limits](#limits-of-this-version) · [Build](#build-from-source) · [Docs](#documentation)
 
 </div>
 
-## Why rust-microsip
+## Why go-microsip
 
-MicroSIP is loved for being small, fast and simple, but it is a Windows program. rust-microsip
-brings the same idea to the Linux desktop as one native binary: no Wine, no Electron, no webview, no
-database server. It starts in a fraction of a second, takes little memory, and follows the familiar
-layout of keypad, call log, contacts and a status bar that shows whether you are **Online**.
+MicroSIP is loved for being small, fast and simple, but it is a Windows program. go-microsip
+brings the same idea to the Linux desktop, and to Windows, as one executable: the familiar layout
+of keypad, call log, contacts and a status bar that shows whether you are **Online**, in a window
+drawn by the system's own web view (WebKitGTK on Linux, WebView2 on Windows): no browser is
+bundled, and the window's page loads nothing from the network.
 
-Calls are encrypted when your PBX supports it (TLS signaling with SRTP), passwords can stay in the
-desktop keyring, and AI agents can place or answer calls through a local CLI and an MCP server only
-with your explicit approval.
+Calls are encrypted when your PBX supports it (TLS signaling with SRTP), the password stays in the
+system's keyring, and AI agents can place or answer calls through a local command line and an MCP
+server only with your explicit approval.
 
-rust-microsip is an independent project inspired by [MicroSIP](https://www.microsip.org/). It is not
+go-microsip is the Go rewrite of **rust-microsip**, the application this repository held until
+version 0.1.0-rc.3. The Rust code is kept under [archive/rust](archive/rust/README.md) as a
+reference and is no longer built or released.
+
+go-microsip is an independent project inspired by [MicroSIP](https://www.microsip.org/). It is not
 affiliated with or endorsed by MicroSIP.
 
 ## Features
 
 | Area | What you get |
 |---|---|
-| **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, DND; RFC 4733 DTMF; a ringback tone while the other side rings, or the audio the PBX plays before it answers |
-| **Security** | TLS with the CA bundle you name (`ca_file`); SDES-SRTP/SRTCP, optional or mandatory, with downgrade refusal; the password never goes in arguments, logs or the database |
-| **Interface** | MicroSIP-like window: keypad, Logs-style call history (double-click to call back), contacts with favorites and CSV import, status bar with an Online icon; dark and light themes |
-| **Desktop** | Tray icon whose menu redials your last calls; closing the window keeps it in the tray; incoming-call notifications with Answer/Reject; `sip:`/`tel:` link handler; single instance |
-| **Audio** | ALSA, PipeWire and PulseAudio through the system's default devices; audio test with microphone level; devices opened only during calls |
-| **Configuration** | Settings in the window, or TOML, `.env` and environment with a clear precedence; `--doctor` shows where every value came from without secrets |
-| **Agents** | `rust-microsip` CLI and `mcp --stdio`: every action waits for **Allow** in the window unless you issue a scoped, revocable grant; a headless `service` mode |
-| **Diagnostics** | `RUST_MICROSIP_TRACE=1` prints SIP status codes, SDP shape and media counters, without numbers or credentials |
+| **Calls** | One SIP account over UDP, TCP or TLS; G.711 (PCMU/PCMA); hold, mute, blind transfer, do-not-disturb; RFC 4733 DTMF; a ring for incoming calls and a ringback tone while the other side rings, or the audio the PBX plays before it answers |
+| **Security** | TLS with the CA bundle you name (`ca_file`); SDES-SRTP, optional or mandatory; the password never goes in arguments, logs or the database |
+| **Interface** | MicroSIP-like window: keypad, call history, contacts with favorites and CSV import, status bar; seven skins (Light, Dark, Windows XP, macOS, Ubuntu, Windows 98, Matrix) |
+| **Desktop** | Tray icon whose menu lists your last calls; closing the window keeps it in the tray; a notification with Answer/Reject for an incoming call and one for a missed call; `sip:`/`tel:` link handler; single instance |
+| **Audio** | PipeWire or PulseAudio on Linux, WASAPI on Windows; devices chosen in the settings, with a local audio test; devices opened only during calls |
+| **Configuration** | Settings in the window, or TOML, `.env` and environment with a clear precedence; `go-microsip doctor` shows where every value came from, without secrets |
+| **Agents** | `go-microsip` command line and `go-microsip mcp`: every action waits for **Allow** in the window unless you issue a scoped, revocable grant; a headless `service` mode |
 
-Status: **pre-release** ([latest](https://github.com/jniltinho/rust-microsip/releases)). Calls, audio and
-desktop integration are tested against a disposable Asterisk lab and on clean Ubuntu 24.04/26.04, Fedora 44
-and Arch Linux desktops. Windows has preview packages (MSI and zip) whose calls are not tested yet. See the
-[roadmap](docs/README.md).
+Status: **pre-release** ([latest](https://github.com/jniltinho/go-microsip/releases)). Calls are
+tested against a disposable Asterisk lab and a FreePBX 17 VM, and the packaged application on clean
+Ubuntu 26.04, Debian 13 and Windows 11 VMs. Sound on real sound cards and headsets, and most of the
+desktop integration on real machines, have not been checked by a recorded test yet: see
+[Limits of this version](#limits-of-this-version) and the
+[release notes](docs/release/v0.2.0-rc.1.md).
 
 ## Screenshots
 
@@ -55,53 +61,47 @@ and Arch Linux desktops. Windows has preview packages (MSI and zip) whose calls 
     <th>Settings (dark)</th>
   </tr>
   <tr>
-    <td><img src="docs/prints/parity/rms-phone-dark.png" width="260" alt="Keypad with large left-aligned digits and an Online status bar, dark theme"></td>
-    <td><img src="docs/prints/parity/rms-calls-selected-dark.png" width="260" alt="Call log with direction icons, missed calls in red and row actions, dark theme"></td>
-    <td><img src="docs/prints/parity/rms-settings-dark.png" width="260" alt="Account settings with right-aligned labels, dark theme"></td>
+    <td><img src="docs/prints/go/dark/dialpad-number.png" width="260" alt="Keypad with a number typed and an Online status bar, dark skin"></td>
+    <td><img src="docs/prints/go/dark/calls.png" width="260" alt="Call log with direction icons, dark skin"></td>
+    <td><img src="docs/prints/go/dark/settings.png" width="260" alt="Account settings, dark skin"></td>
   </tr>
   <tr>
     <th>Keypad (light)</th>
-    <th>Call log (light)</th>
+    <th>Call in progress (light)</th>
     <th>Contacts (light)</th>
   </tr>
   <tr>
-    <td><img src="docs/prints/parity/rms-phone-light.png" width="260" alt="Keypad, light theme"></td>
-    <td><img src="docs/prints/parity/rms-calls-light.png" width="260" alt="Call log, light theme"></td>
-    <td><img src="docs/prints/parity/rms-contacts-light.png" width="260" alt="Contacts list, light theme"></td>
+    <td><img src="docs/prints/go/light/dialpad.png" width="260" alt="Keypad, light skin"></td>
+    <td><img src="docs/prints/go/light/call-active.png" width="260" alt="A call in progress, light skin"></td>
+    <td><img src="docs/prints/go/light/contacts.png" width="260" alt="Contacts list, light skin"></td>
   </tr>
 </table>
 
-All screens use fictional data. More captures, in both themes and at 150% and 200% scaling, are in
-[docs/prints/parity](docs/prints/parity/README.md).
+All screens use fictional data. Every screen in every skin is under [docs/prints/go](docs/prints/go/).
 
 ## Install
 
-Download from the [releases page](https://github.com/jniltinho/rust-microsip/releases):
+Download from the [releases page](https://github.com/jniltinho/go-microsip/releases):
 
-- `rust-microsip-<version>-x86_64.AppImage`: make it executable and run it. It does not need `libfuse2`.
-- `rust-microsip-<version>-x86_64`: the same program as a plain ELF.
+- `go-microsip-<version>-x86_64.AppImage` (Linux): make it executable and run it.
+- `go-microsip-<version>-linux-amd64`: the same program as a plain executable.
+- `go-microsip-<version>-windows-amd64.zip` (Windows, preview): a portable folder with the program,
+  the license and the third-party notices. `go-microsip-<version>-windows-amd64.exe` is the
+  program alone. Both are unsigned, so SmartScreen may warn you; check them with
+  `Get-FileHash <file> -Algorithm SHA256` first.
 
-Verify the download with `sha256sum --check --strict SHA256SUMS`.
-
-**Windows (preview)**: `rust-microsip-<version>-x86_64.msi` installs for your user only, with no
-administrator rights. `rust-microsip-<version>-windows-x86_64.zip` is a portable copy. Both are
-unsigned, so SmartScreen may warn you; check them with `Get-FileHash <file> -Algorithm SHA256` first.
-
-Requirements: x86_64 Linux with glibc 2.39 or newer (Ubuntu 24.04, Fedora 40, Debian 13, Arch and
-later), `libasound.so.2` and, on X11, `libxkbcommon-x11`. Standard GNOME and KDE desktops already have
-them; a minimal Xfce install may need `libxkbcommon-x11`.
+Verify a download with `sha256sum --check --ignore-missing SHA256SUMS`. What each system needs is
+under [Platforms](#platforms).
 
 ## Quick start
 
-1. Start rust-microsip and open **▼ → Settings**.
-2. Fill in **SIP Server**, **Username**, **Domain** and **Password**, and pick UDP, TCP or TLS. Tick
-   "Remember password in the system keyring" to keep it across restarts.
-3. Press **Save and register**. The status bar turns green: **Online**.
-4. Type a number and press **Call**, or double-click an entry in **Calls**.
+1. Start go-microsip and open **Settings**.
+2. Fill in the SIP server, the username, the domain and the password, and pick UDP, TCP or TLS.
+3. Save. The status bar says **Online** once the account is registered.
+4. Type a number and press **Call**, or pick an entry in **Calls** or **Contacts**.
 
-Choose your headset in your desktop's sound settings and keep "System default" in rust-microsip.
-
-Prefer a file? Create `$XDG_CONFIG_HOME/rust-microsip/config.toml` (mode 0600):
+Prefer a file? Create `$XDG_CONFIG_HOME/go-microsip/config.toml` (`%APPDATA%\go-microsip\config.toml`
+on Windows):
 
 ```toml
 schema = 1
@@ -112,50 +112,42 @@ domain = "sip.example.invalid"
 server = "sip.example.invalid"
 transport = "tls"        # udp | tcp | tls
 media = "srtp"           # rtp | srtp (srtp requires tls)
-password_env = "RUST_MICROSIP_SIP_PASSWORD"
+ca_file = "/etc/ssl/certs/ca-certificates.crt"
+password_env = "GO_MICROSIP_SIP_PASSWORD"
 ```
 
-Export the password in that environment variable before starting; passwords are never accepted as
-command-line arguments. `rust-microsip --doctor` prints a sanitized report of the effective
-configuration, and `rust-microsip config validate` and `config export` check and print it without
-secrets.
+Export the password in the environment variable that `password_env` names before starting;
+passwords are never accepted as command-line arguments. `go-microsip doctor` prints a sanitized
+report of the effective configuration, the display and the sound, `go-microsip config validate`
+and `config export` check and print the configuration without secrets, and `go-microsip --help`
+lists every command.
 
 ## CLI and MCP
 
 While the window runs, other local programs can drive it:
 
 ```sh
-rust-microsip status
-rust-microsip call dial 1002      # waits for "Allow" in the window
-rust-microsip mcp --stdio         # MCP server for AI agents
+go-microsip status
+go-microsip call dial 1002      # waits for "Allow" in the window
+go-microsip mcp                 # MCP server for AI agents, on standard input and output
 ```
 
 Every change waits for **Allow** in the window, unless you issued a scoped, time- and quota-limited
-grant in **Settings → Agent access**. `rust-microsip service` runs without a window from a
-single-use bootstrap exported there. See [Controlling rust-microsip](docs/agent-cli-mcp-rust.md).
+grant in **Settings → Agent access**. `go-microsip service` runs without a window from a
+single-use bootstrap exported there. See [Controlling go-microsip](docs/agent-cli-mcp.md).
 
-## go-microsip: the Go rewrite (in progress)
-
-rust-microsip is being rewritten in Go with a Wails window as **go-microsip**
-([plan](openspec/changes/migrate-to-go-wails/proposal.md),
-[tasks](openspec/changes/migrate-to-go-wails/tasks.md), [receipts](docs/receipts/)). Until the
-cutover the Rust application above is the product; go-microsip has no release yet and is built
-from this repository:
-
-```sh
-make go-dist               # dist/go: Linux binary, AppImage, Windows .exe and .zip, notices, SBOM, SHA256SUMS
-```
+## Coming from rust-microsip
 
 Both applications can be installed and run by the same user: each has its own name, settings,
 database, lock and control socket, and neither touches the other's files. Nothing is imported by
-itself; to bring the Rust application's account, contacts and history over, with both closed:
+itself; to bring rust-microsip's account, contacts and history over, with both closed:
 
 ```sh
 go-microsip import rust-microsip            # a preview; changes nothing
 go-microsip import rust-microsip --apply    # --credential also copies the keyring password
 ```
 
-Platform notes:
+## Platforms
 
 - **The AppImage without FUSE.** `go-microsip-<version>-x86_64.AppImage` is run directly
   where FUSE is available. Where it is not (a container, a minimal installation), run it
@@ -194,7 +186,9 @@ Platform notes:
   connections: calls, incoming ones included, work whichever you answer.
 - **macOS**: not built.
 
-Limits of this version, known and accepted for it:
+## Limits of this version
+
+Known, and accepted for this pre-release:
 
 - **The network.** There is no STUN and no SIP keepalive: nothing is sent between two
   renewals of a registration to keep its path open (a call that only receives does send a
@@ -227,8 +221,8 @@ Limits of this version, known and accepted for it:
 - **TLS needs a CA file.** A TLS account registers only with a CA bundle named in its
   settings (`ca_file`): the system's certificates are not used, so a PBX whose certificate
   comes from a public authority needs that authority's bundle named too. Without one the
-  window says "certificate rejected". The Rust application uses the system's certificates
-  when no bundle is named.
+  window says "certificate rejected". rust-microsip, the application this one replaced, used
+  the system's certificates when no bundle was named.
 - **Signaling from the PBX alone.** An account over UDP reads nothing that does not come,
   at the account's port, from an address the server's name has answered with since the
   account connected: the name is resolved then, and again when something arrives from
@@ -252,7 +246,7 @@ Limits of this version, known and accepted for it:
   before it reports the failure: go-microsip says the transfer failed and stays in a call
   with nobody in it until you hang up.
 - **Secure media.** Unencrypted RTP is used unless SRTP is chosen for the account, and every
-  call says which one it has. Three protections of the Rust candidate's own SRTP code are
+  call says which one it has. Three protections of rust-microsip's own SRTP code are
   not in the library used here: the receiver bound to one source, the stop before the packet
   counter runs out, and the bounded list of unauthenticated sources.
 - **Builds.** The build image pins its base by digest but not every package and tool in it.
@@ -262,28 +256,29 @@ Limits of this version, known and accepted for it:
 
 ## Build from source
 
-Only Docker with BuildKit is needed; Rust runs inside a pinned builder image, never on the host.
+Only Docker and make are needed; Go and Node run inside a pinned build image, never on the host.
 
 ```sh
-make dist                  # ELF, AppImage, SHA256SUMS, notices and SBOM in dist/
-make check                 # fmt, clippy, tests, rustdoc
-make suite                 # end-to-end calls against a disposable Asterisk lab
-make windows               # Windows exes, per-user MSI and portable zip (preview)
+make image                 # the build image, once
+make check                 # gofmt and go vet for every build
+make test                  # unit tests with the race detector
+make dist                  # dist/go: Linux binary, AppImage, Windows .exe and .zip, notices, SBOM, SHA256SUMS
+make lab                   # calls against a disposable Asterisk lab
 ```
 
-The [development guide](docs/DEVELOPMENT.md) covers the layout, the lab and the release process.
+The [development guide](docs/DEVELOPMENT.md) covers the layout, the lab, the test VMs and the
+release process.
 
 ## Documentation
 
-- [Roadmap and receipts](docs/README.md): what is done, with evidence, and what remains.
-- [Architecture](docs/architecture.md): crate layers from the domain to the window.
-- [Controlling rust-microsip](docs/agent-cli-mcp-rust.md): CLI, MCP, grants and the headless service.
-- [Controlling go-microsip](docs/agent-cli-mcp.md): the same for the Go rewrite.
+- [Documentation index](docs/README.md): guides, records and receipts.
+- [Architecture](docs/architecture.md): the layers from the core to the window.
+- [Controlling go-microsip](docs/agent-cli-mcp.md): command line, MCP, grants and the headless service.
+- [Adding a skin](docs/themes.md).
 - [Development guide](docs/DEVELOPMENT.md) and [release process](docs/release.md).
-- OpenSpec changes: [Linux release](openspec/changes/create-native-rust-linux-release/proposal.md),
-  [agent CLI/MCP](openspec/changes/add-agent-cli-mcp/proposal.md),
-  [MicroSIP-like UI](openspec/changes/refine-native-ui/proposal.md),
-  [Windows port](openspec/changes/add-windows-port/proposal.md).
+- [The migration from Rust](openspec/changes/migrate-to-go-wails/proposal.md): the plan, its
+  [tasks](openspec/changes/migrate-to-go-wails/tasks.md), the
+  [parity matrix](docs/migration/parity-matrix.md) and the [receipts](docs/receipts/).
 
 ## License
 

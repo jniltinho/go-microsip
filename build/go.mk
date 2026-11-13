@@ -7,7 +7,7 @@
 GO_IMAGE   ?= go-microsip-build:13
 GO         := GO_IMAGE=$(GO_IMAGE) scripts/go-docker.sh
 GO_PKGS    := . ./cmd/... ./internal/... ./build/winicon
-GO_VERSION ?= 0.3.0-m3
+GO_VERSION ?= 0.2.0-rc.1
 GO_COMMIT  := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 GO_LDFLAGS := -s -w -X main.version=$(GO_VERSION) -X main.commit=$(GO_COMMIT)
 GO_DIST    ?= dist/go
@@ -28,7 +28,7 @@ GO_GUI_FLAGS := --init --security-opt seccomp=unconfined --security-opt apparmor
               --security-opt systempaths=unconfined -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro
 GO_GUI     := GO_DOCKER_FLAGS="$(GO_GUI_FLAGS)" $(GO)
 
-.PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test \
+.PHONY: go-image go-tidy go-embed-stub go-check go-test go-frontend go-build go-headless go-self-test go-smoke \
 	go-frontend-test go-offline-skins go-keyring go-notify go-appimage go-windows go-licenses go-dist go-prints go-audio go-lab go-call go-window-call go-appimage-call \
 	go-vm go-measure go-freepbx go-shell
 
@@ -64,6 +64,13 @@ go-headless: go-build ## Go: version, doctor and an MCP handshake with no displa
 
 go-self-test: go-build ## Go: the window opens under Xvfb and the page calls the backend
 	$(GO_GUI) build/qa/self-test.sh $(GO_BIN)
+
+# The same two checks on the files go-dist left, without building them again: what CI runs on the
+# artifacts it then hands to the release.
+go-smoke: ## Go: the headless checks and the window's self-test on the Linux binary and the AppImage of go-dist
+	$(GO) build/qa/headless.sh $(GO_DIST)/$(GO_NAME)-linux-amd64
+	$(GO_GUI) build/qa/self-test.sh $(GO_DIST)/$(GO_NAME)-linux-amd64
+	$(GO_GUI) build/qa/self-test.sh $(GO_DIST)/$(GO_NAME)-x86_64.AppImage
 
 go-offline-skins: go-build ## Go: the window starts in every skin in a container with no network
 	GO_DOCKER_FLAGS="--network none $(GO_GUI_FLAGS)" $(GO) build/qa/offline-skins.sh $(GO_BIN) $(OUT)
