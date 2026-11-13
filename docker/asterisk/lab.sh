@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.."
 export LAB_UID="$(id -u)" LAB_GID="$(id -g)"
 if [ "$LAB_UID" -eq 0 ]; then echo "ERROR: run the lab as a non-root user." >&2; exit 1; fi
 test ! -L artifacts
-image=rust-microsip-asterisk:22.11.0-lab.1
+image=go-microsip-asterisk:22.11.0-lab.1
 compose() { docker compose -f docker/asterisk/compose.yaml "$@"; }
 host_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.host.yaml "$@"; }
 vm_compose() { docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.vm-lab.yaml "$@"; }

@@ -26,8 +26,8 @@ done
 clients=artifacts/asterisk-lab/clients
 [ -f "$clients/credentials.json" ] || { echo "ERROR: run 'sh docker/asterisk/lab.sh init' first." >&2; exit 1; }
 image=rust-microsip-suite:local
-net=rust-microsip-lab_isolated
-project=com.docker.compose.project=rust-microsip-lab
+net=go-microsip-lab_isolated
+project=com.docker.compose.project=go-microsip-lab
 export LAB_UID="$(id -u)" LAB_GID="$(id -g)"
 B="docker compose -f docker/asterisk/compose.yaml -f docker/asterisk/compose.calls-g0.yaml"
 commit=$(git rev-parse HEAD)

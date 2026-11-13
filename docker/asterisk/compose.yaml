@@ -1,6 +1,6 @@
-name: rust-microsip-lab
+name: go-microsip-lab
 x-lab-service: &lab-service
-  image: rust-microsip-asterisk:22.11.0-lab.1
+  image: go-microsip-asterisk:22.11.0-lab.1
   build:
     context: .
     target: runtime

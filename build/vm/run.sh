@@ -20,7 +20,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 lab_pbx=192.168.77.10
 lab_windows=192.168.77.20
-lab_image=rust-microsip-asterisk:22.11.0-lab.1
+lab_image=go-microsip-asterisk:22.11.0-lab.1
 pbx() { vagrant ssh pbx -c "/vagrant/pbx.sh $*"; }
 # Whether the Windows VM gets a TCP connection to the PBX's SIP port: "True" or "False" as
 # Windows says it, or "unknown" when the question itself did not run.

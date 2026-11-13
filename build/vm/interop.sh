@@ -14,7 +14,7 @@ cd "$(dirname "$0")"
 out=$1
 lab_pbx=192.168.77.10
 lab_freepbx=192.168.77.11
-lab_image=rust-microsip-asterisk:22.11.0-lab.1
+lab_image=go-microsip-asterisk:22.11.0-lab.1
 scenarios=register/1001,engine/echo/1001/,engine/pair/1001-1002,engine/hold-mute/1001-1002,engine/transfer/1001-1002,engine/dtmf/1001,engine/dtmf/wrong-digits-control,engine/dnd/during-a-call,engine/renewal/1001
 # The calls made again on a network that loses, delays and reorders (impair.sh): they must stay
 # controllable, with their audio.

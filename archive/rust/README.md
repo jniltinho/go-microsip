@@ -25,7 +25,8 @@ To build it again, the move has to be undone in a checkout: revert the two cutov
 To bring an installation's account, contacts and history to go-microsip:
 `go-microsip import rust-microsip` (see the [README](../../README.md#-coming-from-rust-microsip)).
 
-The lab keeps the names it was given here (the image `rust-microsip-asterisk`, the compose
-project `rust-microsip-lab`) and the sub-commands of `docker/asterisk/lab.sh` and
-`docker/asterisk/suite.sh` that ran the Rust runners; those need this folder's `Dockerfile` at
-the root and do not work from the cutover on.
+The lab was renamed after the cutover: its image is `go-microsip-asterisk` and its compose
+project `go-microsip-lab` (they were `rust-microsip-asterisk` and `rust-microsip-lab`, the names
+the records and the probes under this folder still use). The sub-commands of
+`docker/asterisk/lab.sh` and `docker/asterisk/suite.sh` that ran the Rust runners are kept; they
+need this folder's `Dockerfile` at the root and do not work from the cutover on.

@@ -16,7 +16,7 @@ LAB_GID="$(id -g)"
 export LAB_UID LAB_GID
 if [ "$LAB_UID" -eq 0 ]; then echo "ERROR: run the lab as a non-root user." >&2; exit 1; fi
 test ! -L artifacts
-image=rust-microsip-asterisk:22.11.0-lab.1
+image=go-microsip-asterisk:22.11.0-lab.1
 
 run="$(pwd)/artifacts/go-g0/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p artifacts/go-g0

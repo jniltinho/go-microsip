@@ -14,8 +14,8 @@
 # the RTP range apart so that it is counted, and everything else dropped, the containers' way out
 # included. It is not kept across a restart of this VM, and neither is the PBX.
 set -eu
-image=rust-microsip-asterisk:22.11.0-lab.1
-pbx() { docker exec rust-microsip-lab-pbx-1 asterisk -C /run/asterisk/config/asterisk.conf -rx "$1"; }
+image=go-microsip-asterisk:22.11.0-lab.1
+pbx() { docker exec go-microsip-lab-pbx-1 asterisk -C /run/asterisk/config/asterisk.conf -rx "$1"; }
 # unfence takes the fence named LAB-FENCE away: the jump to it, then the chain.
 unfence() {
 	while sudo iptables -C DOCKER-USER -j LAB-FENCE 2>/dev/null; do sudo iptables -D DOCKER-USER -j LAB-FENCE; done
