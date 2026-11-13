@@ -216,9 +216,18 @@ func TestRefusedCredentialsAreNotTriedAgain(t *testing.T) {
 		port := c.serve(t)
 		var log bytes.Buffer
 		e := Start(Options{Audio: &memory.Audio{}, Log: slog.New(slog.NewTextHandler(&log, &slog.HandlerOptions{Level: slog.LevelDebug}))})
+		t.Cleanup(func() {
+			if t.Failed() {
+				t.Logf("%d: the engine's diagnostics:\n%s", status, log.String())
+			}
+		})
 		e.Send(challenged(port, wrong))
-		registration(t, e, 3*time.Second) // registering
-		got := registration(t, e, registerTimeout)
+		// The refusal can come within a millisecond, and a reader that is slower than that gets
+		// the newest state alone: "registering" is not always seen.
+		got := registration(t, e, 3*time.Second)
+		if got.Status == domain.Registering {
+			got = registration(t, e, registerTimeout)
+		}
 		if got.Status != domain.RegistrationFailed || got.Failure != domain.Unauthorized {
 			t.Fatalf("%d: registration %v, want failed as unauthorized", status, got)
 		}

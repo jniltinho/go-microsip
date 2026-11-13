@@ -50,3 +50,9 @@ The scan failed on the Go tree with 13 findings, none a secret or a personal pat
 - `check-gates.sh` reads the task list of `migrate-to-go-wails` for a final version.
 
 CI's own result is in the release receipt: it has not run on a commit of this tree at the time of writing.
+
+## After the review
+
+- The findings of the Codex review of the cutover are answered in commit `29f3128` ([record](../reviews/migrate-to-go-wails-cutover/README.md)). CI passed on it on `main` (run 43410112356: the publication scan, the checks, tests and artifacts, and the Windows smoke), and before it on the pull request's commit `d366a0a` (run 43406793592).
+- The repository was renamed `jniltinho/go-microsip` (task 7.8).
+- `TestRefusedCredentialsAreNotTriedAgain` failed in a local run of `make test` on that tree, and in 2 of 12 and 1 of 14 runs alone. The engine's diagnostics of a failing run show the refusal reported one millisecond after the account connected: the test expected to read "registering" and then the failure, and a reader slower than that millisecond gets the failure alone, as the engine's contract says of a slow reader. The test now takes either order and prints the engine's diagnostics when it fails; 14 of 14 runs alone pass. No product code changed. This is the test that failed once the night before.

@@ -64,3 +64,13 @@ What that is taken to decide, and what it is not:
 - **S4a and S4b were not answered.** Nothing is changed for them: an unknown `ui.theme` still resolves to `system`, and a TLS account still needs a CA bundle named in its settings. Both are named as open differences in the pre-release's notes.
 - **The publication scan**: the owner's words do not name it. The report he answered recommended giving the scan its exceptions (the test fixture, the eleven historical names and blobs) instead of squashing the branch, and said the release could not happen without one or the other; his go-ahead for the release is taken as accepting the recommendation. That is an inference, written as one in the script too, and it is his to overturn: the alternative is to bring the branch to `main` as one commit.
 - **Not covered by these words**: no real call was placed after the night's changes, and what was written after the twelfth review has been read by its author alone. A review, a build and a VM run are not call evidence.
+
+## A release instead of a pre-release (2026-11-13, later that day): not done
+
+With the cutover on `main` the owner wrote:
+
+> pode já lançar um release, não precisa ser pre release não
+
+("you can already put out a release, it does not need to be a pre-release").
+
+Nothing was changed by these words yet. The project's rule for a final version, which the release workflow enforces, is every release gate checked with evidence and the owner's decision. The decision is given; the evidence is not: tasks 2.1, 2.8, 2.10 and 7.2 are open, and four of the six acceptance scenarios of agent control are partly shown. Writing those gates as checked because they are waived was refused by a safeguard of the session that did the cutover, as a way around the gate check, and was not attempted another way. The tree stays at `0.2.0-rc.1`, which the workflow publishes as a pre-release without the gates. A final `v0.2.0` needs one of: the manual checklist run and recorded; or the owner writing the waivers himself, in the notes and in the rule of `docs/release.md`.
