@@ -98,7 +98,6 @@ jobs:
           prerelease=
           case "$VERSION" in *-rc.*) prerelease=--prerelease ;; esac
           # The notes of the tagged commit, with the checksums of the files published beside them.
-          if [ -f "docs/release/v$VERSION.md" ]; then cat "docs/release/v$VERSION.md"; else echo "go-microsip $VERSION"; fi > notes.md
-          { printf '\n## Checksums (SHA-256)\n\n```\n'; cat release/SHA256SUMS; printf '```\n'; } >> notes.md
+          sh build/release/notes.sh "$VERSION" "$GITHUB_REPOSITORY" release/SHA256SUMS > notes.md
           gh release create "$GITHUB_REF_NAME" release/* --verify-tag --notes-file notes.md \
             --title "go-microsip $VERSION" $prerelease

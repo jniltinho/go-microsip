@@ -37,7 +37,8 @@ runs the publication scan over the files (the AppImage and the zip unpacked) and
   names every other file
 
 The release's notes are `docs/release/vX.Y.Z.md` of the tagged commit followed by the checksums of
-the published files. The Windows files are unsigned: say so in the notes, with the SmartScreen
+the published files (`build/release/notes.sh`, which makes the links to files of the repository
+absolute at the tag: a release page cannot resolve relative ones; CI runs it on every commit). The Windows files are unsigned: say so in the notes, with the SmartScreen
 prompt and the `Get-FileHash` check.
 
 ## Steps

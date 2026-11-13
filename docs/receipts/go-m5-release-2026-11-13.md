@@ -67,4 +67,4 @@ The owner approved the `release` environment on GitHub and the release workflow 
 
 Checked after it (task 7.10): the eight assets were downloaded with `gh release download`; `sha256sum --check --strict SHA256SUMS` passes; the published `SHA256SUMS` is the file recorded above, byte for byte, and each of the seven other assets has the checksum recorded above. The downloaded Linux executable's `version` prints `go-microsip 0.2.0-rc.1` and the commit `f342d2ca6853`. The release's notes end with the same seven lines.
 
-One flaw of the page: the notes' links to other documents are relative to `docs/release/` and do not resolve on the release page; the link to this receipt is absolute and does.
+One flaw of the page: the notes' links to other documents are relative to `docs/release/` and do not resolve on the release page; the link to this receipt is absolute and does. Corrected later that day: `build/release/notes.sh` makes those links absolute at the tag, the release workflow and CI use it, and the published notes were replaced by its output for the tag's own file (`gh release edit`); the six links are the only difference, and the assets were not touched.

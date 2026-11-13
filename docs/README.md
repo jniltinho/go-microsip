@@ -358,7 +358,7 @@ when its criteria have evidence. What is open for a final `v0.2.0`:
 
 | Area | Open | Where |
 | --- | --- | --- |
-| Real machines | The manual checklist: sound cards and headsets, five-minute calls per codec, KDE, a real Windows machine, a home router | task 7.2 |
+| Real machines | The manual checklist: sound cards and headsets, five-minute calls per codec, KDE, a real Windows machine, a home router | task 7.2, [the sheet to fill in](release/manual-checklist.md) |
 | Parity | 83 of the 140 behaviors compared with rust-microsip are partly shown or not shown | [matrix](migration/parity-matrix.md), [sign-off](migration/parity-signoff.md) |
 | Decisions | The system's certificates for TLS, and an unknown skin in the configuration | [sign-off](migration/parity-signoff.md), S4a and S4b |
 | First milestone | Three measurements never completed as written | tasks 2.1, 2.8, 2.10 |
