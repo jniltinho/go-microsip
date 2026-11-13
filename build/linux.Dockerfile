@@ -1,4 +1,4 @@
-# The one build image of go-microsip: every `make go-*` target runs in it, so the host needs only
+# The one build image of go-microsip: every `make` target runs in it, so the host needs only
 # Docker and make. Debian 13 is the older of the two supported hosts (Debian 13, Ubuntu 26.04+), so a
 # binary linked here against its glibc, GTK 4 and WebKitGTK 6.0 runs on both.
 # The build context is this folder alone: nothing of the checkout is sent to the daemon.
@@ -28,9 +28,8 @@ RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /us
 ARG NODE_VERSION=24.11.1
 RUN curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz \
       | tar -C /usr/local --strip-components=1 -xJ
-# No FUSE in containers: appimagetool runs extracted. Module mode is forced because the frozen Rust
-# workspace keeps a vendor/ folder at the repository root, which would switch Go to vendor mode.
-ENV PATH=/usr/local/go/bin:$PATH APPIMAGE_EXTRACT_AND_RUN=1 GOFLAGS=-mod=readonly
+# No FUSE in containers: appimagetool runs extracted.
+ENV PATH=/usr/local/go/bin:$PATH APPIMAGE_EXTRACT_AND_RUN=1
 # The keyring adapter's tests need a Secret Service to talk to: GNOME Keyring, started unlocked on
 # a private session bus (build/qa/keyring.sh). A layer of its own, so the ones above are reused.
 RUN apt-get update && apt-get install -y --no-install-recommends gnome-keyring \

@@ -6,8 +6,6 @@
 #
 # The checkout is mounted at /src. base/ and artifacts/ are local-only and are hidden from the
 # container. Go's build and module caches persist in ~/.cache/go-microsip-build between runs.
-# Module mode is forced (-mod=readonly) because the frozen Rust workspace keeps a vendor/ folder at
-# the repository root, which would otherwise switch Go to vendor mode.
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -25,6 +23,6 @@ done
 # shellcheck disable=SC2086 # hide and GO_DOCKER_FLAGS are word lists
 exec docker run --rm ${GO_DOCKER_FLAGS:-} --user "$(id -u):$(id -g)" -e HOME=/tmp \
 	-e GOCACHE=/cache/go-build -e GOMODCACHE=/cache/gomod \
-	-e GOFLAGS="${GOFLAGS:--mod=readonly -buildvcs=false}" \
+	-e GOFLAGS="${GOFLAGS:--buildvcs=false}" \
 	-e npm_config_cache=/cache/npm \
 	-v "$root:/src" -v "$cache:/cache" $hide -w /src "$image" "$@"

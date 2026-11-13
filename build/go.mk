@@ -1,4 +1,5 @@
-# Go application targets (openspec/changes/migrate-to-go-wails), included by the top-level Makefile.
+# The application's targets, included by the top-level Makefile, which names the common ones without
+# the go- prefix (make check, test, build, dist, lab).
 # Every recipe runs in the build image through scripts/go-docker.sh: the host needs only Docker and
 # make. The image's build context is build/ alone. Go packages are named explicitly so nothing under
 # base/, vendor/, third_party/ or archive/ is ever compiled as part of this project.
