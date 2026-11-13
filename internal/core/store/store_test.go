@@ -801,9 +801,9 @@ func TestConfigKeysMirrorTheConfigurationSchema(t *testing.T) {
 // are escaped.
 func TestTheDatabaseAddressKeepsADriveInThePath(t *testing.T) {
 	for path, want := range map[string]string{
-		"/home/u/.local/share/go-microsip/go-microsip.sqlite3":          "file:///home/u/.local/share/go-microsip/go-microsip.sqlite3",
-		"C:/Users/lab/AppData/Local/go-microsip/go-microsip.sqlite3":    "file:///C:/Users/lab/AppData/Local/go-microsip/go-microsip.sqlite3",
-		"C:/Users/a b/AppData/Local/go-microsip/go-microsip#1?.sqlite3": "file:///C:/Users/a%20b/AppData/Local/go-microsip/go-microsip%231%3F.sqlite3",
+		"/home/user/.local/share/go-microsip/go-microsip.sqlite3":         "file:///home/user/.local/share/go-microsip/go-microsip.sqlite3",
+		"C:/Users/user/AppData/Local/go-microsip/go-microsip.sqlite3":     "file:///C:/Users/user/AppData/Local/go-microsip/go-microsip.sqlite3",
+		"C:/Users/user/App Data/Local/go-microsip/go-microsip#1?.sqlite3": "file:///C:/Users/user/App%20Data/Local/go-microsip/go-microsip%231%3F.sqlite3",
 	} {
 		if got := slashURI(path); got != want {
 			t.Errorf("%s: %s, want %s", path, got, want)

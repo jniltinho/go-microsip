@@ -329,7 +329,7 @@ func Open(path string) (*Store, error) {
 }
 
 // fileURI is the SQLite URI of a database file. The path is made absolute, and a Windows path
-// ("C:/Users/...") gets the leading slash that keeps its drive from being read as a host.
+// ("C:/Users/user/...") gets the leading slash that keeps its drive from being read as a host.
 func fileURI(path string) string {
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
