@@ -105,8 +105,8 @@
       "ok": true,
       "data": {
         "codec": "pcmu",
-        "frames": 131,
-        "heard": 0.9997953978185227,
+        "frames": 130,
+        "heard": 0.9997953978185251,
         "proto": "RTP/AVP"
       }
     },
@@ -147,8 +147,8 @@
       "name": "pair/1001-1002/pcmu",
       "ok": true,
       "data": {
-        "callee_frames": 131,
-        "callee_heard": 0.9997953978185227,
+        "callee_frames": 130,
+        "callee_heard": 0.9997953978185251,
         "callee_proto": "RTP/AVP",
         "caller_frames": 130,
         "caller_heard": 0.9997953978185184,
@@ -327,7 +327,7 @@
       "name": "reregister/1101",
       "ok": true,
       "data": {
-        "heard": 0.9902464636505174
+        "heard": 0.9904907019759328
       }
     },
     {
@@ -367,7 +367,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 100,
+        "frames": 99,
         "heard": 1,
         "secure": false
       }
@@ -377,7 +377,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 101,
         "heard": 1,
         "secure": false
       }
@@ -387,7 +387,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 101,
+        "frames": 100,
         "heard": 1,
         "secure": false
       }
@@ -397,7 +397,7 @@
       "ok": true,
       "data": {
         "codec": "PCMU",
-        "frames": 100,
+        "frames": 99,
         "heard": 1,
         "secure": false
       }
@@ -407,7 +407,7 @@
       "ok": true,
       "data": {
         "codec": "PCMA",
-        "frames": 101,
+        "frames": 99,
         "heard": 1,
         "secure": false
       }
@@ -446,7 +446,7 @@
       "name": "engine/pair/1001-1002",
       "ok": true,
       "data": {
-        "answered_ms": 2403,
+        "answered_ms": 2402,
         "callee_heard": 1,
         "callee_secure": false,
         "caller_heard": 1,
@@ -472,7 +472,7 @@
           1,
           1
         ],
-        "other_side_frames": 76,
+        "other_side_frames": 75,
         "other_side_heard": [
           0,
           1
@@ -491,7 +491,7 @@
       "name": "engine/pair/1201-1202",
       "ok": true,
       "data": {
-        "answered_ms": 2404,
+        "answered_ms": 2406,
         "callee_heard": 1,
         "callee_secure": true,
         "caller_heard": 1,
@@ -517,7 +517,7 @@
           1,
           1
         ],
-        "other_side_frames": 74,
+        "other_side_frames": 75,
         "other_side_heard": [
           0,
           1
@@ -599,7 +599,7 @@
       "name": "engine/microphone-lost",
       "ok": true,
       "data": {
-        "frames_after": 76,
+        "frames_after": 75,
         "heard_after": 0,
         "heard_before": 1,
         "streams": 1
@@ -677,7 +677,7 @@
       "data": {
         "hangup +0 ms from the answer": "caller ended: canceled, callee ended: normal",
         "hangup +10 ms from the answer": "caller ended: normal, callee ended: normal",
-        "hangup +3 ms from the answer": "caller ended: canceled, callee ended: normal",
+        "hangup +3 ms from the answer": "caller ended: normal, callee ended: normal",
         "hangup +30 ms from the answer": "caller ended: normal, callee ended: normal",
         "hangup -10 ms from the answer": "caller ended: canceled, callee ended: canceled",
         "hangup -3 ms from the answer": "caller ended: canceled, callee ended: canceled",
@@ -725,9 +725,9 @@
       "data": {
         "callee_heard": 1,
         "caller_heard": 1,
-        "ring_high": 0.32051282051282054,
-        "ring_low": 0.32051282051282054,
-        "ringback": 0.6493506493506493
+        "ring_high": 0.3246753246753247,
+        "ring_low": 0.3246753246753247,
+        "ringback": 0.6410256410256411
       }
     },
     {
@@ -759,18 +759,18 @@
       "name": "app/run-call/1001",
       "ok": true,
       "data": {
-        "duration_ms": 3001,
+        "duration_ms": 3000,
         "events": 8,
-        "frames": 149,
+        "frames": 148,
         "heard": 1,
-        "took_ms": 3026
+        "took_ms": 3027
       }
     },
     {
       "name": "app/run-call/1201",
       "ok": true,
       "data": {
-        "duration_ms": 3001,
+        "duration_ms": 3002,
         "events": 8,
         "frames": 149,
         "heard": 1,

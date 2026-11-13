@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jniltinho/go-microsip/internal/core/domain"
 
@@ -64,6 +66,41 @@ func TestFromRegistrar(t *testing.T) {
 		if got := e.fromRegistrar(source); got != want {
 			t.Errorf("fromRegistrar(%q) = %v, want %v", source, got, want)
 		}
+	}
+}
+
+// The library resolves the registrar's name for each request, and the name may answer it with an
+// address it did not have when the endpoint was made. What comes from there is refused, the name
+// is asked again beside the reading, once, and the address is accepted when the name has it; an
+// address the name never has is not.
+func TestTheRegistrarsNameIsAskedAgain(t *testing.T) {
+	var asked atomic.Int32
+	e := &Endpoint{Account: Account{Settings: domain.AccountSettings{Server: "pbx.invalid", Port: 5060}}, peers: []net.IP{net.ParseIP("192.0.2.10")},
+		lookup: func(host string) ([]net.IP, error) {
+			if host != "pbx.invalid" {
+				t.Errorf("asked for %s", host)
+			}
+			asked.Add(1)
+			return []net.IP{net.ParseIP("192.0.2.11")}, nil
+		}}
+	if e.fromRegistrar("192.0.2.11:5060") {
+		t.Fatal("an address the name did not have yet was accepted")
+	}
+	accepted := false
+	for range 100 {
+		if accepted = e.fromRegistrar("192.0.2.11:5060"); accepted {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !accepted {
+		t.Fatal("the address the name has now is still refused")
+	}
+	if e.fromRegistrar("192.0.2.12:5060") || !e.fromRegistrar("192.0.2.10:5060") {
+		t.Error("another address accepted, or the first one lost")
+	}
+	if n := asked.Load(); n != 1 {
+		t.Errorf("the name was asked %d times within a second, want once", n)
 	}
 }
 
@@ -136,15 +173,6 @@ func TestTheEndpointBindsWhereTheRegistrarIsReachedFrom(t *testing.T) {
 	} {
 		if got := localFor(c.peers, route); got != c.want {
 			t.Errorf("%s: bound to %s, want %s", c.name, got, c.want)
-		}
-	}
-	// Requests go to one of the addresses resolved once: an IPv4 one when there is one.
-	for want, peers := range map[string][]net.IP{
-		"198.51.100.10:5060": {ip("2001:db8::1"), ip("198.51.100.10"), ip("198.51.100.11")},
-		"[2001:db8::1]:5060": {ip("2001:db8::1"), ip("2001:db8::2")},
-	} {
-		if got := destFor(peers, 5060); got != want {
-			t.Errorf("requests for %v go to %s, want %s", peers, got, want)
 		}
 	}
 	// The kernel's own answer for the loopback is the loopback, which is not bound.
