@@ -1,0 +1,6 @@
+e7af8854267a6e80cd25d0e3d5b0868462fb3263d1d3d08606fbe27e9ccd108d  go-microsip-0.3.0-m3-linux-amd64
+10fbcceb21c651f11a51414c295a818c1d73dc161e5c4f9db90e1e6b96dc3a93  go-microsip-0.3.0-m3-x86_64.AppImage
+80c3d76fdefbcac86b4ce8597c495eb2d488f6c544197c64bba363a8b3525439  go-microsip-0.3.0-m3-windows-amd64.exe
+e637451acf1f797e5733c317277338775e3b8c566d01d9535e7d225e114c595c  go-microsip-0.3.0-m3-windows-amd64.zip
+e3fc7c29dff51b72a0ebaf2660c72796dec32db4793123fe0e50beb23b14ba19  THIRD_PARTY_NOTICES.txt
+8443f064442f66d002e56b5f6625f78ede36b4c4b99abe5ec66b5f54c99fd276  sbom.cdx.json

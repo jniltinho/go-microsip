@@ -1,0 +1,42 @@
+# Opt-in Go G0 spike (openspec/changes/migrate-to-go-wails, tasks 2.3-2.7): the g0lab runner
+# against a fresh PBX on the internal network. Driven by docker/asterisk/go-g0.sh, which generates
+# new fictional fixtures for every run and exports the three absolute paths used here.
+# The Python registration peer is disabled: the runner registers the fictional accounts itself.
+services:
+  pbx:
+    volumes: !override
+      - type: bind
+        source: ${GO_G0_LAB:?run docker/asterisk/go-g0.sh}/pbx
+        target: /lab
+        read_only: true
+        bind:
+          create_host_path: false
+    networks: !override
+      isolated:
+        # A second name the PBX certificate does not carry: the wrong-host TLS probe dials it.
+        aliases: [pbx-alias]
+  peer:
+    profiles: [registration-fixture-only]
+  test-runner:
+    entrypoint: ["/spike/g0lab"]
+    command: !override ["-lab", "/lab", "-server", "pbx", "-out", "/out/report.json"]
+    volumes: !override
+      - type: bind
+        source: ${GO_G0_LAB:?run docker/asterisk/go-g0.sh}/clients
+        target: /lab
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${GO_G0_SPIKE:?run docker/asterisk/go-g0.sh}
+        target: /spike
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${GO_G0_OUT:?run docker/asterisk/go-g0.sh}
+        target: /out
+        bind:
+          create_host_path: false
+    depends_on: !override
+      pbx: {condition: service_healthy}

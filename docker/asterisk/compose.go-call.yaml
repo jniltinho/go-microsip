@@ -1,0 +1,53 @@
+# Opt-in lab call through the softphone's binary with real sound (openspec/changes/
+# migrate-to-go-wails, task 3.8). Driven by docker/asterisk/go-call.sh, which generates new
+# fictional fixtures for every run and exports the paths used here. The runner is the Go build
+# image, because it carries PipeWire; it gets the binaries read-only and the same isolated network.
+services:
+  pbx:
+    volumes: !override
+      - type: bind
+        source: ${GO_CALL_LAB:?run docker/asterisk/go-call.sh}/pbx
+        target: /lab
+        read_only: true
+        bind:
+          create_host_path: false
+  peer:
+    profiles: [registration-fixture-only]
+  test-runner:
+    image: ${GO_CALL_IMAGE:?run docker/asterisk/go-call.sh}
+    build: !reset null
+    entrypoint: ["/spike/audio-call.sh", "/spike/audiocall.test"]
+    command: !override []
+    working_dir: /tmp
+    pids_limit: 512
+    mem_limit: 1g
+    tmpfs: !override
+      - /tmp:rw,nosuid,nodev,mode=1777,size=256m
+    environment:
+      GO_MICROSIP_CALL_BIN: /spike/go-microsip
+      GO_MICROSIP_LAB: /lab
+      GO_MICROSIP_PBX: pbx
+      GO_MICROSIP_AUDIO_SECONDS: ${GO_CALL_SECONDS:-10}
+    volumes: !override
+      - type: bind
+        source: ${GO_CALL_LAB:?run docker/asterisk/go-call.sh}/clients
+        target: /lab
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${GO_CALL_SPIKE:?run docker/asterisk/go-call.sh}
+        target: /spike
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${GO_CALL_ETC:?run docker/asterisk/go-call.sh}/passwd
+        target: /etc/passwd
+        read_only: true
+      - type: bind
+        source: ${GO_CALL_ETC:?run docker/asterisk/go-call.sh}/group
+        target: /etc/group
+        read_only: true
+    depends_on: !override
+      pbx: {condition: service_healthy}

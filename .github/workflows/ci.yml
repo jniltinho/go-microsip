@@ -1,7 +1,8 @@
-# Release-candidate gates (task 9.3). Everything Rust runs inside the pinned
-# Docker builder; the runner needs no Rust toolchain and no secrets.
-# Not covered here (see docs/release/v0.1.0-draft.md): coverage-guided
-# fuzzing, OpenSpec validation, PBX/VM/human audio acceptance.
+# Checks on main and on pull requests. Everything Go and Node runs inside the pinned build image
+# (build/linux.Dockerfile); the runner needs only Docker and make, and no secrets.
+# The artifacts this workflow builds from a commit on main are the ones release.yml publishes for
+# a tag on that commit: they are not built a second time.
+# Not covered here (see docs/release.md): the lab PBX, the desktop VMs and calls with real sound.
 name: CI
 
 on:
@@ -19,7 +20,7 @@ concurrency:
 
 jobs:
   publication:
-    name: Publication scan (DIST-07)
+    name: Publication scan
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -29,159 +30,98 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Scan tracked content
-        run: sh packaging/release/scan-publication.sh
+        run: sh build/release/scan-publication.sh
       - name: Scanner negative controls
-        run: sh packaging/release/ci-selftest.sh --no-docker
+        run: sh build/release/ci-selftest.sh
       - name: Release gate check controls
-        run: sh packaging/release/check-gates-selftest.sh
-
-  supply-chain:
-    name: RustSec advisories and sources (cargo-deny)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
-        with:
-          command: check
-          arguments: --locked
-          command-arguments: advisories sources
+        run: sh build/release/check-gates-selftest.sh
 
   build:
-    name: Docker verify, artifacts and context audit
+    name: Checks, tests and artifacts (Docker)
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # Full history: the publication scan checks every reachable blob.
           fetch-depth: 0
           persist-credentials: false
-      # fmt, clippy -D warnings (missing_docs denied workspace-wide), unit and
-      # integration tests including the layering rule and bounded deterministic
-      # fuzzing of the dial-string, link, CSV, .env, argument, SDP, RTP and DTMF
-      # parsers, doctests, rustdoc.
-      - name: Verify target
-        run: docker buildx build --progress plain --platform linux/amd64 --target verify .
-      - name: Artifacts target
-        run: docker buildx build --progress plain --platform linux/amd64 --target artifacts --output type=local,dest=dist .
-      - name: Checksums
-        run: cd dist && sha256sum --check --strict SHA256SUMS
-      - name: AppImage against ELF (no FUSE)
-        run: sh packaging/appimage/verify.sh dist/rust-microsip-*-x86_64.AppImage dist/rust-microsip
+      - name: Build image
+        run: make image
+      # gofmt, and go vet for the CGO-free, cgo, no-window and Windows builds.
+      - name: Static checks
+        run: make check
+      # Includes the layering rules (internal/archtest).
+      - name: Unit tests with the race detector
+        run: make test
+      - name: Frontend checks and tests
+        run: make go-frontend-test
+      - name: Artifacts
+        run: make dist
+      - name: Checksums and manifest
+        run: |
+          cd dist/go
+          sha256sum --check --strict SHA256SUMS
+          jq -e --arg c "$(git rev-parse --short=12 HEAD)" '.commit == $c and .dirty == false' build-manifest.json
+      # WebKit's own sandbox (bubblewrap) needs user namespaces, which the runner's AppArmor denies
+      # to unprivileged processes by default.
+      - name: Allow user namespaces for the window check
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Headless checks and the window's self-test on the built files
+        run: make go-smoke
       - name: Scan artifacts
         run: |
           command -v unsquashfs || { sudo apt-get update && sudo apt-get install -y --no-install-recommends squashfs-tools; }
-          sh packaging/release/scan-publication.sh dist
-      - name: Docker context allowlist and negative control
-        run: sh packaging/check-context.sh
-
-  windows-build:
-    name: Windows cross build (Docker)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Clippy, release exes and test executables for x86_64-pc-windows-gnu
-        run: docker buildx build --progress plain --platform linux/amd64 --target windows-artifacts --output type=local,dest=dist-windows .
+          mkdir publish
+          cp dist/go/go-microsip-*-linux-amd64 dist/go/go-microsip-*-x86_64.AppImage \
+            dist/go/go-microsip-*-windows-amd64.exe dist/go/go-microsip-*-windows-amd64.zip \
+            dist/go/THIRD_PARTY_NOTICES.txt dist/go/sbom.cdx.json dist/go/SHA256SUMS \
+            dist/go/build-manifest.json publish/
+          sh build/release/scan-publication.sh publish
+      # What release.yml publishes for a tag on this commit, and what the Windows job below runs.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: windows-binaries
-          path: dist-windows/
-          retention-days: 7
+          name: dist
+          path: publish/
+          if-no-files-found: error
+          retention-days: 30
 
-  # Runs the Docker-built binaries; the runner's own Rust is never used.
-  windows-test:
-    name: Windows tests (Docker-built binaries)
-    needs: windows-build
+  windows:
+    name: Windows smoke (the built .exe and .zip)
+    needs: build
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: windows-binaries
-          path: bin
+          name: dist
+          path: dist
       - name: Checksums
         shell: pwsh
         run: |
-          Set-Location bin
+          Set-Location dist
           foreach ($line in Get-Content SHA256SUMS) {
             $hash, $file = $line -split '\s+', 2
             $actual = (Get-FileHash -Algorithm SHA256 $file.TrimStart('*')).Hash.ToLower()
             if ($actual -ne $hash) { throw "checksum mismatch: $file" }
           }
-      - name: Test executables
+      - name: Version, doctor and the .zip's contents
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          $failed = 0
-          foreach ($exe in Get-ChildItem bin/tests -Filter *.exe) {
-            Write-Host "== $($exe.Name)"
-            & $exe.FullName --test-threads=1
-            if ($LASTEXITCODE -ne 0) { $failed++ }
-          }
-          if ($failed -ne 0) { throw "$failed test executable(s) failed" }
-      - name: CLI smoke
-        shell: pwsh
-        run: |
-          # Exit codes are checked below; do not abort on a non-zero native exit.
-          $PSNativeCommandUseErrorActionPreference = $false
-          $version = & bin/rust-microsip-cli.exe --version
-          if ($version -notmatch '^rust-microsip ') { throw "unexpected version: $version" }
-          & bin/rust-microsip-cli.exe status
-          if ($LASTEXITCODE -ne 4) { throw "status without an owner must exit 4, got $LASTEXITCODE" }
-          # The runner's wrapper would otherwise propagate that expected exit code.
+          $exe = (Get-ChildItem dist -Filter 'go-microsip-*-windows-amd64.exe').FullName
+          cmd /c "`"$exe`" version > version.txt 2>&1"
+          if ($LASTEXITCODE -ne 0) { throw "version exited $LASTEXITCODE" }
+          $version = (Get-Content version.txt) -join ' '
+          if ($version -notmatch '^go-microsip ') { throw "unexpected version: $version" }
+          Write-Host $version
+          cmd /c "`"$exe`" doctor --json > doctor.txt 2>&1"
+          if ($LASTEXITCODE -ne 0) { Get-Content doctor.txt; throw "doctor exited $LASTEXITCODE" }
+          Expand-Archive (Get-ChildItem dist -Filter 'go-microsip-*-windows-amd64.zip').FullName zip
+          $inside = @(Get-ChildItem zip -Recurse -File)
+          $names = ($inside | ForEach-Object Name | Sort-Object) -join ', '
+          if ($names -ne 'go-microsip.exe, LICENSE.txt, THIRD_PARTY_NOTICES.txt') { throw "the .zip holds: $names" }
+          $program = ($inside | Where-Object Name -eq 'go-microsip.exe').FullName
+          cmd /c "`"$program`" version > zipversion.txt 2>&1"
+          if (((Get-Content zipversion.txt) -join ' ') -ne $version) { throw 'the program in the .zip says another version' }
           exit 0
-      - name: Per-user MSI install, upgrade and uninstall
-        shell: pwsh
-        run: |
-          $dir = Join-Path $env:LOCALAPPDATA 'Programs\rust-microsip'
-          $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'rust-microsip.lnk'
-          $data = Join-Path $env:APPDATA 'rust-microsip'
-          # Windows Installer registers a product under the installing user's SID, or under
-          # S-1-5-18 when it is per-machine.
-          $userData = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData'
-          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-          function Msi([string] $arguments) {
-            $p = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
-            if ($p.ExitCode -ne 0) { throw "msiexec $arguments exited $($p.ExitCode)" }
-          }
-          function Entries([string] $owner) {
-            @(Get-ChildItem "$userData\$owner\Products" -ErrorAction SilentlyContinue |
-              ForEach-Object { Get-ItemProperty "$($_.PSPath)\InstallProperties" -ErrorAction SilentlyContinue } |
-              Where-Object DisplayName -eq 'rust-microsip')
-          }
-          # User data and stored credentials must survive upgrade and uninstall.
-          New-Item -ItemType Directory -Force $data | Out-Null
-          Set-Content (Join-Path $data 'keep.txt') 'fictional user data'
-          $credential = 'rust-microsip:ci-fictional'
-          cmdkey "/generic:$credential" /user:fictional /pass:fictional | Out-Null
-
-          $msi = (Get-ChildItem bin -Filter 'rust-microsip-*-x86_64.msi').FullName
-          Msi "/i `"$msi`" /qn /l*v `"$PWD\install.log`""
-          foreach ($f in 'rust-microsip.exe', 'rust-microsip-cli.exe', 'LICENSE.txt', 'NOTICE.txt') {
-            if (-not (Test-Path (Join-Path $dir $f))) { throw "not installed: $f" }
-          }
-          if (-not (Test-Path $lnk)) { throw 'no Start Menu shortcut' }
-          if ((Entries $sid).Count -ne 1 -or (Entries 'S-1-5-18').Count -ne 0) { throw 'not a single per-user registration' }
-          $version = & (Join-Path $dir 'rust-microsip-cli.exe') --version
-          if ($version -notmatch '^rust-microsip ') { throw "installed CLI: $version" }
-
-          $upgrade = (Get-ChildItem bin/upgrade-test -Filter '*.msi').FullName
-          Msi "/i `"$upgrade`" /qn /l*v `"$PWD\upgrade.log`""
-          $entries = Entries $sid
-          if ($entries.Count -ne 1 -or $entries[0].DisplayVersion -ne '99.0.0') { throw 'upgrade did not replace the old version' }
-
-          Msi "/x `"$upgrade`" /qn /l*v `"$PWD\uninstall.log`""
-          if ((Test-Path $dir) -or (Test-Path $lnk) -or (Entries $sid).Count -ne 0) { throw 'uninstall left files or registration' }
-          if (-not (Test-Path (Join-Path $data 'keep.txt'))) { throw 'uninstall removed user data' }
-          if (-not (cmdkey "/list:$credential" | Select-String -SimpleMatch $credential)) { throw 'uninstall removed credentials' }
-          cmdkey "/delete:$credential" | Out-Null
-      - name: MSI logs
-        if: failure()
-        shell: pwsh
-        run: Get-ChildItem *.log | ForEach-Object { Write-Host "== $($_.Name)"; Get-Content $_ -Tail 80 }

@@ -4,13 +4,18 @@ context: |
   Language: English
   All artifacts, tasks, code comments, and CLI messages must be written in English.
   Keep OpenSpec structural headings and SHALL/MUST keywords in English.
-  New project: native Rust desktop softphone for Linux first, named rust-microsip; compact MicroSIP UI, complementary GOnnect reference.
-  PhotoCraft is an architecture reference, not a telephony engine to copy.
-  UI uses Dialpad/Calls/Contacts tabs and light/dark/system themes; no full upstream parity.
-  Portable platform contracts, Linux adapter first; macOS/Windows later.
-  CLI and local stdio MCP are a linked change; Web/WASM full WebRTC calls are a later release.
-  Local TOML or explicit dotenv, SQLite embedded, secrets outside database.
-  Docker build and isolated Asterisk Docker tests; release requires actual two-way audio.
+  Project: go-microsip, a compact MicroSIP-like desktop softphone, being rewritten from Rust/egui to Go by the
+  active change migrate-to-go-wails. The Rust workspace is frozen until cutover, then archived under archive/rust/;
+  the Rust-era changes are superseded and are the behavior parity baseline.
+  Stack: Go, Wails v3 with an embedded Vue 3 + Vite + Tailwind frontend, one binary that is the window, the CLI
+  and the stdio MCP server; sipgo + diago for SIP, modernc.org/sqlite for storage.
+  internal/core is GUI-free and OS-neutral; OS adapters sit behind core interfaces; cgo only in the audio adapter.
+  UI uses Dialpad/Calls/Contacts tabs and skins (System, Light, Dark, Windows XP, macOS, Ubuntu, Windows 98) on one
+  token contract; square corners; no full upstream MicroSIP parity.
+  Targets: Linux x86_64 (Ubuntu 26.04+, Debian 13) and Windows amd64; macOS later on the same core.
+  Local TOML or explicit dotenv, SQLite embedded, secrets outside database, never passwords on the command line.
+  Docker-only builds and isolated Asterisk/FreePBX Docker tests; release requires actual two-way audio.
+  Independent review is done by Codex, read-only, with sanitized context; a review is not runtime evidence.
   base/ is local-only: never track, upload, package or include in build context.
   Planning artifacts are not evidence of implemented features; implementation requires explicit approval.
 

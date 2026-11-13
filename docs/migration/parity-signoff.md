@@ -1,0 +1,66 @@
+# The parity gate: what a sign-off would cover
+
+Prepared on 2026-11-13 for the owner, who decided the same day: see [The owner's decision](#the-owners-decision-2026-11-13) at the end. The text before it is the proposal as it was put to him. The gate (task 7.4) asks that every row of [the matrix](parity-matrix.md) be proven, or dropped or accepted as a difference with the owner's written approval, on one commit; the cutover that archives the Rust workspace (tasks 7.5 to 7.7), the repository's rename (7.8) and the pre-release (7.10) come after it.
+
+## Where the rows stand
+
+| Status | Rows |
+| --- | --- |
+| proven | 31 |
+| accepted difference (decisions of 2026-11-12) | 24 |
+| dropped (same decisions) | 2 |
+| partial | 70 |
+| nothing shown | 13 |
+
+The 83 rows of the last two lines are what a sign-off has to cover. [The receipt](../receipts/go-m5-parity-2026-11-12.md) ("Task 7.4, 2026-11-13") lists them by what each waits for.
+
+## Five groups, and a recommendation for each
+
+| # | Group | Rows | Choices | Recommendation |
+| --- | --- | --- | --- | --- |
+| S1 | Needs a real machine or a person: real sound cards and headsets, five minutes per codec, the toast's buttons and the tray, Focus Assist, sign-out during a call, suspend and resume, KDE, a real HiDPI desktop, Windows 10 | 26 | run task 7.2's checklist first; or accept them as "not verified on real hardware" for the pre-release only | **Accept for the pre-release `v0.2.0-rc.1` only**, each named in its limitations; they stay open and are required before a final version. The owner has used the softphone on his own desktop and PBX in the meantime, which is not a recorded check |
+| S2 | Needs steps the Windows VM does not have yet: a second user, `mcp` on Windows, where the files land, a link, a failing Credential Manager | 13 | add the steps before the cutover; or accept for the pre-release | **Add the steps before the cutover.** No decision is needed for the work; the cutover would wait for it |
+| S3 | Needs the CI and release work itself (tasks 7.5, 7.6, 7.10) | 10 | they cannot be shown before that work exists | **Accept as shown by the tasks that follow**: each of those tasks has its own verification, and the pre-release is not published without them |
+| S4 | Two differences with no decision | 2 | see below | see below |
+| S5 | More tests in the lab, no decision needed | 32 (24 that need only this, and 8 whose difference is already decided) | go on writing them; or accept the rows as partial for the pre-release | **Go on, and accept what is left as partial for the pre-release.** None of these clauses is known to fail; they are not shown |
+
+The two differences of S4:
+
+| # | Difference | Choices | Recommendation |
+| --- | --- | --- | --- |
+| S4a | An unknown `ui.theme` resolves to `system` instead of being an error (A63) | accept; or fail as the Rust text says | **Accept.** A setting that names a skin a later version removed should not stop the softphone from starting |
+| S4b | A TLS account registers only with a CA bundle named in its settings; the system's certificates are never used, where the Rust application uses them when no bundle is named (B6.13). Found on 2026-11-13; the README said otherwise until then | keep; or use the system's certificates when no bundle is named, and the named bundle alone when one is | **Use the system's certificates when no bundle is named.** It is what the Rust application does and what a PBX with a certificate from a public authority needs; a named bundle would still replace them, so an installation that wants only its own authority keeps that. It is a change to a rule the G0 and M1 work tested, and needs those tests changed with it |
+
+## What a sign-off in these terms would mean
+
+That the cutover goes ahead with 31 rows proven, 26 dropped or accepted, the Windows steps of S2 added, and the rest carried as stated limitations of a pre-release: mostly things nobody has checked on a real machine. It would not say that the softphone was verified on real hardware, and the final version would still need task 7.2.
+
+## Since this was written (the night of 2026-11-13)
+
+Nothing above is changed by it, and nothing is decided. What a sign-off would rest on moved in three ways:
+
+- **The review went on to round 12** ([the record](../reviews/migrate-to-go-wails-m5/README.md)). Rounds 7 to 11 each found the answers to the round before unsound; round 12 found the last answers sound, with two sentences of the documents to correct. What they changed in the softphone: for an account over UDP nothing is read that does not come from the PBX; an account saved again registers after the old registration is removed; and leaving removes the softphone's own registration, where it used to remove every phone's of the extension. The limits that stay are in the README ("Signaling from the PBX alone", "A server name with several addresses").
+- **The runs found one defect themselves**: the softphone closed a UDP account's socket before it had removed its registration. Fixed, and the whole battery passes on the last commit of code, `b2a6da2`, and on its artifacts the lab against FreePBX and the Debian VM; the Windows VM passes all but the sound threshold of its emulated card, and the Ubuntu VM failed two steps, one of them the Rust candidate's own ([receipt](../receipts/go-m5-parity-2026-11-12.md)).
+- **The cutover was rehearsed** in a clone ([receipt](../receipts/go-m5-cutover-rehearsal-2026-11-13.md)). It adds one decision to the ones above, which the cutover cannot do without: the publication scan that CI runs on `main` fails on the Go tree, for a fictional database of the tests and for old file names and fictional paths in the branch's history. Either the scan is given those exceptions by the owner, as it was once before, or the branch reaches `main` as one commit and only the database needs one.
+
+What is still unsettled, whatever is signed: the machine these runs were made on was under heavy load all night (a language server of the editor integration at twenty-two processors, which the session could not stop), and the walkthrough's sound measurement missed its threshold in some of the night's runs and passed when repeated (the receipt has each); no real call was placed after the night's changes; and everything after round 12's two corrections has been read by nobody but its author.
+
+## The owner's decision (2026-11-13)
+
+The owner read the report of the night, which listed what waited for him (the real call, this sign-off with S4a and S4b, the publication scan, then the cutover, the rename and the pre-release), and answered in these words:
+
+> Pode já subir um novo release, e antes fazer archive dos arquivos Rust, as outras coisas eu testo manual mesmo
+
+("You can already put up a new release, and before that archive the Rust files; the other things I test by hand myself"), and then:
+
+> Ajustar todo repo, mudar nome. Atualizar docs, readme e tudo que precisar. Deixar Golang na raiz do projeto
+
+("Adjust the whole repository, change the name. Update the docs, the readme and whatever needs it. Leave Go at the root of the project").
+
+What that is taken to decide, and what it is not:
+
+- **The gate is passed for the pre-release `v0.2.0-rc.1`.** The cutover (7.5 to 7.7), the rename (7.8) and the pre-release (7.10) go ahead with 31 rows proven and 26 dropped or accepted. The 83 rows that are partial or have nothing shown are not proven and not dropped: they are carried as limitations of the pre-release, which its notes name, and the owner tests them by hand. Task 7.2 stays open, and a final version still needs it.
+- **S1, S3 and S5** go as recommended. **S2**: the Windows VM gained the extracted zip, the data folder, the `sip:` link and its refusal, and `mcp` (matrix rows A22, A25, A35, A37, A43, A116); a second Windows user and a failing Credential Manager were not added and stay with the owner's manual checks.
+- **S4a and S4b were not answered.** Nothing is changed for them: an unknown `ui.theme` still resolves to `system`, and a TLS account still needs a CA bundle named in its settings. Both are named as open differences in the pre-release's notes.
+- **The publication scan**: the report recommended giving it the exceptions (the fixture by its path, the eleven historical names and blobs) instead of squashing the branch, and the owner answered it with the go-ahead. The exceptions are added with task 7.6 and say where they come from.
+- **Not covered by these words**: no real call was placed after the night's changes, and what was written after the twelfth review has been read by its author alone. A review, a build and a VM run are not call evidence.

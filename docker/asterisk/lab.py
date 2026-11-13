@@ -1,10 +1,12 @@
 """Infrastructure for a fictional, disposable Asterisk lab (never the app)."""
+import ipaddress
 import json
 import os
 from pathlib import Path
 import re
 import secrets
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -25,6 +27,11 @@ MODULES = (
     "codec_resample", "format_pcm", "app_echo", "app_playtones", "app_read",
     "app_dial", "app_stack", "app_senddtmf", "func_channel", "func_timeout",
     "func_callerid", "func_logic",
+    # "channel originate" on the console: the VM lab calls a softphone with it (build/vm/pbx.sh).
+    "res_clioriginate",
+    # The Reason header of a request that ends a call (RFC 3326): a phone that rang and was not
+    # the one that answered is told "Call completed elsewhere". FreePBX loads it by default.
+    "res_pjsip_rfc3326",
 )
 
 
@@ -114,11 +121,24 @@ def validate_accounts(accounts):
         raise ValueError("invalid fictional accounts")
 
 
-def pjsip_config(accounts, profile, verify_contact=False):
+def vm_address(text):
+    """The auxiliary lab VM's address on its isolated network: one private IPv4 address."""
+    try:
+        address = ipaddress.IPv4Address(text)
+    except (ipaddress.AddressValueError, TypeError) as error:
+        raise ValueError("invalid lab VM address") from error
+    if not address.is_private or address.is_loopback or address.is_unspecified or address.is_link_local:
+        raise ValueError("invalid lab VM address")
+    return str(address)
+
+
+def pjsip_config(accounts, profile, verify_contact=False, bind_ip=None, own_ip=None):
     """Render separate transport/security fixtures; never weaken secure endpoints."""
     validate_accounts(accounts)
-    if profile not in ("internal", "host"):
+    if profile not in ("internal", "host", "vm"):
         raise ValueError("unsupported lab profile")
+    if profile == "vm":
+        bind_ip, own_ip = vm_address(bind_ip), vm_address(own_ip)
     if not isinstance(verify_contact, bool) or (verify_contact and profile != "internal"):
         raise ValueError("Contact verification is internal-lab only")
     config = "[global]\ntype=global\nuser_agent=Disposable-Lab\nendpoint_identifier_order=username\n\n"
@@ -134,6 +154,15 @@ def pjsip_config(accounts, profile, verify_contact=False):
             external_port = 15061 if protocol == "tls" else 15060
             config += ("local_net=127.0.0.0/8\nexternal_media_address=127.0.0.1\n"
                        f"external_signaling_address=127.0.0.1\nexternal_signaling_port={external_port}\n")
+        if profile == "vm":
+            # The desktop VMs reach the PBX through ports published on the auxiliary VM's
+            # isolated address: that address is what signaling and media advertise. Asterisk
+            # rewrites signaling for a destination outside local_net, and the SDP only when the
+            # address it would put there is inside it: local_net is this container's own
+            # address and nothing else. (A call from a VM showed it: with a local_net that left
+            # the container out, as in the host profile, the SDP kept the container's address.)
+            config += (f"local_net={own_ip}/32\nexternal_media_address={bind_ip}\n"
+                       f"external_signaling_address={bind_ip}\n")
         config += "\n"
     for name in ACCOUNTS:
         protocol = "udp" if name.startswith("10") else "tcp" if name.startswith("11") else "tls"
@@ -163,10 +192,19 @@ def dialplan():
               " same => n,Wait(20)\n same => n,Hangup()\n"
               # Early media: an announcement in 183 Session Progress, never answered.
               "exten => 603,1,Progress()\n same => n,PlayTones(1000)\n"
-              " same => n,Wait(8)\n same => n,Hangup(1)\n")
+              " same => n,Wait(8)\n same => n,Hangup(1)\n"
+              # Two phones ring; the one that does not answer is told the call was taken elsewhere.
+              "exten => 604,1,Dial(PJSIP/1001&PJSIP/1002,20)\n same => n,Hangup()\n")
     for name in ACCOUNTS:
         config += f"exten => {name},1,Dial(PJSIP/{name},20)\n same => n,Hangup()\n"
     return config
+
+
+def own_address():
+    """The address this container sends from; nothing is sent to find it."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.connect((vm_address(os.environ.get("LAB_BIND_IP")), 9))
+        return probe.getsockname()[0]
 
 
 def configure_pbx():
@@ -175,6 +213,7 @@ def configure_pbx():
     verify_contact = os.environ.get("LAB_VERIFY_CONTACT", "0")
     if verify_contact not in ("0", "1"):
         raise ValueError("invalid Contact verification mode")
+    profile = os.environ.get("LAB_PROFILE", "internal")
     for directory in ("config", "db", "cache", "spool", "log", "data"):
         (RUNTIME / directory).mkdir(mode=0o700, exist_ok=True)
     directories = {
@@ -188,7 +227,8 @@ def configure_pbx():
         "asterisk.conf": "[directories]\n" + "".join(f"{key} => {value}\n" for key, value in directories.items())
         + "\n[options]\nverbose=0\ndebug=0\nnocolor=yes\nmaxcalls=8\n",
         "modules.conf": "[modules]\nautoload=no\n" + "".join(f"load={name}.so\n" for name in MODULES),
-        "pjsip.conf": pjsip_config(load_accounts(), os.environ.get("LAB_PROFILE", "internal"), verify_contact == "1"),
+        "pjsip.conf": pjsip_config(load_accounts(), profile, verify_contact == "1",
+                                   os.environ.get("LAB_BIND_IP"), own_address() if profile == "vm" else None),
         "extensions.conf": dialplan(),
         "rtp.conf": "[general]\nrtpstart=10000\nrtpend=10019\nicesupport=no\nstrictrtp=yes\n",
         "manager.conf": "[general]\nenabled=no\n",

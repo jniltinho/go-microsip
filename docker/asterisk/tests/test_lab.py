@@ -35,6 +35,22 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("external_signaling_port=15061", config)
         self.assertNotIn("local_net=172.", config)
 
+    def test_vm_advertises_only_the_isolated_address(self):
+        config = lab.pjsip_config(self.accounts, "vm", bind_ip="192.168.77.10", own_ip="172.20.0.2")
+        self.assertEqual(config.count("external_media_address=192.168.77.10"), 3)
+        self.assertEqual(config.count("external_signaling_address=192.168.77.10"), 3)
+        self.assertNotIn("external_signaling_port", config)
+        # The SDP is rewritten only for an address inside local_net: the container's own, alone.
+        self.assertEqual(config.count("local_net=172.20.0.2/32"), 3)
+        self.assertEqual(config.count("local_net="), 3)
+        for address in (None, "", "0.0.0.0", "127.0.0.1", "8.8.8.8", "169.254.1.1", "192.168.77.10\nbind=0.0.0.0", "pbx"):
+            with self.assertRaises(ValueError):
+                lab.pjsip_config(self.accounts, "vm", bind_ip=address, own_ip="172.20.0.2")
+            with self.assertRaises(ValueError):
+                lab.pjsip_config(self.accounts, "vm", bind_ip="192.168.77.10", own_ip=address)
+        with self.assertRaises(ValueError):
+            lab.pjsip_config(self.accounts, "vm", verify_contact=True, bind_ip="192.168.77.10", own_ip="172.20.0.2")
+
     def test_contact_proof_disables_rewriting_only_in_internal_fixture(self):
         config = lab.pjsip_config(self.accounts, "internal", verify_contact=True)
         self.assertEqual(config.count("rewrite_contact=no"), 8)
@@ -55,6 +71,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("exten => 601,1,Answer()", config)
         self.assertIn("exten => 602,1,Answer()", config)
         self.assertIn("exten => 603,1,Progress()", config)
+        self.assertIn("exten => 604,1,Dial(PJSIP/1001&PJSIP/1002,20)", config)
         self.assertNotIn("_X", config)
         self.assertNotIn("System(", config)
         self.assertNotIn("Record(", config)

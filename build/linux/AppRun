@@ -1,0 +1,4 @@
+#!/bin/sh
+# AppImage entry point: run the bundled go-microsip. GTK 4 and WebKitGTK 6.0 come from the system.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/go-microsip" "$@"

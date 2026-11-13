@@ -1,0 +1,3 @@
+# The build image needs nothing from this folder: no file is sent to the Docker daemon (the
+# Dockerfile itself always is). This keeps VM state and its keys out of the build context.
+*

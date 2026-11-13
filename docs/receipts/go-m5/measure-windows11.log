@@ -1,0 +1,10 @@
+measure: Microsoft Windows 11 Enterprise Evaluation 10.0.26200, 2 processors, 6125 MB
+measure: go-microsip: 28792832 bytes
+measure: go-microsip: first start: 935 ms to a window, 936 ms to the first drawn page
+measure: go-microsip: to a window: median 603 ms, least 546 ms, most 678 ms, 10 starts
+measure: go-microsip: to the first drawn page: median 603 ms, least 560 ms, most 668 ms, 10 starts
+measure: go-microsip: memory 20 s after the start: 321 MB working set and 156 MB private in 7 processes
+measure: rust-microsip: 19078656 bytes
+measure: rust-microsip: first start: 926 ms to a window
+measure: rust-microsip: to a window: median 44 ms, least 38 ms, most 47 ms, 10 starts
+measure: rust-microsip: memory 20 s after the start: 52 MB working set and 273 MB private in 1 processes

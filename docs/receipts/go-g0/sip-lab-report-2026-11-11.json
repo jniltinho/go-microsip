@@ -1,0 +1,367 @@
+{
+  "failed": 0,
+  "results": [
+    {
+      "name": "register/1001",
+      "ok": true,
+      "data": {
+        "transport": "udp"
+      }
+    },
+    {
+      "name": "register/1101",
+      "ok": true,
+      "data": {
+        "transport": "tcp"
+      }
+    },
+    {
+      "name": "register/1201",
+      "ok": true,
+      "data": {
+        "transport": "tls"
+      }
+    },
+    {
+      "name": "register/1301",
+      "ok": true,
+      "data": {
+        "transport": "tls"
+      }
+    },
+    {
+      "name": "tls/unknown-ca-refused",
+      "ok": true,
+      "data": {
+        "refusal": "certificate signed by unknown authority"
+      }
+    },
+    {
+      "name": "tls/wrong-host-refused",
+      "ok": true,
+      "data": {
+        "refusal": "certificate is valid for"
+      }
+    },
+    {
+      "name": "register/wrong-password-refused",
+      "ok": true,
+      "data": {
+        "refusal": "401"
+      }
+    },
+    {
+      "name": "echo/1001/pcma",
+      "ok": true,
+      "data": {
+        "codec": "pcma",
+        "frames": 130,
+        "heard": 0.9998282223432319,
+        "proto": "RTP/AVP"
+      }
+    },
+    {
+      "name": "echo/1001/pcmu",
+      "ok": true,
+      "data": {
+        "codec": "pcmu",
+        "frames": 130,
+        "heard": 0.9997953978185251,
+        "proto": "RTP/AVP"
+      }
+    },
+    {
+      "name": "echo/1101/pcma",
+      "ok": true,
+      "data": {
+        "codec": "pcma",
+        "frames": 130,
+        "heard": 0.9998282223432319,
+        "proto": "RTP/AVP"
+      }
+    },
+    {
+      "name": "echo/1101/pcmu",
+      "ok": true,
+      "data": {
+        "codec": "pcmu",
+        "frames": 130,
+        "heard": 0.9997953978185251,
+        "proto": "RTP/AVP"
+      }
+    },
+    {
+      "name": "echo/1301/pcma",
+      "ok": true,
+      "data": {
+        "codec": "pcma",
+        "frames": 130,
+        "heard": 0.9998282223432319,
+        "proto": "RTP/AVP"
+      }
+    },
+    {
+      "name": "echo/1301/pcmu",
+      "ok": true,
+      "data": {
+        "codec": "pcmu",
+        "frames": 130,
+        "heard": 0.9997953978185251,
+        "proto": "RTP/AVP"
+      }
+    },
+    {
+      "name": "echo/1201/pcma",
+      "ok": true,
+      "data": {
+        "codec": "pcma",
+        "frames": 130,
+        "heard": 0.9998282223432319,
+        "proto": "RTP/SAVP"
+      }
+    },
+    {
+      "name": "echo/1201/pcmu",
+      "ok": true,
+      "data": {
+        "codec": "pcmu",
+        "frames": 130,
+        "heard": 0.9997953978185251,
+        "proto": "RTP/SAVP"
+      }
+    },
+    {
+      "name": "pair/1001-1002/pcma",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9998282223432319,
+        "callee_proto": "RTP/AVP",
+        "caller_frames": 131,
+        "caller_heard": 0.9998282223432108,
+        "caller_proto": "RTP/AVP",
+        "codec": "pcma"
+      }
+    },
+    {
+      "name": "pair/1001-1002/pcmu",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9997953978185251,
+        "callee_proto": "RTP/AVP",
+        "caller_frames": 130,
+        "caller_heard": 0.9997953978185184,
+        "caller_proto": "RTP/AVP",
+        "codec": "pcmu"
+      }
+    },
+    {
+      "name": "pair/1101-1102/pcma",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9998282223432319,
+        "callee_proto": "RTP/AVP",
+        "caller_frames": 130,
+        "caller_heard": 0.999828222343211,
+        "caller_proto": "RTP/AVP",
+        "codec": "pcma"
+      }
+    },
+    {
+      "name": "pair/1101-1102/pcmu",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9997953978185251,
+        "callee_proto": "RTP/AVP",
+        "caller_frames": 130,
+        "caller_heard": 0.9997953978185184,
+        "caller_proto": "RTP/AVP",
+        "codec": "pcmu"
+      }
+    },
+    {
+      "name": "pair/1301-1302/pcma",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9998282223432319,
+        "callee_proto": "RTP/AVP",
+        "caller_frames": 131,
+        "caller_heard": 0.9998282223432108,
+        "caller_proto": "RTP/AVP",
+        "codec": "pcma"
+      }
+    },
+    {
+      "name": "pair/1301-1302/pcmu",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9997953978185251,
+        "callee_proto": "RTP/AVP",
+        "caller_frames": 130,
+        "caller_heard": 0.9997953978185184,
+        "caller_proto": "RTP/AVP",
+        "codec": "pcmu"
+      }
+    },
+    {
+      "name": "pair/1201-1202/pcma",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9998282223432319,
+        "callee_proto": "RTP/SAVP",
+        "caller_frames": 130,
+        "caller_heard": 0.999828222343211,
+        "caller_proto": "RTP/SAVP",
+        "codec": "pcma"
+      }
+    },
+    {
+      "name": "pair/1201-1202/pcmu",
+      "ok": true,
+      "data": {
+        "callee_frames": 130,
+        "callee_heard": 0.9997953978185251,
+        "callee_proto": "RTP/SAVP",
+        "caller_frames": 130,
+        "caller_heard": 0.9997953978185184,
+        "caller_proto": "RTP/SAVP",
+        "codec": "pcmu"
+      }
+    },
+    {
+      "name": "dtmf/1001",
+      "ok": true,
+      "data": {
+        "accepted_tone": 0.9814016662823665,
+        "digits": 3,
+        "frames": 105,
+        "proto": "RTP/AVP",
+        "rejected_tone": 1.4927477835332557e-9
+      }
+    },
+    {
+      "name": "dtmf/1201",
+      "ok": true,
+      "data": {
+        "accepted_tone": 0.9814016662823665,
+        "digits": 3,
+        "frames": 105,
+        "proto": "RTP/SAVP",
+        "rejected_tone": 1.4927477835332557e-9
+      }
+    },
+    {
+      "name": "dtmf/wrong-digits-control",
+      "ok": true,
+      "data": {
+        "accepted_tone": 4.966953958564994e-10,
+        "digits": 3,
+        "frames": 105,
+        "proto": "RTP/AVP",
+        "rejected_tone": 0.981459737218955
+      }
+    },
+    {
+      "name": "hold/1001-1002",
+      "ok": true,
+      "data": {
+        "held_heard": [
+          0.9998282223432094,
+          0,
+          0.9998282223432094
+        ],
+        "hold_mode": "sendonly",
+        "holder_heard": [
+          0.9998282223432128,
+          0,
+          0.9998282223432128
+        ],
+        "proto": "RTP/AVP",
+        "resume_mode": "sendrecv"
+      }
+    },
+    {
+      "name": "hold/1201-1202",
+      "ok": true,
+      "data": {
+        "held_heard": [
+          0.9998282223432094,
+          0,
+          0.9998282223432094
+        ],
+        "hold_mode": "sendonly",
+        "holder_heard": [
+          0.9998282223432128,
+          0,
+          0.9998282223432128
+        ],
+        "proto": "RTP/SAVP",
+        "resume_mode": "sendrecv"
+      }
+    },
+    {
+      "name": "transfer/1001-1002",
+      "ok": true,
+      "data": {
+        "callee_heard": 0.9716774162865841,
+        "notify": 200,
+        "proto": "RTP/AVP"
+      }
+    },
+    {
+      "name": "transfer/1201-1202",
+      "ok": true,
+      "data": {
+        "callee_heard": 0.9716774162865841,
+        "notify": 200,
+        "proto": "RTP/SAVP"
+      }
+    },
+    {
+      "name": "reregister/1101",
+      "ok": true,
+      "data": {
+        "heard": 0.9902464636505174
+      }
+    },
+    {
+      "name": "reregister/1201",
+      "ok": true,
+      "data": {
+        "heard": 0.9902464636505174
+      }
+    },
+    {
+      "name": "secure/plain-offer-refused-488",
+      "ok": true,
+      "data": {
+        "caller_saw": "Invite failed with response: SIP/2.0 488 Not Acceptable Here",
+        "refused_offers": 1
+      }
+    },
+    {
+      "name": "secure/tls-account-has-no-listener",
+      "ok": true,
+      "data": {
+        "sip_listeners": 0,
+        "udp_sockets": 0
+      }
+    },
+    {
+      "name": "peer/sip-foreign-source-dropped",
+      "ok": true,
+      "data": {
+        "control_delivered": true,
+        "delivered": false,
+        "refused_requests": 1
+      }
+    }
+  ],
+  "scenarios": 35
+}

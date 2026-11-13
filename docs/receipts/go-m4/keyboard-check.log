@@ -1,0 +1,58 @@
+PASS  the window opens on Home with the focus in the search
+PASS  Enter in the search calls the only contact the name matches
+PASS  Escape hangs up and leaves the number in the keypad
+PASS  Tab focuses a control and its focus ring is solid and at least 2 px
+PASS  Ctrl+L focuses the number entry
+PASS  Enter dials: the call is ringing
+PASS  the call is connected, shown with a label
+PASS  a digit during the call is DTMF, not typed
+PASS  Escape hangs up
+PASS  Tab moves from the number, past its clear button, to the keypad
+PASS  Space presses the focused key
+PASS  arrow keys move through the destinations, around the end, to Calls
+PASS  arrow keys move in the history list
+PASS  Enter opens a row and Tab reaches its actions
+PASS  the row's Edit puts the number in the dialpad without dialing
+PASS  Tab reaches the history search
+PASS  typing in it narrows the history
+PASS  an arrow key moves to Contacts
+PASS  Tab reaches a contact's favorite mark
+PASS  Space marks or unmarks the favorite
+PASS  arrow keys move in the contact list
+PASS  Enter opens a contact and Tab reaches its Call
+PASS  Tab reaches the contact search
+PASS  typing in it narrows the contacts
+PASS  Tab reaches Add
+PASS  Add opens the editor with the focus in the name
+PASS  Enter saves the contact and leaves the editor
+PASS  Enter opens the menu on its first item
+PASS  arrow keys move in the menu
+PASS  Escape closes the menu and returns the focus
+PASS  the menu opens Settings
+PASS  Space ticks a permission of a grant
+PASS  Tab reaches Create grant file
+PASS  Enter makes the grant: its file is named and it is listed
+PASS  Tab reaches Revoke
+PASS  Enter revokes a grant
+PASS  choosing a skin applies at once
+PASS  Escape leaves Settings
+PASS  the skin is remembered after a reload
+PASS  a skin change during a call keeps the call
+PASS  the call is still shown
+PASS  System follows the desktop to dark without a reload
+PASS  and back to light
+PASS  an incoming call opens with the focus on Answer
+PASS  Tab stays inside the dialog
+PASS  Escape rejects the call
+PASS  a hostile caller name is literal text
+PASS  Enter answers
+PASS  an agent request opens with the focus on Deny and Allow disarmed
+PASS  Allow arms after a second
+PASS  Escape denies: no call is placed
+PASS  a muted call shows an icon and a label
+PASS  a held call shows an icon and a label
+PASS  without an engine the window says so and offers no call control
+PASS  the Matrix backdrop moves once and for under five seconds
+PASS  with reduced motion nothing moves
+PASS  and it moves again without it
+keyboard-check: all passed

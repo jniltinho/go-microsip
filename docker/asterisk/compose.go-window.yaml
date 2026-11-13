@@ -1,0 +1,25 @@
+# The lab call placed from the window (openspec/changes/migrate-to-go-wails, task 4.4), on top of
+# compose.go-call.yaml: the runner also gets a display, and WebKit's own sandbox needs what the
+# window checks of `make go-self-test` need (user namespaces and an unmasked /proc).
+services:
+  test-runner:
+    entrypoint: ["/spike/window-call.sh", "/spike/audiocall.test"]
+    security_opt: !override
+      - no-new-privileges:true
+      - seccomp=unconfined
+      - apparmor=unconfined
+      - systempaths=unconfined
+    environment:
+      GO_MICROSIP_CALL_BIN: ${GO_CALL_BIN:-/spike/go-microsip}
+      GO_MICROSIP_PRINTS: /out
+    volumes:
+      - type: bind
+        source: ${GO_CALL_OUT:?run docker/asterisk/go-call.sh}
+        target: /out
+        bind:
+          create_host_path: false
+    pids_limit: 1024
+    mem_limit: 2g
+    # exec: an AppImage under test unpacks itself into /tmp and runs from there.
+    tmpfs: !override
+      - /tmp:rw,exec,nosuid,nodev,mode=1777,size=512m

@@ -1,0 +1,8 @@
+vm-lab: the PBX answers on 192.168.77.10 for 192.168.77.99
+vm-lab: the PBX does not answer 192.168.77.20 while its list names another address
+vm-lab: the PBX answers on 192.168.77.10 for 192.168.77.20
+vm-lab: the PBX answers 192.168.77.20 once it is on the list
+vm-lab: the PBX called 1002
+vm-lab: RTP packets from 192.168.77.20 to the PBX: 1311
+vm-lab: RTP packets from the PBX to 192.168.77.20: 1309
+vm-lab: packets of anyone else dropped: 0

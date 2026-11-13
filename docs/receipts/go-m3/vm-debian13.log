@@ -1,0 +1,18 @@
+vm-check: Debian GNU/Linux 13 (trixie), kernel 6.12.48+deb13-amd64
+vm-check: libgtk-4-1 4.18.6+ds-2 (ii )
+vm-check: libwebkitgtk-6.0-4 2.54.0-1~deb13u3 (ii )
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 60 s: capture 3000 of 3000 frames (longest miss 0 ticks, gap 26 ms, 0 samples dropped); speaker 5989 of 5995 10 ms pieces (longest silence 1 pieces, arrival gap 78 ms, 11 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 14 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (0 ticks missed in a row, 320 ms between frames); capture: 2560 samples dropped; playback: 32 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 320 ms without samples); playback: 2336 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 116.716µs, microphone back after 165.521428ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 96 pieces, longest silence 0 pieces
+vm-check: audio: --- PASS: TestPulseLoopback (68.31s)
+vm-check: audio: PASS
+vm-check: audio adapter OK on the distribution's audio service
+vm-check: desktop session: GNOME on wayland, GNOME Shell 48.7
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: system skin: followed the desktop to dark in 328 ms and back to light in 217 ms
+vm-check: PASS Debian GNU/Linux 13 (trixie)

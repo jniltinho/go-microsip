@@ -1,0 +1,112 @@
+/* macOS (light appearance), evoked with original CSS: a light gray window under a toolbar header,
+   a centered bold title with the close button as a red disc at the left, white rounded controls
+   and round keys, boxed groups, the blue accent on buttons that stay on, checks and the mark of
+   the selected destination, rounded sheets and menus with soft shadows, a thick blue focus ring,
+   thin pill scroll thumbs, the system font stack. Control outlines and the blue are darker than
+   the stock appearance (close to its "Increase contrast" setting) so that edges reach 3:1 and text
+   7:1. */
+:root[data-theme="macos"] {
+  color-scheme: light;
+  --surface: #ececec;
+  --backdrop: none;
+  --backdrop-shift: 0 0;
+  --backdrop-motion: none;
+  --panel: #ffffff;
+  --input: #ffffff;
+  --overlay: rgba(0, 0, 0, 0.3);
+  --text: #1d1d1f;
+  --text-muted: #3a3a3c;
+  --text-disabled: #8e8e93;
+  --border: #b4b4b8;
+  --border-subtle: #dcdcdf;
+  --accent: #0051ba;
+  --accent-text: #ffffff;
+  --check: #0a60d0;
+  --check-mark: #ffffff;
+  --link: #003d9e;
+  --selection: #0051ba;
+  --selection-text: #ffffff;
+  --hover: #e0e0e3;
+  --focus: #0a60d0;
+  --focus-style: solid;
+  --focus-width: 3px;
+  --btn: linear-gradient(180deg, #ffffff 0%, #f7f7f8 100%);
+  --btn-text: #1d1d1f;
+  --btn-border: #6e6e73;
+  --btn-hover: linear-gradient(180deg, #fafafa 0%, #efeff1 100%);
+  --btn-active: linear-gradient(180deg, #dcdce0 0%, #d2d2d6 100%);
+  --btn-bevel: 0 1px 1px rgba(0, 0, 0, 0.12);
+  --btn-bevel-pressed: inset 0 0 0 2px #0a60d0;
+  --field-border: #6e6e73;
+  --field-bevel: inset 0 1px 1px rgba(0, 0, 0, 0.08);
+  --key: linear-gradient(180deg, #ffffff 0%, #f7f7f8 100%);
+  --key-text: #1d1d1f;
+  --key-sub: #3a3a3c;
+  --call: linear-gradient(180deg, #186529 0%, #135a23 100%);
+  --call-text: #ffffff;
+  --hangup: linear-gradient(180deg, #a81d17 0%, #96170f 100%);
+  --hangup-text: #ffffff;
+  --state-active: #0f4f25;
+  --state-ringing: #003d9e;
+  --state-held: #663700;
+  --state-muted: #782b0c;
+  --state-error: #861a15;
+  --state-secure: #0f4f25;
+  --state-insecure: #663700;
+  --notice: #fff4c2;
+  --notice-text: #3d2c00;
+  --title: linear-gradient(180deg, #e9e7e9 0%, #d5d3d5 100%);
+  --title-text: #1d1d1f;
+  --title-weight: 700;
+  --title-shadow: none;
+  --title-direction: row-reverse;
+  --title-align: center;
+  --close: #ff5f57;
+  --close-text: #4d0000;
+  --close-radius: 50%;
+  --tab-bar: #f6f6f6;
+  --tabbar-pad: 0;
+  --tab: #f6f6f6;
+  --tab-text: #3a3a3c;
+  --tab-active: #f6f6f6;
+  --tab-active-text: #1d1d1f;
+  --tab-border: #b4b4b8;
+  --tab-bevel: none;
+  --tab-active-bevel: none;
+  --tab-radius: 0;
+  --tab-lift: 0px;
+  --status: linear-gradient(180deg, #e9e7e9 0%, #d5d3d5 100%);
+  --status-bevel: inset 0 -1px 0 #b4b4b8;
+  --status-gap: 8px;
+  --status-text: #1d1d1f;
+  --group: #e3e3e6;
+  --group-border: #c8c8cc;
+  --group-title: #1d1d1f;
+  --group-bevel: none;
+  --dialog-bevel: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 18px 48px rgba(0, 0, 0, 0.4);
+  --menu-bevel: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --radius-window: 10px;
+  --radius-menu: 6px;
+  --scroll-track: transparent;
+  --scroll-thumb: #7c7c80;
+  --scroll-thumb-bevel: none;
+  --scroll-size: 9px;
+  --scroll-radius: 999px;
+  --font-ui:
+    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Noto Sans",
+    sans-serif;
+  --font-size: 13px;
+  --radius: 6px;
+  --radius-pill: 999px;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
+  --border-width: 1px;
+  --ctl-height: 26px;
+  --key-height: 44px;
+}

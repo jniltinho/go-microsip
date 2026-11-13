@@ -1,0 +1,40 @@
+binary of commit 66a01a9 (layout B, seven skins); make go-window-call
+window_linux_test.go:591: 1001, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 996 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+window_linux_test.go:623: 1001, 3 s after the skin changed during the call: speaker 294 of 291 10 ms pieces (longest silence 0 pieces, arrival gap 40 ms)
+window_linux_test.go:790: 1001: 205 ms: sent registration registered; 1040 ms: sent call dialing ; 1041 ms: sent call established ; 1251 ms: shown established; 13706 ms: sent call established ; 13751 ms: shown established; 16806 ms: sent call established ; 17002 ms: shown established; 20030 ms: sent call held ; 20251 ms: shown held; 20700 ms: sent call established ; 20751 ms: shown established; 26304 ms: sent call terminating ; 26305 ms: sent call ended normal; 29061 ms: sent call ringing ; 29252 ms: shown ringing; 29731 ms: sent call established ; 29751 ms: shown established; 30415 ms: sent call established ; 30415 ms: sent transfer pending; 30436 ms: sent call terminating ; 30436 ms: sent transfer succeeded; 30436 ms: sent call ended transferred; 30436 ms: sent transfer succeeded; 30593 ms: sent call ringing ; 30751 ms: shown ringing; 30808 ms: sent call ended rejected; 31721 ms: sent registration disabled; 31721 ms: sent stopped
+window_linux_test.go:591: 1201, 10 s through the window and the echo, the page frozen for 5 s of them: speaker 996 of 995 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+window_linux_test.go:623: 1201, 3 s after the skin changed during the call: speaker 296 of 295 10 ms pieces (longest silence 0 pieces, arrival gap 20 ms)
+window_linux_test.go:790: 1201: 160 ms: sent registration registered; 1039 ms: sent call dialing ; 1041 ms: sent call established ; 1252 ms: shown established; 13702 ms: sent call established ; 13751 ms: shown established; 16803 ms: sent call established ; 17001 ms: shown established; 20025 ms: sent call held ; 20251 ms: shown held; 20695 ms: sent call established ; 20751 ms: shown established; 26302 ms: sent call terminating ; 26303 ms: sent call ended normal; 29102 ms: sent call ringing ; 29251 ms: shown ringing; 29766 ms: sent call established ; 30002 ms: shown established; 30704 ms: sent call established ; 30704 ms: sent transfer pending; 30725 ms: sent call terminating ; 30725 ms: sent transfer succeeded; 30725 ms: sent call ended transferred; 30725 ms: sent transfer succeeded; 30830 ms: sent call ringing ; 31001 ms: shown ringing; 31045 ms: sent call ended rejected; 31953 ms: sent registration disabled; 31953 ms: sent stopped
+window_linux_test.go:437: light at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: light at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+window_linux_test.go:437: dark at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: dark at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+window_linux_test.go:437: xp at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: xp at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+window_linux_test.go:437: macos at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: macos at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+window_linux_test.go:437: ubuntu at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: ubuntu at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+window_linux_test.go:437: win98 at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: win98 at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+window_linux_test.go:437: matrix at 100 %: the page is 360 by 560 CSS pixels at 1.00 device pixels each
+window_linux_test.go:437: matrix at 200 %: the page is 360 by 560 CSS pixels at 2.00 device pixels each
+--- PASS: TestCallThroughTheWindow (130.75s)
+--- PASS: TestCallThroughTheWindow/1001 (32.23s)
+--- PASS: TestCallThroughTheWindow/1201 (32.46s)
+--- PASS: TestCallThroughTheWindow/wrong_password (0.35s)
+--- PASS: TestCallThroughTheWindow/light_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/light_at_200 (5.67s)
+--- PASS: TestCallThroughTheWindow/dark_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/dark_at_200 (5.67s)
+--- PASS: TestCallThroughTheWindow/xp_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/xp_at_200 (5.67s)
+--- PASS: TestCallThroughTheWindow/macos_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/macos_at_200 (5.67s)
+--- PASS: TestCallThroughTheWindow/ubuntu_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/ubuntu_at_200 (5.67s)
+--- PASS: TestCallThroughTheWindow/win98_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/win98_at_200 (5.67s)
+--- PASS: TestCallThroughTheWindow/matrix_at_100 (3.71s)
+--- PASS: TestCallThroughTheWindow/matrix_at_200 (5.68s)
+PASS

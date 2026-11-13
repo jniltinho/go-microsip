@@ -1,0 +1,27 @@
+//go:build !linux && !windows
+
+package control
+
+// There is no control transport for the other systems: go-microsip is built for Linux and
+// Windows.
+
+// Endpoint is the owner's end of the transport.
+type Endpoint struct{}
+
+// RuntimeDir is where the control endpoint of this session lives.
+func RuntimeDir(func(string) string) (string, error) { return "", ErrUnsupported }
+
+// Listen makes this process the owner of agent control in the session.
+func Listen(string, Welcome, Handler) (*Endpoint, error) { return nil, ErrUnsupported }
+
+// Close stops serving.
+func (*Endpoint) Close() error { return nil }
+
+// Dial connects to the owner of the session's runtime directory.
+func Dial(string) (*Client, error) { return nil, ErrUnsupported }
+
+// GrantsDir is where the files of this session's grants are written.
+func GrantsDir(string) string { return "" }
+
+// WriteGrantFile writes an issued grant to a new private file.
+func WriteGrantFile(string, IssuedGrant) (string, error) { return "", ErrUnsupported }

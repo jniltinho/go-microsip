@@ -1,55 +1,49 @@
-# Documentation and roadmap
+# Documentation
 
-This directory holds the project's design records, evidence and guides. Start with:
+Guides, records and evidence of go-microsip. Start with:
 
-- [Architecture](architecture.md): layers, runtime model, security boundaries and porting.
-- [Developer guide](DEVELOPMENT.md): Makefile, Docker workflow, tests, lab suite and coding rules.
-- [Release process](release.md): tag-triggered release workflow and its gates.
-- [Architecture decision records](adr/): one file per accepted decision.
-- [Receipts](receipts/): evidence of each verified milestone (commands, hashes, measurements and limits).
-- [Reviews](reviews/): independent static reviews and their verdicts.
-- [OpenSpec change](../openspec/changes/create-native-rust-linux-release/): proposal, design, specifications and the task list that is the authoritative progress tracker.
+- [Architecture](architecture.md): the layers, the runtime model and the security boundaries.
+- [Developer guide](DEVELOPMENT.md): the Makefile, the Docker build, the tests, the lab and the VMs.
+- [Controlling go-microsip](agent-cli-mcp.md): the command line, the MCP server, grants and the
+  headless service.
+- [Adding a skin](themes.md) and [the frontend](ui/go-frontend.md).
+- [Release process](release.md) and the notes of each version under [release/](release/).
 
 ## Status
 
-**There is no release yet.** A first desktop build opens a compact MicroSIP-like window and makes real SIP calls, verified against a disposable Asterisk lab. The remaining work below must pass before v0.1.0 is published. Progress figures come from the OpenSpec task list, which only checks a task when its complete criteria have evidence.
+**Pre-release.** [`v0.2.0-rc.1`](release/v0.2.0-rc.1.md) is the first version of go-microsip, the
+Go application that replaced rust-microsip on 2026-11-13. Its notes say what was checked and what
+was not. Progress is tracked by the task list of the
+[migration change](../openspec/changes/migrate-to-go-wails/tasks.md), which checks a task only
+when its criteria have evidence. What is open for a final `v0.2.0`:
 
-## Done
-
-| Area | What exists | Evidence |
+| Area | Open | Where |
 | --- | --- | --- |
-| Planning | Approved OpenSpec proposal, design, specs and test plan; license and native-dependency boundaries | [Approval](implementation-approval.md), [ADR 0003](adr/0003-g0-license-and-native-boundaries.md) |
-| Build | Pinned Ubuntu/Rust Docker builder, offline verification, reviewed notice collection, ELF export with SBOM and checksums | [ADR 0012](adr/0012-production-dependency-graph.md) |
-| Lab | Disposable Asterisk PBX with UDP/TCP/TLS and SDES fixtures, IVR, tone and echo routes; no published ports | [Lab receipt](receipts/asterisk-lab-2026-10-12.md) |
-| Domain | Validated settings and dial targets, call/registration state machine, redacted command/event contract | `crates/core` |
-| Telephony | Registration with renewal and bounded backoff; outgoing and incoming calls, reject, cancel, DND; PCMU/PCMA; RFC 4733 DTMF; hold/resume; mute; blind transfer with NOTIFY; PBX re-INVITE answers | [Production engine receipt](receipts/production-engine-2026-10-13.md) |
-| Secure media | TLS signaling with system or custom CA, SDES/SRTP and SRTCP, replay protection, downgrade rejection, rekey with a fresh SSRC, secure DTMF/hold/transfer | [SRTP/SRTCP](receipts/g0-srtcp-call-2026-10-13.md), [rekey](receipts/g0-rekey-call-2026-10-13.md), [secure controls](receipts/g0-secure-controls-2026-10-13.md) |
-| Audio | ALSA capture/playback bridge, resampling to 8 kHz, bounded jitter buffer, silent fallback with notice | `crates/audio`, `crates/telephony` |
-| Configuration | CLI/env/.env/TOML/SQLite resolution with provenance, user edits only written back, `config import/validate/export`, `--doctor`; optional keyring storage of the password (Secret Service) | [Config/recovery/release receipt](receipts/config-recovery-release-2026-10-13.md) |
-| Storage | SQLite schema and migrations (0600 files, future-schema refusal), call history with 90-day retention, contacts with multiple numbers and favorites, atomic CSV preview/import, online backup; used by the Calls and Contacts tabs | `crates/storage` |
-| Desktop | egui window: Phone/Calls/Contacts tabs, keypad, Call/End, DND/MUTE/HOLD/XFER, incoming-call banner, history filters and search, contact editor and CSV import, settings with audio device selection, themes, licences; graceful SIGTERM | [UI notes](ui/g0-native-ui.md), [screenshots](prints/) |
-| Linux integration | Single instance over a private Unix socket (a second launch forwards and exits), strict `sip:`/`tel:` link parsing that only fills the number, opt-in link handler entry, incoming-call notifications with Answer/Reject over D-Bus, window icon, tray icon (`StatusNotifierItem`: click shows the window, menu Show / last 5 calls to redial / Quit; with a tray the close button hides the window there, minimizes it on Wayland), quit confirmation during calls; checked on clean KDE X11 and GNOME Wayland VMs | `crates/platform`, [desktop VM receipt](receipts/desktop-vms-2026-10-13.md) |
-| Resilience | Registration renewal, recovery after a network outage, BYE delivered after recovery, crash recovery of interrupted calls in history | [Config/recovery/release receipt](receipts/config-recovery-release-2026-10-13.md) |
-| Release engineering | AppImage, CI workflow passing on GitHub including the RustSec/source check, versioned lab suite (9 scenarios, per-scenario reports), publication scanner (index, history and artifacts), reproducible clean-clone build, release-notes draft | [Release draft](release/v0.1.0-draft.md) |
-| Agent control (preview) | Kernel-authenticated control socket, CLI and stdio MCP server (official SDK); every change approved by a person in the window and executed once; lab proof with Asterisk | [Agent control receipt](receipts/agent-control-2026-10-13.md), [usage](agent-cli-mcp.md) |
-| Grants and headless service | Scoped, quota-limited, revocable grants issued in the window (hash only at rest); single-use bootstrap for `rust-microsip service` without a display; audio devices opened only for a call and released after it | [Agent grants receipt](receipts/agent-grants-2026-10-13.md) |
-| Lab suite | `docker/asterisk/suite.sh`: engine call matrix, renewal and network loss, link forwarding, exit with a paused PBX, theme switch during a call, accessibility sweeps, agent control and grants; 9/9 on a clean commit with per-scenario reports | [Lab suite receipt](receipts/lab-suite-2026-10-13.md) |
-| Hardening | Automated layering rule, bounded deterministic fuzzing of the dial-string, link, CSV, `.env`, argument, SDP, RTP and DTMF parsers, engine supervision, final events kept on shutdown, WCAG contrast test, theme switching during a call, exit with a frozen PBX, 100/150/200% scaling | [Hardening receipt](receipts/hardening-2026-10-13.md) |
+| Real machines | The manual checklist: sound cards and headsets, five-minute calls per codec, KDE, a real Windows machine, a home router | task 7.2 |
+| Parity | 83 of the 140 behaviors compared with rust-microsip are partly shown or not shown | [matrix](migration/parity-matrix.md), [sign-off](migration/parity-signoff.md) |
+| Decisions | The system's certificates for TLS, and an unknown skin in the configuration | [sign-off](migration/parity-signoff.md), S4a and S4b |
+| First milestone | Three measurements never completed as written | tasks 2.1, 2.8, 2.10 |
 
-## Remaining for v0.1.0
+## Records
 
-| Area | Remaining work | OpenSpec tasks |
-| --- | --- | --- |
-| G0 gate | Same-stack spike with D-Bus/notifications and local IPC; clean GNOME/Wayland and KDE/X11 VMs; native dependency audit; recorded G0 decision | 1.5, 1.8, 1.9 |
-| Media | Device hotplug with real headsets, local test on real devices, NAT/STUN topology | 5.2, 5.3, 5.5 |
-| Desktop UI | Visual matrix against MicroSIP, remaining screens | 7.1–7.3 |
-| Linux integration | Notification and tray checks on real desktops | 8.1 |
-| Release | Real-desktop checks of keyring prompts/KWallet and suspend/resume (part of the VM checklist), AppImage licence review, VM and human audio checklist, performance budgets, final review, SBOM and notes, publication | 9.2, 9.6–9.10 |
-| Agent CLI/MCP | Remaining call controls through CLI/MCP in the lab, ledger crash recovery across epochs, audit deletion, human G4 acceptance | [add-agent-cli-mcp](../openspec/changes/add-agent-cli-mcp/tasks.md) |
+- [Migration](migration/): the parity matrix against rust-microsip, the owner's decisions on its
+  differences, and the sign-off of the gate.
+- [Receipts](receipts/): evidence of each verified milestone (commands, hashes, measurements and
+  limits). The ones named `go-*` are go-microsip's.
+- [Reviews](reviews/): independent static reviews and their verdicts. A review is not evidence
+  that a call works. The folders named `migrate-to-go-wails-*` are go-microsip's.
+- [Screens](prints/go/): every screen in every skin, with fictional data.
 
-## Later releases
+## Records of rust-microsip
 
-- macOS and Windows builds (the engine and media layers are already portable).
-- A refined visual design following the MicroSIP layout: square corners, design tokens, minimalist Material Symbols Sharp icons ([proposal, awaiting owner approval](../openspec/changes/refine-native-ui/proposal.md)).
-- A Windows 10/11 x86_64 port: Windows platform adapter, WASAPI audio, portable zip and MSI, built in Docker ([proposal, awaiting owner approval](../openspec/changes/add-windows-port/proposal.md)).
-- A web/WASM softphone with WebRTC ([proposal](../openspec/changes/add-web-wasm-softphone/proposal.md)).
+The Rust application is under [archive/rust](../archive/rust/README.md), with its own guides in
+`archive/rust/docs/`. What it left in this folder is kept as history and describes that
+application, with the paths its files had before the move: the
+[architecture decision records](adr/), the receipts and reviews that are not named after the Go
+migration, the notes of `v0.1.0-rc.1` to `rc.3` and the `v0.1.0` draft under [release/](release/),
+[implementation-approval.md](implementation-approval.md),
+[implementation-checkpoints.md](implementation-checkpoints.md),
+[development-skills.md](development-skills.md), [reference-sources.md](reference-sources.md),
+[secure-call-experiment.md](secure-call-experiment.md), [ui/g0-native-ui.md](ui/g0-native-ui.md),
+[inventory/](inventory/), the screens under [prints/](prints/) outside `prints/go/`, and the
+Rust-era changes under `openspec/changes/`, which the migration superseded.

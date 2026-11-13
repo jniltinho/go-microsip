@@ -1,0 +1,39 @@
+vm-check: Debian GNU/Linux 13 (trixie), kernel 6.12.48+deb13-amd64
+vm-check: libgtk-4-1 4.18.6+ds-2 (ii )
+vm-check: libwebkitgtk-6.0-4 2.54.0-1~deb13u3 (ii )
+go-microsip 0.3.0-m3 (cf3e8ef0f488)
+{"build":{"version":"0.3.0-m3","commit":"cf3e8ef0f488","os":"linux","arch":"amd64","window":"purego"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"unknown_theme":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 20 s: capture 1000 of 1000 frames (longest miss 0 ticks, gap 24 ms, 0 samples dropped); speaker 1941 of 1995 10 ms pieces (longest silence 1 pieces, arrival gap 100 ms, 11 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:163: playback: 54 of 1995 10 ms pieces missing on the speaker, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:163: playback: gap over 60 ms (1 silent pieces in a row, 100 ms without samples)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 15 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 321 ms between frames); capture: 2560 samples dropped; playback: 38 of 196 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (30 silent pieces in a row, 321 ms without samples); playback: 2336 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 573.941µs, microphone back after 169.804328ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 93 pieces, longest silence 1 pieces
+vm-check: audio: --- FAIL: TestPulseLoopback (28.14s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
+vm-check: desktop session: GNOME on wayland, GNOME Shell 48.7
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: system skin: followed the desktop to dark in 320 ms and back to light in 215 ms
+vm-check: tray: this desktop has no tray host: the window has no tray icon
+vm-check: notifications:     desktop_linux_test.go:31: the desktop's notification service: gnome-shell 48.7 (GNOME); buttons offered: true
+vm-check: notifications:     desktop_linux_test.go:47: the service took notification 13 away (reason 3) when the call was over
+vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.02s)
+vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 5ms, no prompt left open
+vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.01s)
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.02s)
+vm-check: keyring: --- PASS: TestALockedKeyringIsReportedAndNotPrompted (0.00s)
+vm-check: keyring: started with the login password, the desktop's keyring stores, replaces and removes a password, and says so when it is locked
+vm-check: beside: the Rust candidate runs (rust-microsip 0.1.0-rc.3)
+vm-check: beside: alone, the Rust candidate's client is answered by the Rust candidate's window
+vm-check: beside: with go-microsip's window open, the Rust candidate's client is told: status:error code:timeout (its owner answers, or times out while its window is covered)
+vm-check: beside: --- PASS: TestTheWindowOfThisSessionAnswers (0.00s)
+vm-check: beside: after a second start of each, one go-microsip and one Rust candidate run
+vm-check: beside: the Rust candidate's files are as they were before go-microsip ran
+vm-check: beside: after go-microsip left, the Rust candidate's client is answered again
+vm-check: beside: go-microsip's files are as they were before the Rust candidate was used
+vm-check: FAIL Debian GNU/Linux 13 (trixie): audio

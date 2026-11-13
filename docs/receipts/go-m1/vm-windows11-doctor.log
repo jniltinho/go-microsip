@@ -1,0 +1,21 @@
+vm-check: Microsoft Windows 11 Enterprise Evaluation 10.0.26200
+vm-check: WebView2 runtime 151.0.4129.59 (part of Windows; nothing was installed)
+vm-check: go-microsip 0.2.0-m1 (2e95211a3271)
+vm-check: doctor {"build":{"version":"0.2.0-m1","commit":"2e95211a3271","os":"windows","arch":"amd64","window":"webview2"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: audio: --- PASS: TestWASAPIFromAThreadWithCOMInAnotherMode (0.01s)
+vm-check: audio:     wasapi_windows_test.go:73: device "Microphone (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:73: device "Speakers (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:129: 20 s: capture 851 of 1000 frames (longest miss 2 ticks, gap 405 ms, 16529 samples dropped); speaker 1616 of 1989 10 ms pieces (longest silence 12 pieces, arrival gap 405 ms, 1840 samples dropped or silent)
+vm-check: audio:     wasapi_windows_test.go:131: capture: 149 of 1000 frames missing, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: capture: gap over 60 ms (2 ticks missed in a row, 405 ms between frames)
+vm-check: audio:     wasapi_windows_test.go:131: capture: 16529 samples dropped
+vm-check: audio:     wasapi_windows_test.go:131: playback: 373 of 1989 10 ms pieces missing on the speaker, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: playback: gap over 60 ms (12 silent pieces in a row, 405 ms without samples)
+vm-check: audio:     wasapi_windows_test.go:131: playback: 1840 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:139: control: a 300 ms stall is caught: capture: 17 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (2 ticks missed in a row, 319 ms between frames); capture: 2484 samples dropped; playback: 48 of 189 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (7 silent pieces in a row, 338 ms without samples); playback: 1840 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:145: NOT VERIFIED: the loss of the sound card could not be provoked on this machine: Disable-PnpDevice: exit status 1: Disable-PnpDevice : Generic failure 
+vm-check: audio: --- FAIL: TestWASAPI (29.89s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
+vm-check: window opened on WebView2 and the page called the backend
+vm-check: FAIL Microsoft Windows 11 Enterprise Evaluation: audio

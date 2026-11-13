@@ -1,0 +1,37 @@
+vm-check: Microsoft Windows 11 Enterprise Evaluation 10.0.26200
+vm-check: WebView2 runtime 151.0.4129.59 (part of Windows; nothing was installed)
+vm-check: go-microsip 0.3.0-m3 (4a5bd1412280)
+vm-check: doctor {"build":{"version":"0.3.0-m3","commit":"4a5bd1412280","os":"windows","arch":"amd64","window":"webview2"},"display":false,"audio":{"available":true,"inputs":1,"outputs":1},"configuration":{"ok":false,"error":"missingrequiredsetting`account.domain`","config_file":null,"password_present":false,"password_source":null,"literal_password_warning":false,"unknown_theme":false,"ignored_legacy_env":[],"fields":[]}}
+vm-check: lock: --- PASS: TestLockIsExclusiveAndReleased (0.00s)
+vm-check: lock: PASS
+vm-check: the instance lock is exclusive and released on Windows
+vm-check: audio: --- PASS: TestWASAPIFromAThreadWithCOMInAnotherMode (0.01s)
+vm-check: audio:     wasapi_windows_test.go:73: device "Microphone (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:73: device "Speakers (High Definition Audio Device)" default=true
+vm-check: audio:     wasapi_windows_test.go:129: 60 s: capture 2812 of 3000 frames (longest miss 2 ticks, gap 832 ms, 8014 samples dropped); speaker 5583 of 5994 10 ms pieces (longest silence 8 pieces, arrival gap 907 ms, 8160 samples dropped or silent)
+vm-check: audio:     wasapi_windows_test.go:131: capture: 188 of 3000 frames missing, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: capture: gap over 60 ms (2 ticks missed in a row, 832 ms between frames)
+vm-check: audio:     wasapi_windows_test.go:131: capture: 8014 samples dropped
+vm-check: audio:     wasapi_windows_test.go:131: playback: 411 of 5994 10 ms pieces missing on the speaker, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:131: playback: gap over 60 ms (8 silent pieces in a row, 907 ms without samples)
+vm-check: audio:     wasapi_windows_test.go:131: playback: 8160 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:139: control: a 300 ms stall is caught: capture: 16 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 320 ms between frames); capture: 2304 samples dropped; playback: 41 of 191 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (7 silent pieces in a row, 320 ms without samples); playback: 1600 samples dropped or silent, over 0.5 %
+vm-check: audio:     wasapi_windows_test.go:145: NOT VERIFIED: the loss of the sound card could not be provoked on this machine: Disable-PnpDevice: exit status 1: Disable-PnpDevice : Generic failure 
+vm-check: audio: --- FAIL: TestWASAPI (67.83s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.01s)
+vm-check: keyring: PASS
+vm-check: the Credential Manager stores, replaces and deletes a password
+vm-check: window opened on WebView2 and the page called the backend
+vm-check: self-test: inline script and eval refused; a new window and navigation not probed (no guard on this platform); listening sockets not checked on this platform
+vm-check: listening ports: none in 5 looks at the running softphone
+vm-check: skin: light drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: dark drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: xp drawn on WebView2 in DejaVu Sans 400, DejaVu Sans 700, no font failed
+vm-check: skin: macos drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: ubuntu drawn on WebView2 in Inter 100 900, no font failed
+vm-check: skin: win98 drawn on WebView2 in Liberation Sans 400, Liberation Sans 700, no font failed
+vm-check: skin: matrix drawn on WebView2 in JetBrains Mono 400, JetBrains Mono 600, no font failed
+vm-check: the seven skins drawn on WebView2, each with its bundled font
+vm-check: FAIL Microsoft Windows 11 Enterprise Evaluation: audio

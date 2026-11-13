@@ -1,0 +1,118 @@
+/* Windows XP (Luna blue), evoked with original CSS: beige #ece9d8 faces, glossy buttons and keys
+   with a navy outline, rounded 3 px, and an orange frame under the pointer; a blue gradient title
+   bar with bold white shadowed text and a red close button; navigation tabs that hang from the
+   pane with rounded corners and an orange stripe on the selected one; steel-blue field edges, green
+   check marks, blue group captions, a blue window frame with rounded top corners, pale blue scroll
+   thumbs. The blues, greens and reds are deeper than Luna's so that white text on them reaches
+   7:1, and field edges are darker to reach 3:1.
+   DejaVu Sans leads the font stack because it is always present on the Linux targets (a Tahoma
+   substitute found there drops glyphs at small sizes); Windows falls through to Tahoma. */
+:root[data-theme="xp"] {
+  color-scheme: light;
+  --surface: #ece9d8;
+  --backdrop: none;
+  --backdrop-shift: 0 0;
+  --backdrop-motion: none;
+  --panel: #ffffff;
+  --input: #ffffff;
+  --overlay: rgba(0, 20, 80, 0.35);
+  --text: #000000;
+  --text-muted: #2e2e2e;
+  --text-disabled: #8d8a7b;
+  --border: #8a8776;
+  --border-subtle: #d6d2c2;
+  --accent: #1f4fa8;
+  --accent-text: #ffffff;
+  --check: #ffffff;
+  --check-mark: #21a121;
+  --link: #0033a0;
+  --selection: #1f4fa8;
+  --selection-text: #ffffff;
+  --hover: #c1d2ee;
+  --focus: #000000;
+  --focus-style: solid;
+  --focus-width: 2px;
+  --btn: linear-gradient(180deg, #ffffff 0%, #f6f4ec 55%, #dedacb 100%);
+  --btn-text: #000000;
+  --btn-border: #003c74;
+  --btn-hover:
+    linear-gradient(#ffd27a, #ffd27a) 0 0 / 100% 2px no-repeat,
+    linear-gradient(#f5b53d, #f5b53d) 0 100% / 100% 2px no-repeat,
+    linear-gradient(180deg, #ffd27a, #f5b53d) 0 0 / 2px 100% no-repeat,
+    linear-gradient(180deg, #ffd27a, #f5b53d) 100% 0 / 2px 100% no-repeat,
+    linear-gradient(180deg, #ffffff 0%, #f6f4ec 55%, #dedacb 100%);
+  --btn-active: linear-gradient(180deg, #d2cebf 0%, #e3e0d2 45%, #eeece2 100%);
+  --btn-bevel: inset 0 0 0 1px #ffffff;
+  --btn-bevel-pressed: inset 0 0 0 2px #316ac5, inset 3px 3px 2px #a8a595;
+  --field-border: #5f81a3;
+  --field-bevel: none;
+  --key: linear-gradient(180deg, #ffffff 0%, #f6f4ec 55%, #dedacb 100%);
+  --key-text: #000000;
+  --key-sub: #2e2e2e;
+  --call: linear-gradient(180deg, #1a651a 0%, #175c17 50%, #114a11 100%);
+  --call-text: #ffffff;
+  --hangup: linear-gradient(180deg, #a81c1c 0%, #981616 50%, #7a0f0f 100%);
+  --hangup-text: #ffffff;
+  --state-active: #165016;
+  --state-ringing: #0033a0;
+  --state-held: #6b3a00;
+  --state-muted: #7a2a0a;
+  --state-error: #8f0000;
+  --state-secure: #165016;
+  --state-insecure: #6b3a00;
+  --notice: #ffffe1;
+  --notice-text: #000000;
+  --title: linear-gradient(180deg, #0a4bc8 0%, #0044c0 8%, #003db4 40%, #0040ba 88%, #002f96 100%);
+  --title-text: #ffffff;
+  --title-weight: 700;
+  --title-shadow: 1px 1px 0 #001a66;
+  --title-direction: row;
+  --title-align: left;
+  --close: linear-gradient(180deg, #e0553a 0%, #c93a1f 55%, #a8260e 100%);
+  --close-text: #ffffff;
+  --close-radius: 3px;
+  --tab-bar: #ece9d8;
+  --tabbar-pad: 0 4px 4px;
+  --tab: linear-gradient(180deg, #ece9d8 0%, #ffffff 100%);
+  --tab-text: #000000;
+  --tab-active: #fcfcfe;
+  --tab-active-text: #000000;
+  --tab-border: #707b7d;
+  --tab-bevel: inset 1px 0 0 #707b7d, inset -1px 0 0 #707b7d, inset 0 -1px 0 #707b7d;
+  --tab-active-bevel:
+    inset 0 -3px 0 #e68b2c, inset 0 -4px 0 #ffc73c, inset 1px 0 0 #707b7d, inset -1px 0 0 #707b7d;
+  --tab-radius: 0 0 4px 4px;
+  --tab-lift: 2px;
+  --status: #ece9d8;
+  --status-bevel: inset 0 -1px 0 #aca899;
+  --status-gap: 6px;
+  --status-text: #000000;
+  --group: transparent;
+  --group-border: #d0d0bf;
+  --group-title: #003cb4;
+  --group-bevel: none;
+  --dialog-bevel: 0 0 0 3px #0040ba, 0 0 0 4px #002f96, 4px 6px 14px 4px rgba(0, 0, 0, 0.45);
+  --menu-bevel: 2px 2px 3px rgba(0, 0, 0, 0.35);
+  --radius-window: 8px 8px 0 0;
+  --radius-menu: 0;
+  --scroll-track: linear-gradient(90deg, #f1efe6 0%, #fdfdfb 100%);
+  --scroll-thumb: linear-gradient(90deg, #c8d6fb 0%, #b9cbf6 100%);
+  --scroll-thumb-bevel: inset 0 0 0 1px #4a6cb3, inset 0 0 0 2px #ffffff;
+  --scroll-size: 17px;
+  --scroll-radius: 2px;
+  --font-ui: "DejaVu Sans", Tahoma, Verdana, "Noto Sans", sans-serif;
+  --font-size: 12px;
+  --radius: 3px;
+  --radius-pill: 3px;
+  --chip-border: 1px;
+  --state-active-bg: #ffffff;
+  --state-ringing-bg: #ffffff;
+  --state-held-bg: #ffffff;
+  --state-muted-bg: #ffffff;
+  --state-error-bg: #ffffff;
+  --state-secure-bg: #ffffff;
+  --state-insecure-bg: #ffffff;
+  --border-width: 1px;
+  --ctl-height: 24px;
+  --key-height: 40px;
+}

@@ -1,3 +1,5 @@
+> Superseded on 2026-11-11 by [migrate-to-go-wails](../migrate-to-go-wails/proposal.md): no further implementation happens in this Rust-era change. Its requirements and scenarios remain the behavior parity baseline for the Go rewrite, and its unchecked tasks stay unchecked.
+
 ## Why
 
 Create a native Rust Linux softphone with MicroSIP's visual simplicity, complementary GOnnect telephony/desktop references, simple installation, and persistent local configuration. The first release must make real calls with reliable audio, not merely reproduce screens or repackage the existing Qt application.

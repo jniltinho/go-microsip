@@ -1,0 +1,28 @@
+vm-check: Debian GNU/Linux 13 (trixie), kernel 6.12.48+deb13-amd64
+vm-check: libgtk-4-1 4.18.6+ds-2 (ii )
+vm-check: libwebkitgtk-6.0-4 2.54.0-1~deb13u3 (ii )
+vm-check: headless version and doctor OK
+vm-check: audio: --- PASS: TestNoService (0.00s)
+vm-check: audio:     pulse_linux_test.go:55: audio service: PulseAudio (on PipeWire 1.4.2) 15.0.0
+vm-check: audio:     pulse_linux_test.go:161: 300 s: capture 15000 of 15000 frames (longest miss 0 ticks, gap 26 ms, 0 samples dropped); speaker 29929 of 29995 10 ms pieces (longest silence 1 pieces, arrival gap 99 ms, 21 samples dropped or silent)
+vm-check: audio:     pulse_linux_test.go:163: playback: gap over 60 ms (1 silent pieces in a row, 99 ms without samples)
+vm-check: audio:     pulse_linux_test.go:171: control: a 300 ms stall is caught: capture: 15 of 100 frames missing, over 0.5 %; capture: gap over 60 ms (1 ticks missed in a row, 320 ms between frames); capture: 2560 samples dropped; playback: 28 of 195 10 ms pieces missing on the speaker, over 0.5 %; playback: gap over 60 ms (23 silent pieces in a row, 340 ms without samples); playback: 2315 samples dropped or silent, over 0.5 %
+vm-check: audio:     pulse_linux_test.go:187: discard: confirmed by the service in 132.667µs, microphone back after 167.673491ms
+vm-check: audio:     pulse_linux_test.go:217: after unplug: lost=true, 0 frames captured in 1 s, speaker 95 pieces, longest silence 1 pieces
+vm-check: audio: --- FAIL: TestPulseLoopback (308.13s)
+vm-check: audio: FAIL
+vm-check: audio: FAILED (exit 1); the window is still checked
+vm-check: desktop session: GNOME on wayland, GNOME Shell 48.7
+vm-check: window: AppImage: opened and the page called the backend
+vm-check: the AppImage window passed with the default start
+vm-check: system skin: followed the desktop to dark in 319 ms and back to light in 212 ms
+vm-check: tray: this desktop has no tray host: the window has no tray icon
+vm-check: notifications:     desktop_linux_test.go:31: the desktop's notification service: gnome-shell 48.7 (GNOME); buttons offered: true
+vm-check: notifications:     desktop_linux_test.go:47: the service took notification 4 away (reason 3) when the call was over
+vm-check: notifications: --- PASS: TestTheDesktopsNotificationServiceShowsACall (3.03s)
+vm-check: keyring:     desktop_linux_test.go:33: the desktop's keyring, as found, is locked: said so in 5ms, no prompt left open
+vm-check: keyring: --- PASS: TestTheDesktopsKeyringAsFound (0.01s)
+vm-check: keyring: --- PASS: TestKeyringStoresReplacesAndDeletes (0.02s)
+vm-check: keyring: --- PASS: TestALockedKeyringIsReportedAndNotPrompted (0.00s)
+vm-check: keyring: started with the login password, the desktop's keyring stores, replaces and removes a password, and says so when it is locked
+vm-check: FAIL Debian GNU/Linux 13 (trixie): audio

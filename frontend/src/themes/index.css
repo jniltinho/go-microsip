@@ -1,0 +1,9 @@
+/* Skins: one file per skin, keyed by data-theme on <html> (set by themes/index.ts). Every file
+   defines the same tokens; colors live only in this folder. */
+@import "./light.css";
+@import "./dark.css";
+@import "./xp.css";
+@import "./macos.css";
+@import "./ubuntu.css";
+@import "./win98.css";
+@import "./matrix.css";

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=go-microsip
+Comment=Compact SIP softphone
+Exec=go-microsip %u
+Icon=go-microsip
+StartupWMClass=io.github.jniltinho.go-microsip
+Terminal=false
+Categories=Network;Telephony;
+MimeType=x-scheme-handler/sip;x-scheme-handler/tel;

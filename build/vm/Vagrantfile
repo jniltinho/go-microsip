@@ -1,0 +1,131 @@
+# Disposable Linux desktop VMs for milestone checks (openspec/changes/migrate-to-go-wails): the two
+# supported distributions with their own default GNOME desktop and nothing added for go-microsip.
+#
+#   make go-vm     (build/vm/run.sh <version> <log dir> [audio seconds] [ubuntu2604 debian13 windows11])
+#
+# Only two folders are shared: this one (/vagrant) and the artifacts (/dist), read-only on Linux. The VMs use
+# VirtualBox NAT, change nothing on the host, and are destroyed after the run.
+#
+# With LAB=1 (make go-vm GO_VM_LAB=1) a call is placed from the desktop VM: an auxiliary VM, "pbx",
+# runs the disposable Asterisk lab (docker/asterisk, profile "vm") on a VirtualBox internal
+# network that only these VMs are on; the host has no adapter there. The lab's fictional accounts
+# are made by run.sh under the git-ignored artifacts/vm-lab/: the PBX's part is shared with the
+# pbx VM and the clients' part with the desktop VM, both read-only. A VM that was brought up
+# before that directory existed gets the network and the folder with `vagrant reload <vm>`.
+LAB_NET = "go-microsip-lab"
+LAB_PBX = "192.168.77.10"
+LAB_WINDOWS = "192.168.77.20"
+LAB_FREEPBX = "192.168.77.11"
+# Sangoma's installer of FreePBX 17 for Debian 12, at one commit and with the checksum of the
+# file as it was read there (script version 1.15).
+FREEPBX_INSTALLER = "https://raw.githubusercontent.com/FreePBX/sng_freepbx_debian_install/b023b8426786a518d25dfc0d11ba0c0314fcd927/sng_freepbx_debian_install.sh"
+FREEPBX_INSTALLER_SHA256 = "afef5e4b480cf545b2035f92068dc2fdd32452989d170a16a84acb6e37b7d564"
+LAB_DIR = File.expand_path("../../artifacts/vm-lab", __dir__)
+
+Vagrant.configure("2") do |config|
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 4096
+    vb.cpus = 2
+    vb.gui = false
+  end
+
+  # The distribution's default desktop, as its installer would put it. apt runs with the
+  # distribution's own recommends, so the result is what a user has before installing anything.
+  # Ubuntu's firefox package is a stub that installs a snap and fails when the snap store cannot be
+  # reached; the check does not need a browser, so it is left out ("firefox-").
+  { "ubuntu2604" => ["bento/ubuntu-26.04", "ubuntu-desktop-minimal firefox-"],
+    "debian13" => ["bento/debian-13", "task-gnome-desktop"] }.each do |name, (box, desktop)|
+    config.vm.define name do |vm|
+      vm.vm.box = box
+      vm.vm.hostname = name
+      vm.vm.synced_folder ".", "/vagrant", mount_options: ["ro"]
+      vm.vm.synced_folder "../../dist/go", "/dist", mount_options: ["ro"]
+      vm.vm.provision "shell", inline: <<~SH
+        set -eu
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -q
+        apt-get install -y -q #{desktop}
+        # Log the test user in to the desktop, as a single-user installation does.
+        conf=/etc/gdm3/custom.conf; [ -f "$conf" ] || conf=/etc/gdm3/daemon.conf # Ubuntu, Debian
+        printf '[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=vagrant\n' > "$conf"
+        systemctl restart gdm3 || systemctl start gdm3
+      SH
+    end
+  end
+
+  # The lab PBX. Docker and the lab image are all it gets; the image comes from the host as a
+  # file beside the artifacts (/dist/g0), and nothing is pulled from a registry.
+  config.vm.define "pbx", autostart: false do |vm|
+    vm.vm.box = "bento/debian-13"
+    vm.vm.hostname = "pbx"
+    vm.vm.network "private_network", ip: LAB_PBX, virtualbox__intnet: LAB_NET
+    vm.vm.synced_folder ".", "/vagrant", mount_options: ["ro"]
+    vm.vm.synced_folder "../../dist/go", "/dist", mount_options: ["ro"]
+    vm.vm.synced_folder "../../docker/asterisk", "/srv/docker/asterisk", mount_options: ["ro"]
+    if File.directory?("#{LAB_DIR}/pbx")
+      vm.vm.synced_folder "#{LAB_DIR}/pbx", "/srv/artifacts/asterisk-lab/pbx",
+        owner: "vagrant", group: "vagrant", mount_options: ["ro", "dmode=700", "fmode=600"]
+    end
+    # The clients' part too: the lab's scenarios run from this VM against FreePBX.
+    if File.directory?("#{LAB_DIR}/clients")
+      vm.vm.synced_folder "#{LAB_DIR}/clients", "/srv/lab-clients",
+        owner: "vagrant", group: "vagrant", mount_options: ["ro", "dmode=700", "fmode=600"]
+    end
+    vm.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024 # two processors, the default: the lab's Compose file gives the PBX two
+    end
+    vm.vm.provision "shell", inline: <<~SH
+      set -eu
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -q
+      apt-get install -y -q docker.io docker-compose iptables python3
+      usermod -aG docker vagrant
+    SH
+  end
+
+  # FreePBX 17, the interoperability target (task 7.1): Sangoma's own installer on a plain
+  # Debian 12, run as its documentation runs it, on the lab's internal network beside the "pbx"
+  # VM, which the lab's scenarios run from (build/vm/freepbx.sh). The installer needs a full host
+  # name. Its option for open-source modules only is not used: in this version it stops on a
+  # commercial module that is listed but not installed, with FreePBX half set up.
+  config.vm.define "freepbx", autostart: false do |vm|
+    vm.vm.box = "bento/debian-12"
+    vm.vm.hostname = "freepbx.lab.invalid"
+    vm.vm.network "private_network", ip: LAB_FREEPBX, virtualbox__intnet: LAB_NET
+    vm.vm.synced_folder ".", "/vagrant", mount_options: ["ro"]
+    if File.directory?("#{LAB_DIR}/pbx")
+      vm.vm.synced_folder "#{LAB_DIR}/pbx", "/srv/lab", owner: "root", group: "root", mount_options: ["ro", "dmode=700", "fmode=600"]
+    end
+    vm.vm.provider "virtualbox" do |vb|
+      vb.memory = 2048
+    end
+    vm.vm.provision "shell", inline: <<~SH
+      set -eu
+      [ -x /usr/sbin/fwconsole ] && exit 0
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -q
+      apt-get install -y -q wget
+      wget -q "#{FREEPBX_INSTALLER}" -O /tmp/sng_freepbx_debian_install.sh
+      echo "#{FREEPBX_INSTALLER_SHA256}  /tmp/sng_freepbx_debian_install.sh" | sha256sum -c -
+      bash /tmp/sng_freepbx_debian_install.sh --skipversion --nochrony
+    SH
+  end
+
+  # Windows 11 evaluation box (accept Microsoft's evaluation terms yourself; never used in CI). The
+  # emulated sound card has no host backend: the microphone delivers silence and the speaker goes
+  # nowhere, which is enough to exercise the audio adapter. Nothing is installed in the guest.
+  config.vm.define "windows11", autostart: false do |vm|
+    vm.vm.box = "gusztavvargadr/windows-11"
+    vm.vm.communicator = "winrm"
+    vm.vm.boot_timeout = 900
+    vm.vm.synced_folder ".", "C:/vagrant"
+    vm.vm.synced_folder "../../dist/go", "C:/dist"
+    vm.vm.network "private_network", ip: LAB_WINDOWS, virtualbox__intnet: LAB_NET
+    vm.vm.synced_folder "#{LAB_DIR}/clients", "C:/lab" if File.directory?("#{LAB_DIR}/clients")
+    vm.vm.provider "virtualbox" do |vb|
+      vb.memory = 6144
+      vb.customize ["modifyvm", :id, "--audio-enabled", "on", "--audio-driver", "null",
+                    "--audio-controller", "hda", "--audio-in", "on", "--audio-out", "on"]
+    end
+  end
+end

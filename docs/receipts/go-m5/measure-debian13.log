@@ -1,0 +1,12 @@
+measure: Debian GNU/Linux 13 (trixie), GNOME on wayland, 2 processors, 3919 MB
+measure: go-microsip go-microsip 0.3.0-m3 (cf3e8ef0f488), 11741688 bytes
+measure: Rust candidate rust-microsip 0.1.0-rc.3, 12581368 bytes
+measure: go-microsip: first start with the file cache dropped: 180 ms to the control socket, 271 ms to an answered status, 837 ms to the first drawn page
+measure: go-microsip: to the control socket: median 84 ms, least 82 ms, most 92 ms, 10 starts
+measure: go-microsip: to an answered status: median 162 ms, least 149 ms, most 167 ms, 10 starts
+measure: go-microsip: to the first drawn page: median 458 ms, least 446 ms, most 474 ms, 10 starts
+measure: go-microsip: memory 20 s after the start: 382 MB proportional in 9 processes, 267 MB resident in the main one
+measure: rust-microsip: first start with the file cache dropped: 44 ms to the control socket, 209 ms to an answered status
+measure: rust-microsip: to the control socket: median 35 ms, least 24 ms, most 39 ms, 10 starts
+measure: rust-microsip: to an answered status: median 82 ms, least 80 ms, most 105 ms, 10 starts
+measure: rust-microsip: memory 20 s after the start: 75 MB proportional in 2 processes, 124 MB resident in the main one

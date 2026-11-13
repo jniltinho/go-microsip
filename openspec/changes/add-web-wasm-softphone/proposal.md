@@ -1,3 +1,5 @@
+> On hold since 2026-11-11: this plan assumes a Rust/WASM client. The owner asked for a Go web version instead (the same Vue frontend served by the Go binary); it will be proposed as a new change after the core of [migrate-to-go-wails](../migrate-to-go-wails/proposal.md) exists. No task here is in progress.
+
 ## Why
 
 Users need calls without client installation. The user confirmed a complete web softphone in a later release, not a remote panel dependent on the installed Linux app.
