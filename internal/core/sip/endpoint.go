@@ -454,7 +454,9 @@ func (e *Endpoint) DialEarly(ctx context.Context, target string, onProgress func
 		// The answer may have crossed the cancellation: the library then reports the call as
 		// canceled and leaves the answer unacknowledged, and the other side in a call that this
 		// side has left. The answer is acknowledged and the call hung up (RFC 3261, 15).
-		if res := d.InviteResponse; res != nil && res.IsSuccess() {
+		// Only then: an answer the library itself refused (no common codec) it has already
+		// acknowledged and hung up.
+		if res := d.InviteResponse; ctx.Err() != nil && res != nil && res.IsSuccess() {
 			hctx, done := context.WithTimeout(context.Background(), 3*time.Second)
 			if d.Ack(hctx) == nil {
 				_ = d.Bye(hctx)
