@@ -65,7 +65,7 @@ The version is `GO_VERSION` in `build/go.mk`; the binary gets it and the commit 
 | `make go-appimage` | `build/linux/appimage.sh`: the x86_64 AppImage with the binary, its desktop entry, icon and notices. GTK 4 and WebKitGTK 6.0 come from the system. |
 | `make go-windows` | `build/windows/package.sh`: the Windows amd64 `.exe` (WebView2, cross-built without cgo, icon from `build/winicon`) and its portable `.zip`. |
 | `make dist` (`go-dist`) | All of the above, plus `SHA256SUMS` and `build-manifest.json` (version, commit, whether the tree was dirty, window backend, image) from `build/dist-manifest.sh`. |
-| `make go-macos` | `build/macos/package.sh`: the macOS universal application, `go-microsip.app` zipped. Both slices (x86_64, arm64) are cross-built without cgo and joined by `build/macos/package`, a Go program that also writes the bundle's files, with no Apple tool; `build/qa/macos.sh` then checks the zip from outside. It is not part of `make dist` and of no release yet (change `add-macos-universal`), and it has no sound, keychain or agent control on macOS so far. |
+| `make go-macos` | `build/macos/package.sh`: the macOS universal application, `go-microsip.app` zipped. Both slices (x86_64, arm64) are cross-built without cgo and joined by `build/macos/package`, a Go program that also writes the bundle's files, with no Apple tool; `build/qa/macos.sh` then checks the zip from outside. It is not part of `make dist` and of no release yet (change `add-macos-universal`), and it has no sound, keychain or agent control on macOS so far. `GO_MACOS_TAGS=coreaudio` builds it with the sound prototype of `add-macos-universal`'s task 2.3, for measurements: that zip is not for publication. |
 
 **Checks of the built binary** (scripts in `build/qa/`)
 

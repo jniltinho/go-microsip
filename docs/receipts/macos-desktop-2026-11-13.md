@@ -162,7 +162,15 @@ An input and an output that do not exist are refused. The 23 ticks without a fra
 
 **The cutover's tests**, with the race detector: a callback held between its check and its publication keeps a discard waiting, and what it published is gone after the discard; a buffer of a retired queue is dropped and not handed back; callbacks delivered while the old queue is disposed of publish nothing; a queue that cannot be reopened loses capture and keeps nothing running; two hundred discards leave one queue; a discard racing Close leaves none; fresh audio flows after the barrier and nothing marked does; an opening still under way when Close returns cannot publish, and its queue is disposed of when it returns. These use queues made of memory. Four deliberate faults in the cutover were each caught: the lock released between check and publication, no check of the instance, a closed stream that keeps its queue (caught only after the test was made to wait for the opening to begin), a failed reopening not reported.
 
-Not done, of what 2.3 asks: the adversarial cases on a real queue; a device at 44.1 kHz and a stereo one; contention and collection over the whole capture path; open and close repeated; five minutes with the interface stalled and the negative control; the delays from capture to RTP and from RTP to the speaker; the prototype in the bundle; anything on arm64. The owner, at the headset, confirmed hearing themself during the echo test; no signal was injected or measured by a fixture.
+**In the bundle.** `make go-macos GO_MACOS_TAGS=coreaudio` builds the application with the prototype (at `4d298e9` with the packaging change of the next commit in the working tree):
+
+```
+18cd98c927e79f71e22702ca8feaf34fa1c52aaed4377bb3208863eaf7ae9f99  go-microsip-0.2.0-rc.1-macos-universal.zip
+```
+
+`make go-mac` passes on it (version, headless, self-test), and its `doctor` on the Mac says `audio: available (1 inputs, 2 outputs)`, `{"available": true, "inputs": 1, "outputs": 2}` in JSON, where the build without the tag says `unavailable`. No call was placed with it: the first call is the measurement of 2.4 and 2.5, which wants a clean privacy state and the owner at the screen.
+
+Not done, of what 2.3 asks: the adversarial cases on a real queue; a device at 44.1 kHz and a stereo one; contention and collection over the whole capture path; open and close repeated; five minutes with the interface stalled and the negative control; the delays from capture to RTP and from RTP to the speaker; a call through the bundle; anything on arm64. The owner, at the headset, confirmed hearing themself during the echo test; no signal was injected or measured by a fixture.
 
 ## What the run left
 

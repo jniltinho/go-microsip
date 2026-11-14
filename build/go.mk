@@ -117,7 +117,7 @@ go-windows: go-frontend go-licenses ## Go: the Windows amd64 .exe and .zip
 # (openspec/changes/add-macos-universal). Not part of go-dist, and so of no release, yet.
 GO_MACOS := $(GO_DIST)/$(GO_NAME)-macos-universal.zip
 go-macos: go-frontend go-licenses ## Go: the macOS universal application as a .zip (not published yet)
-	$(GO) build/macos/package.sh $(GO_DIST) $(GO_NAME) "$(GO_LDFLAGS)" $(GO_VERSION) $(GO_COMMIT)
+	$(GO) build/macos/package.sh $(GO_DIST) $(GO_NAME) "$(GO_LDFLAGS)" $(GO_VERSION) $(GO_COMMIT) "$(GO_MACOS_TAGS)"
 	$(GO) build/qa/macos.sh $(GO_MACOS) $(GO_DIST)/macos/go-microsip-darwin-amd64 $(GO_DIST)/macos/go-microsip-darwin-arm64
 
 # The checks of the macOS build on a Mac over SSH, with a key and a host-key file the operator

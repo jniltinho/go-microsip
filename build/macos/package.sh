@@ -3,17 +3,20 @@
 # slices cross-built without cgo, the window through the toolkit's purego backend, joined and
 # bundled by build/macos/package. No Apple tool is used. The slices stay in <dist dir>/macos for
 # the check of the zip; they are not published.
-#   build/macos/package.sh <dist dir> <name-version> <ldflags> <version> <commit>
+#   build/macos/package.sh <dist dir> <name-version> <ldflags> <version> <commit> [extra build tags]
+# The extra tags are for a build that is measured and not published: `coreaudio` puts the sound
+# prototype of add-macos-universal's task 2.3 in the application.
 set -eu
 dist=$1
 name=$2
 ldflags=$3
 version=$4
 commit=$5
+tags=${6:-}
 slices=$dist/macos
 mkdir -p "$slices"
 for arch in amd64 arm64; do
-	CGO_ENABLED=0 GOOS=darwin GOARCH=$arch go build -tags "production purego" -trimpath \
+	CGO_ENABLED=0 GOOS=darwin GOARCH=$arch go build -tags "production purego $tags" -trimpath \
 		-ldflags "$ldflags" -o "$slices/go-microsip-darwin-$arch" .
 done
 out=$dist/$name-macos-universal.zip
