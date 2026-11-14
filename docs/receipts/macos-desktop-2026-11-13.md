@@ -170,7 +170,31 @@ An input and an output that do not exist are refused. The 23 ticks without a fra
 
 `make go-mac` passes on it (version, headless, self-test), and its `doctor` on the Mac says `audio: available (1 inputs, 2 outputs)`, `{"available": true, "inputs": 1, "outputs": 2}` in JSON, where the build without the tag says `unavailable`. No call was placed with it: the first call is the measurement of 2.4 and 2.5, which wants a clean privacy state and the owner at the screen.
 
-Not done, of what 2.3 asks: the adversarial cases on a real queue; a device at 44.1 kHz and a stereo one; contention and collection over the whole capture path; open and close repeated; five minutes with the interface stalled and the negative control; the delays from capture to RTP and from RTP to the speaker; a call through the bundle; anything on arm64. The owner, at the headset, confirmed hearing themself during the echo test; no signal was injected or measured by a fixture.
+## The first call through the bundle (2.4 and 2.5, both in part)
+
+The bundle with the prototype, built at `0ffd793`:
+
+```
+7dfabd1cd8751b1ce8b6e0d4dcbcccc33ec8d90bc3b5e2b67d4e6d54452b051d  go-microsip-0.2.0-rc.1-macos-universal.zip
+```
+
+It was started with `open`, so that macOS takes it for an application of its own and not for a child of the SSH session, with a fictional account of the disposable lab PBX (`1001`, UDP, its password in a private file). The PBX ran in the lab's default profile in a container on the host, which the VM reaches at the container's own address: an address outside the Mac's subnet. The application's privacy state was clean: this bundle had asked macOS for nothing before.
+
+**Registration.** The window shows the account as registered and `status` says `"registration": "registered"`; the PBX lists its contact. macOS asked nothing: no Local Network question for a PBX outside the Mac's subnet. A PBX on the Mac's own subnet was not tried; that half of 2.5 is open.
+
+**The call and the microphone question.** `600` typed in the window and Enter (by the run, through the VM's keyboard; the owner's own attempt before it left no trace in the window or at the PBX, and what went wrong there is not known). The call is established at once: `"phase": "established"`, and the PBX has the channel in `Echo`. macOS then shows:
+
+> "go-microsip" would like to access the microphone.
+> go-microsip sends your voice to the person you are on a call with.
+> Don't Allow / Allow
+
+It names the application and carries the bundle's own declaration. While the question is open, for about half a minute: the call stays established; the window says "The microphone stopped; the call continues without it"; the PBX counts 517 RTP packets received in the call's first 11 seconds, which the engine sends as silence when it has no captured frame, so the stream is kept up and nothing recorded is in it (no capture queue has started: its start does not return while the question is open, as seen above with Terminal).
+
+**Allowed.** The owner pressed Allow and confirmed hearing themself through the PBX's echo. The window then shows "Connected" and "Unencrypted (RTP)" without the warning, and the menu bar shows macOS's microphone-in-use mark. At 90 seconds of the call the PBX counted 4397 packets received and 4397 sent, none lost in either direction, jitter 0.015 and 0.004: 48.9 packets a second received where 50 would be every frame, so about one frame in forty-five was not sent. Why was not looked at.
+
+Not measured of 2.4: Don't Allow, a call ended while the question is open, the application quit while it is open, and a second call after each answer. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
+
+Not done, of what 2.3 asks: the adversarial cases on a real queue; a device at 44.1 kHz and a stereo one; contention and collection over the whole capture path; open and close repeated; five minutes with the interface stalled and the negative control; the delays from capture to RTP and from RTP to the speaker; anything on arm64. The owner, at the headset, confirmed hearing themself during the echo test; no signal was injected or measured by a fixture.
 
 ## What the run left
 
