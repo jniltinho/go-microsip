@@ -205,9 +205,9 @@ var (
 // handshake sends the hello on a connection whose other end was already checked.
 func handshake(conn net.Conn) (*Client, error) {
 	_ = conn.SetDeadline(time.Now().Add(ReplyDeadline + time.Second))
-	if err := WriteMessage(conn, CurrentHello()); err != nil {
-		return nil, ErrProtocol
-	}
+	// An owner with no room answers and closes without reading the hello: the write may then
+	// fail while the refusal waits to be read, so what was received decides before the write.
+	unsent := WriteMessage(conn, CurrentHello())
 	reader := bufio.NewReader(conn)
 	var first struct {
 		Welcome
@@ -225,7 +225,7 @@ func handshake(conn net.Conn) (*Client, error) {
 	switch {
 	case first.Status == StatusError:
 		return nil, ErrBusy
-	case first.Protocol != Protocol || first.Version != SchemaVersion:
+	case unsent != nil || first.Protocol != Protocol || first.Version != SchemaVersion:
 		return nil, ErrProtocol
 	}
 	return &Client{conn: conn, reader: reader, welcome: first.Welcome}, nil

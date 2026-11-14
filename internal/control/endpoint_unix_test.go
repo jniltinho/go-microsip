@@ -310,6 +310,36 @@ func TestTheTransportBoundsWhatAClientCanSend(t *testing.T) {
 	}
 }
 
+// An owner with no room answers and closes without reading: the hello a client then writes finds
+// the connection closed, and the refusal is still what the client must report.
+func TestARefusalThatArrivesBeforeTheHelloIsWrittenIsStillBusy(t *testing.T) {
+	socket := filepath.Join(tempDir(t), SocketFile)
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	refused := make(chan struct{})
+	go func() {
+		defer close(refused)
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		_ = WriteMessage(conn, Failure("", fail(Busy, "too many control connections")))
+		_ = conn.Close()
+	}()
+	conn, err := net.Dial("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	<-refused // the owner has answered and closed; nothing was written to it yet
+	if _, err := handshake(conn); !errors.Is(err, ErrBusy) {
+		t.Errorf("a refusal that came before the hello: %v, want ErrBusy", err)
+	}
+}
+
 func TestConnectionsAreBoundedAndAStrangerIsNotRead(t *testing.T) {
 	dir, _, _ := listening(t)
 	var clients []*Client
