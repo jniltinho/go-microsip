@@ -204,7 +204,15 @@ The call ran three minutes; at its end the PBX had counted 9073 packets each way
 
 An earlier version of this receipt (commit `66fefcc`) read that call as one with the microphone denied and concluded that a capture queue starts for a denied application and that the prototype cannot tell a denied microphone from a quiet one. Neither was observed: the call was allowed. What the application does when the microphone is denied is not measured.
 
-Not measured of 2.4: Don't Allow, a revocation during a call, and a second call after each. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
+**Switched off in the Mac's settings during a call.** With that call up, the owner switched go-microsip off under Privacy & Security, Microphone, and no longer heard themself. What the run found afterwards: the application was a new process (its control epoch had gone from 4 to 5) with no call, and the PBX's channel of the old call had stopped counting packets at once and was still there four minutes later, until the run hung it up. So the call did not end in an orderly way: the process that carried it was ended. Whether macOS asked the owner to quit and reopen the application, and what they chose, was not recorded.
+
+The reopened application showed "Failed: wrong credentials" and stayed so for the two and a half minutes it was watched: the PBX had refused it for the old process's registration ("will exceed max contacts of 1"), the application shows that refusal as wrong credentials, and it does not try again by itself. Started once more after the old registration had expired, it registered.
+
+**A call with the microphone switched off.** No question. The call to `600` is established; the window shows "Connected" and no warning; the menu bar shows no microphone-in-use mark; and the PBX counts 501 packets received in ten seconds and 2183 in the call's 44 seconds, 50 a second. So a capture queue does start and call back for an application macOS keeps from the microphone, at the full rate, and the prototype tells the person nothing. What those frames carry was not examined in this call; the probe above was handed zeros in that position. The adapter of task 3.5 has to ask macOS for its answer, not infer it from the queue.
+
+With the headset allowed the PBX counted 48.8 to 49.3 packets a second, with the microphone switched off 50: the frames that are missing with the real device are not missing when macOS supplies the samples itself.
+
+Not measured of 2.4: the answer Don't Allow given to the question itself, and what macOS shows when the setting is switched during a call. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
 
 **Found on the way.** An application ended by a termination signal leaves its registration at the PBX: started again within the registration's two minutes, it is refused ("will exceed max contacts of 1") and shows `"registration": "failed"` until the old one expires. `call hangup` needs the call's number and version as arguments; without them it is refused as a usage error.
 
@@ -212,4 +220,6 @@ Not done, of what 2.3 asks: the adversarial cases on a real queue; a device at 4
 
 ## What the run left
 
-The application's folder under Application Support did not exist before the run; it and the temporary folders were removed. The login keychain was not touched. The headset stays with the VM, the input volume at 90, and Terminal allowed the microphone, as said above.
+On the Mac: a copy of the application with the prototype in the user's Applications folder, registered with the system's launcher; the microphone permission of go-microsip reset to "not asked"; Terminal allowed the microphone, by the owner; the input volume at 90; the headset attached to the VM; the Privacy & Security window and one Terminal window open. The application's folder under Application Support (a fictional lab account, its password file, the database) and every temporary folder were removed; that folder did not exist before the run. The login keychain was not touched.
+
+On the host: the lab PBX was stopped and its fictional credentials removed.
