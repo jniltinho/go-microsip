@@ -123,7 +123,7 @@ played back: 32000 of 32000 samples
 --- PASS: TestProbeCaptureFromGoWithoutCgo
 ```
 
-What this shows: the input callback enters Go without cgo, the queue converts the device's 16 kHz to 8 kHz mono and delivers whole 20 ms frames, and what was captured can be handed to an output queue. Whether the owner heard the recording played back was not confirmed in this run.
+What this shows: the input callback enters Go without cgo, the queue converts the device's 16 kHz to 8 kHz mono and delivers whole 20 ms frames, and what was captured can be handed to an output queue. The owner spoke during the capture and confirmed hearing the recording played back on the headset.
 
 What it does not show, and what to look at in the prototype: one wait of 374 ms between two callbacks (424 ms in the run before), against 20 ms expected. Where in the four seconds it fell was not recorded, so a device that starts late and a gap in the middle of the capture are not told apart. The question asked here was Terminal's, not the application's: task 2.4 is untouched.
 
