@@ -1,6 +1,6 @@
 # macOS: the first run in a desktop session (2026-11-13)
 
-Change `add-macos-universal`, task 4.6, and measurements toward 2.3 and 5.3 (both stay open). Commit `ae72ad5`, built in the image `go-microsip-build:13`. The Mac is the owner's macOS 15.8.1 VM, x86_64. The owner logged in at its console; every command of this run went over SSH with a key, and nothing was typed at the console by the run. The screen was read through the VM's own screen capture.
+Change `add-macos-universal`, tasks 1.3 and 4.6, and measurements toward 2.3 and 5.3 (both stay open). Commit `ae72ad5`, built in the image `go-microsip-build:13`. The Mac is the owner's macOS 15.8.1 VM, x86_64. The owner logged in at its console; every command of this run went over SSH with a key, and nothing was typed at the console by the run. The screen was read through the VM's own screen capture.
 
 The file checked:
 
@@ -83,9 +83,31 @@ audio: unavailable (no audio service is reachable)
 
 `audio: unavailable` is expected until task 3.2 replaces the fallback device list. `display: false` in a desktop session is a finding: the report reads the display variables of Linux, which macOS does not have. It is not covered by a task yet.
 
-## The capture device (1.3, open)
+## What the VM gets for the checks (1.3)
 
-The Mac still has no input: the VM's emulated USB sound device is output only. A USB sound device of the host can be handed to the running VM, but the host's device nodes are writable by the administrator alone, and granting that is the owner's step. Not done in this run.
+The owner's answers, each as given or done on this day:
+
+- **A capture device:** a USB headset of the host, chosen by the owner, handed to the running VM. The owner granted their own user access to the device on the host; the run changed no permission. It lasts until the VM is shut down or the headset is unplugged, and the host has no use of the headset meanwhile: the VM tool has no setting for it on a macOS VM.
+- **A desktop session:** a login by the owner before a run. No password is typed or stored by a check.
+- **The macOS 26 VM:** not installed, and not used.
+
+How the headset reached macOS: handed over with the controller's last free port in use, the emulator put it behind an emulated hub, and macOS never listed it there. With the hub removed and the headset on the controller's port itself, macOS lists it at once:
+
+```
+EKSA PC Adapter: Default Output Device, Output Channels: 2, Current SampleRate: 48000, Transport: USB
+EKSA PC Adapter: Default Input Device, Input Channels: 1, Current SampleRate: 16000, Transport: USB
+```
+
+On it, the system's player and its speech exit 0, with the owner listening on the headset. The probe again, now with a real device as the default output:
+
+```
+3 devices: 1 with an input, 2 with an output
+quiet, 2 s: 99 callbacks, 893 allocations in the whole process, longest wait 21.472369ms, slowest callback 70.341µs
+busy, 5 s, 644 forced collections: 250 callbacks, longest wait 31.954109ms, slowest callback 13.873983ms
+--- PASS: TestProbeCoreAudioFromGoWithoutCgo
+```
+
+The input runs at 16 kHz and the output at 48 kHz: the pair of different rates in and out that 2.3 asks for is at hand. Nothing was captured in this run.
 
 ## What the run left
 
