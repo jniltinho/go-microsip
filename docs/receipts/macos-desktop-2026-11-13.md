@@ -192,7 +192,17 @@ It names the application and carries the bundle's own declaration. While the que
 
 **Allowed.** The owner pressed Allow and confirmed hearing themself through the PBX's echo. The window then shows "Connected" and "Unencrypted (RTP)" without the warning, and the menu bar shows macOS's microphone-in-use mark. At 90 seconds of the call the PBX counted 4397 packets received and 4397 sent, none lost in either direction, jitter 0.015 and 0.004: 48.9 packets a second received where 50 would be every frame, so about one frame in forty-five was not sent. Why was not looked at.
 
-Not measured of 2.4: Don't Allow, a call ended while the question is open, the application quit while it is open, and a second call after each answer. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
+The call ran three minutes; at its end the PBX had counted 9073 packets each way, none lost: 48.8 a second.
+
+**The question again, from a clean state.** `tccutil reset Microphone` with the bundle's identifier fails ("No such bundle identifier") while the application is only in a temporary folder, over SSH and from the Mac's Terminal alike; with a copy in the user's Applications folder, registered with the system's launcher, it succeeds. The copy was started from there and the next call brought the same question.
+
+**A call that ends while the question is open.** The PBX hung the call up three seconds into it. The application is back at its keypad with no call (`"call": null`), and macOS's question stays on the screen, nine seconds later still. Nothing of the call is left in the application; whether a capture queue starts if the question is then allowed was not looked at.
+
+**The application quit while the question is open.** A termination signal ends it within half a second. The question stays on the screen without the application, five seconds later still: macOS does not take it back.
+
+Not measured of 2.4: Don't Allow, and a second call after each answer. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
+
+**Found on the way.** An application ended by a termination signal leaves its registration at the PBX: started again within the registration's two minutes, it is refused ("will exceed max contacts of 1") and shows `"registration": "failed"` until the old one expires. `call hangup` needs the call's number and version as arguments; without them it is refused as a usage error.
 
 Not done, of what 2.3 asks: the adversarial cases on a real queue; a device at 44.1 kHz and a stereo one; contention and collection over the whole capture path; open and close repeated; five minutes with the interface stalled and the negative control; the delays from capture to RTP and from RTP to the speaker; anything on arm64. The owner, at the headset, confirmed hearing themself during the echo test; no signal was injected or measured by a fixture.
 
