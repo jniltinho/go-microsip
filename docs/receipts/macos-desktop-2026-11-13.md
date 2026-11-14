@@ -107,8 +107,29 @@ busy, 5 s, 644 forced collections: 250 callbacks, longest wait 31.954109ms, slow
 --- PASS: TestProbeCoreAudioFromGoWithoutCgo
 ```
 
-The input runs at 16 kHz and the output at 48 kHz: the pair of different rates in and out that 2.3 asks for is at hand. Nothing was captured in this run.
+The input runs at 16 kHz and the output at 48 kHz: the pair of different rates in and out that 2.3 asks for is at hand.
+
+## Capture from Go, and who is asked for the microphone (2.3, not done)
+
+A second probe in the same file, run only when asked for by a variable, records four seconds from the default input through an 8 kHz mono input queue and plays them back. At the working-tree state that follows `2ad1fcf`:
+
+- **Started over SSH:** macOS asks nobody. The queue starts and calls back, 208 times with 320 bytes each, 32000 samples, and every sample is zero.
+- **Started in the Mac's Terminal:** macOS asks "Terminal would like to access the microphone". While the question is open the start of the queue does not return: the probe sat in `AudioQueueStart` until its own one-minute limit ended it, and no callback came. The owner then pressed Allow.
+- **With Terminal allowed,** the system's input volume at 16 of 100: 32000 samples with a peak of 1. With the input volume raised to 90 by the run, and the owner speaking:
+
+```
+captured, 4 s: 202 callbacks of 320 to 320 bytes, 32000 samples, longest wait 373.57822ms, peak 3534, rms 343
+played back: 32000 of 32000 samples
+--- PASS: TestProbeCaptureFromGoWithoutCgo
+```
+
+What this shows: the input callback enters Go without cgo, the queue converts the device's 16 kHz to 8 kHz mono and delivers whole 20 ms frames, and what was captured can be handed to an output queue. Whether the owner heard the recording played back was not confirmed in this run.
+
+What it does not show, and what to look at in the prototype: one wait of 374 ms between two callbacks (424 ms in the run before), against 20 ms expected. Where in the four seconds it fell was not recorded, so a device that starts late and a gap in the middle of the capture are not told apart. The question asked here was Terminal's, not the application's: task 2.4 is untouched.
+
+The input volume was left at 90 and Terminal keeps the permission the owner gave. Two Terminal windows were left open on the Mac's desktop.
+
 
 ## What the run left
 
-The application's folder under Application Support did not exist before the run; it and the temporary folder were removed. The login keychain was not touched.
+The application's folder under Application Support did not exist before the run; it and the temporary folders were removed. The login keychain was not touched. The headset stays with the VM, the input volume at 90, and Terminal allowed the microphone, as said above.
