@@ -204,7 +204,7 @@ The call ran three minutes; at its end the PBX had counted 9073 packets each way
 
 An earlier version of this receipt (commit `66fefcc`) read that call as one with the microphone denied and concluded that a capture queue starts for a denied application and that the prototype cannot tell a denied microphone from a quiet one. Neither was observed: the call was allowed. What the application does when the microphone is denied is not measured.
 
-**Switched off in the Mac's settings during a call.** With that call up, the owner switched go-microsip off under Privacy & Security, Microphone, and no longer heard themself. What the run found afterwards: the application was a new process (its control epoch had gone from 4 to 5) with no call, and the PBX's channel of the old call had stopped counting packets at once and was still there four minutes later, until the run hung it up. So the call did not end in an orderly way: the process that carried it was ended. Whether macOS asked the owner to quit and reopen the application, and what they chose, was not recorded.
+**Switched off in the Mac's settings during a call.** With that call up, the owner switched go-microsip off under Privacy & Security, Microphone, and no longer heard themself. What the run found afterwards: the application was a new process (its control epoch had gone from 4 to 5) with no call, and the PBX's channel of the old call had stopped counting packets at once and was still there four minutes later, until the run hung it up. So the call did not end in an orderly way: the process that carried it was ended. The owner confirmed that macOS asked for the application to be quit and reopened when the setting was switched; the new process shows that it was.
 
 The reopened application showed "Failed: wrong credentials" and stayed so for the two and a half minutes it was watched: the PBX had refused it for the old process's registration ("will exceed max contacts of 1"), the application shows that refusal as wrong credentials, and it does not try again by itself. Started once more after the old registration had expired, it registered.
 
@@ -212,7 +212,7 @@ The reopened application showed "Failed: wrong credentials" and stayed so for th
 
 With the headset allowed the PBX counted 48.8 to 49.3 packets a second, with the microphone switched off 50: the frames that are missing with the real device are not missing when macOS supplies the samples itself.
 
-Not measured of 2.4: the answer Don't Allow given to the question itself, and what macOS shows when the setting is switched during a call. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
+Not measured of 2.4: the answer Don't Allow given to the question itself. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
 
 **Found on the way.** An application ended by a termination signal leaves its registration at the PBX: started again within the registration's two minutes, it is refused ("will exceed max contacts of 1") and shows `"registration": "failed"` until the old one expires. `call hangup` needs the call's number and version as arguments; without them it is refused as a usage error.
 
