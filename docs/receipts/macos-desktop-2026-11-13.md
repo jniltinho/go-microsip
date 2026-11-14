@@ -200,7 +200,9 @@ The call ran three minutes; at its end the PBX had counted 9073 packets each way
 
 **The application quit while the question is open.** A termination signal ends it within half a second. The question stays on the screen without the application, five seconds later still: macOS does not take it back.
 
-Not measured of 2.4: Don't Allow, and a second call after each answer. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
+**Don't Allow.** The owner pressed Don't Allow on the question the quit application had left. The application, started again, registers; the next call to `600` brings no question and is established. The window shows "Connected" and no warning about the microphone, the menu bar shows macOS's microphone-in-use mark, and the PBX counts 888 packets received in 18 seconds, 49.3 a second: a capture queue starts and calls back for an application that was denied. The probe above shows what such a queue brings: zeros. So the prototype cannot tell a denied microphone from a quiet one, and the person is told nothing; the adapter of task 3.5 has to ask macOS for the answer itself, not infer it from the queue.
+
+Not measured of 2.4: what the stream of a denied application carries (taken from the probe, not from this call), and a second call after Allow. Not measured of 2.5: a PBX on the Mac's subnet, and the settings afterwards.
 
 **Found on the way.** An application ended by a termination signal leaves its registration at the PBX: started again within the registration's two minutes, it is refused ("will exceed max contacts of 1") and shows `"registration": "failed"` until the old one expires. `call hangup` needs the call's number and version as arguments; without them it is refused as a usage error.
 
