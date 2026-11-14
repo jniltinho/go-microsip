@@ -10,9 +10,11 @@ package audio
 // microphone, which macOS grants to the program that started the test, not to the test.
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,36 +22,6 @@ import (
 
 	"github.com/ebitengine/purego"
 )
-
-// streamFormat is AudioStreamBasicDescription.
-type streamFormat struct {
-	sampleRate       float64
-	formatID         uint32
-	formatFlags      uint32
-	bytesPerPacket   uint32
-	framesPerPacket  uint32
-	bytesPerFrame    uint32
-	channelsPerFrame uint32
-	bitsPerChannel   uint32
-	reserved         uint32
-}
-
-// queueBuffer is the start of AudioQueueBuffer.
-type queueBuffer struct {
-	capacity uint32
-	data     unsafe.Pointer
-	size     uint32
-}
-
-// propertyAddress is AudioObjectPropertyAddress.
-type propertyAddress struct{ selector, scope, element uint32 }
-
-func fourCC(code string) uint32 {
-	return uint32(code[0])<<24 | uint32(code[1])<<16 | uint32(code[2])<<8 | uint32(code[3])
-}
-
-// pointer turns an address the system handed over into a pointer.
-func pointer(address uintptr) unsafe.Pointer { return *(*unsafe.Pointer)(unsafe.Pointer(&address)) }
 
 const probeBuffers = 3
 
@@ -142,6 +114,23 @@ func TestProbeCoreAudioFromGoWithoutCgo(t *testing.T) {
 			}
 		}
 		t.Logf("%d devices: %d with an input, %d with an output", len(devices), inputs, outputs)
+		// What each device runs at: its rate, and how many frames it hands over at a time.
+		for i, device := range devices {
+			var (
+				rate   float64
+				frames uint32
+				limits [2]float64
+			)
+			eight, four, sixteen := uint32(8), uint32(4), uint32(16)
+			data(device, &propertyAddress{fourCC("nsrt"), fourCC("glob"), 0}, 0, 0, &eight, unsafe.Pointer(&rate))
+			data(device, &propertyAddress{fourCC("fsiz"), fourCC("glob"), 0}, 0, 0, &four, unsafe.Pointer(&frames))
+			data(device, &propertyAddress{fourCC("fsz#"), fourCC("glob"), 0}, 0, 0, &sixteen, unsafe.Pointer(&limits))
+			var in, out uint32
+			dataSize(device, &propertyAddress{fourCC("stm#"), fourCC("inpt"), 0}, 0, 0, &in)
+			dataSize(device, &propertyAddress{fourCC("stm#"), fourCC("outp"), 0}, 0, 0, &out)
+			t.Logf("device %d (input %v, output %v): %.0f Hz, %d frames at a time (%.0f ms), may be %.0f to %.0f",
+				i, in > 0, out > 0, rate, frames, float64(frames)/rate*1000, limits[0], limits[1])
+		}
 		if outputs == 0 {
 			t.Skip("no output device: the playback probe cannot run here")
 		}
@@ -241,6 +230,7 @@ var capture struct {
 	largest   atomic.Int64 // the most
 	last      atomic.Int64
 	longest   atomic.Int64
+	arrivals  []int64 // when each callback came, in nanoseconds since the start
 	startedAt time.Time
 }
 
@@ -254,7 +244,11 @@ func captured(_, queue, buffer, _, _, _ uintptr) uintptr {
 	}
 	filled := (*queueBuffer)(pointer(buffer))
 	bytes := int64(filled.size)
-	if capture.calls.Add(1) == 1 || bytes < capture.smallest.Load() {
+	call := capture.calls.Add(1)
+	if call <= int64(len(capture.arrivals)) {
+		capture.arrivals[call-1] = now
+	}
+	if call == 1 || bytes < capture.smallest.Load() {
 		capture.smallest.Store(bytes)
 	}
 	if bytes > capture.largest.Load() {
@@ -318,15 +312,44 @@ func TestProbeCaptureFromGoWithoutCgo(t *testing.T) {
 		sampleRate: SampleRate, formatID: fourCC("lpcm"), formatFlags: 0x4 | 0x8, // signed integer, packed
 		bytesPerPacket: 2, framesPerPacket: 1, bytesPerFrame: 2, channelsPerFrame: 1, bitsPerChannel: 16,
 	}
+	// GO_MICROSIP_PROBE_FRAMES asks the default input for this many frames at a time, for as long
+	// as this process lives: does the queue then call back more often?
+	if frames, err := strconv.Atoi(os.Getenv("GO_MICROSIP_PROBE_FRAMES")); err == nil && frames > 0 {
+		core, err := purego.Dlopen("/System/Library/Frameworks/CoreAudio.framework/CoreAudio", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var (
+			get func(object uint32, address *propertyAddress, qualifierSize uint32, qualifier uintptr, size *uint32, out unsafe.Pointer) int32
+			set func(object uint32, address *propertyAddress, qualifierSize uint32, qualifier uintptr, size uint32, in unsafe.Pointer) int32
+		)
+		purego.RegisterLibFunc(&get, core, "AudioObjectGetPropertyData")
+		purego.RegisterLibFunc(&set, core, "AudioObjectSetPropertyData")
+		var device uint32
+		four, wanted := uint32(4), uint32(frames)
+		get(1, &propertyAddress{fourCC("dIn "), fourCC("glob"), 0}, 0, 0, &four, unsafe.Pointer(&device))
+		status := set(device, &propertyAddress{fourCC("fsiz"), fourCC("glob"), 0}, 0, 0, 4, unsafe.Pointer(&wanted))
+		var now uint32
+		get(device, &propertyAddress{fourCC("fsiz"), fourCC("glob"), 0}, 0, 0, &four, unsafe.Pointer(&now))
+		t.Logf("asked the input for %d frames at a time: status %d, it now hands over %d", frames, status, now)
+	}
+	// GO_MICROSIP_PROBE_RATE opens the input queue at this rate instead of 8 kHz: does the
+	// queue hand over a fixed number of frames at a time, whatever they last?
+	rate := SampleRate
+	if asked, err := strconv.Atoi(os.Getenv("GO_MICROSIP_PROBE_RATE")); err == nil && asked > 0 {
+		rate = asked
+		format.sampleRate = float64(rate)
+	}
 	const seconds = 4
-	capture.samples = make([]int16, SampleRate*seconds)
+	capture.samples = make([]int16, rate*seconds)
+	capture.arrivals = make([]int64, seconds*100)
 	var input uintptr
 	if status := newInput(&format, purego.NewCallback(captured), 0, 0, 0, 0, &input); status != 0 {
 		t.Fatalf("an 8 kHz mono input queue: status %d", status)
 	}
 	for range probeBuffers {
 		var buffer uintptr
-		if status := allocate(input, FrameSamples*2, &buffer); status != 0 {
+		if status := allocate(input, uint32(rate/50*2), &buffer); status != 0 {
 			t.Fatalf("a buffer: status %d", status)
 		}
 		if status := capture.enqueue(input, buffer, 0, 0); status != 0 {
@@ -361,13 +384,39 @@ func TestProbeCaptureFromGoWithoutCgo(t *testing.T) {
 	t.Logf("captured, %d s: %d callbacks of %d to %d bytes, %d samples, longest wait %v, peak %d, rms %.0f",
 		seconds, capture.calls.Load(), capture.smallest.Load(), capture.largest.Load(), taken,
 		time.Duration(capture.longest.Load()), peak, rms)
-	if taken < SampleRate*seconds*9/10 {
+	// How the callbacks were spread: a steady device brings one every 20 ms.
+	arrivals := capture.arrivals[:min(capture.calls.Load(), int64(len(capture.arrivals)))]
+	var together, steady, late, gaps int
+	var gapsAt []string
+	for i := 1; i < len(arrivals); i++ {
+		switch wait := time.Duration(arrivals[i] - arrivals[i-1]); {
+		case wait < 5*time.Millisecond:
+			together++
+		case wait < 30*time.Millisecond:
+			steady++
+		case wait < 100*time.Millisecond:
+			late++
+		default:
+			gaps++
+			if len(gapsAt) < 12 {
+				gapsAt = append(gapsAt, fmt.Sprintf("%v at %v", wait.Round(time.Millisecond), time.Duration(arrivals[i]).Round(10*time.Millisecond)))
+			}
+		}
+	}
+	if len(arrivals) > 0 {
+		t.Logf("the first callback came %v after the start; waits between callbacks: %d under 5 ms, %d of 5 to 30 ms, %d of 30 to 100 ms, %d longer %v",
+			time.Duration(arrivals[0]).Round(time.Millisecond), together, steady, late, gaps, gapsAt)
+	}
+	if taken < int64(rate*seconds*9/10) {
 		t.Errorf("%d samples in %d seconds: fewer than nine in ten", taken, seconds)
 	}
 	if peak == 0 {
 		t.Fatalf("only zeros: macOS hands silence to a program that was not given the microphone")
 	}
 
+	if rate != SampleRate {
+		return // the playback below is written for 8 kHz
+	}
 	var output uintptr
 	if status := newOutput(&format, purego.NewCallback(replay), 0, 0, 0, 0, &output); status != 0 {
 		t.Fatalf("an 8 kHz mono output queue: status %d", status)

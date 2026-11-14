@@ -130,6 +130,40 @@ What it does not show, and what to look at in the prototype: one wait of 374 ms 
 The input volume was left at 90 and Terminal keeps the permission the owner gave. Two Terminal windows were left open on the Mac's desktop.
 
 
+## The prototype of the adapter (2.3, not done)
+
+Written after the captures above, in the working tree that follows `3ec84a2`: `coreaudio_darwin.go` behind the build tag `coreaudio` (device list, a playback queue, capture queues), the capture cutover of D4 in `cutover.go` and the conversion in `decimate.go`, both without a build constraint so their tests run in the build image with the race detector.
+
+**What a capture queue hands over.** The spread of its callbacks, measured by the probe on the headset (a 16 kHz input whose device hands over 512 frames, 32 ms, at a time):
+
+| the queue's rate | callbacks in 4 s | waits between callbacks |
+|---|---|---|
+| 8 kHz | 208 | 174 under 5 ms, 30 of about 128 ms |
+| 16 kHz | 212 | 144 under 5 ms, 67 of 30 to 100 ms (longest 64 ms) |
+| 48 kHz | 213 | 80 under 5 ms, 131 of 30 to 100 ms (longest 32 ms) |
+
+So a capture queue hands over about 1024 frames of its own format at a time, whatever they last: at 8 kHz that is 128 ms in one burst, more than the engine keeps waiting (120 ms), and a first version of the prototype with an 8 kHz capture queue lost a quarter of a call's frames to it (355 of 500 captured, 17920 samples dropped). It is not the VM's USB path: the same with the emulator's transfer buffers an eighth of their size. It is not the device's buffer: asked for 160 frames at a time, the device hands over 160, and the queue's bursts stay at 120 to 130 ms. A callback's buffer was 128 to 640 bytes at 16 kHz and 0 to 1920 at 48 kHz: never assumed to be one frame.
+
+The prototype therefore opens capture at 48 kHz and brings it down to 8 kHz itself, one sample in six behind a low-pass (D4's "conversion goes into the adapter"). Its tests, in the build image: tones of 300, 1000 and 3000 Hz come out at their level, tones of 5, 7, 12 and 20 kHz at under a hundredth of it, and the output is the same sample for sample for any size of buffer.
+
+**The call test on the Mac**, the engine's side every 20 ms taking a frame from the headset's microphone and playing it, ten seconds, a discard halfway, started from the Mac's Terminal:
+
+```
+inputs: 1, outputs: 2, default devices among them: 2
+one second played: 0 samples dropped, 480 of silence          (an output alone: no capture queue exists)
+Open returned after 21ms
+10 s: 477 frames captured, 23 ticks without one, first after 240ms, longest gap between two 40ms, peak 3618
+discard: returned after 2µs, first frame 200ms later
+dropped: 0 captured samples, 320 played; 800 samples of silence played
+--- PASS: TestCoreAudioCall
+```
+
+An input and an output that do not exist are refused. The 23 ticks without a frame are the 240 ms before the first one and the 200 ms after the discard.
+
+**The cutover's tests**, with the race detector: a callback held between its check and its publication keeps a discard waiting, and what it published is gone after the discard; a buffer of a retired queue is dropped and not handed back; callbacks delivered while the old queue is disposed of publish nothing; a queue that cannot be reopened loses capture and keeps nothing running; two hundred discards leave one queue; a discard racing Close leaves none; fresh audio flows after the barrier and nothing marked does; an opening still under way when Close returns cannot publish, and its queue is disposed of when it returns. These use queues made of memory. Four deliberate faults in the cutover were each caught: the lock released between check and publication, no check of the instance, a closed stream that keeps its queue (caught only after the test was made to wait for the opening to begin), a failed reopening not reported.
+
+Not done, of what 2.3 asks: the adversarial cases on a real queue; a device at 44.1 kHz and a stereo one; contention and collection over the whole capture path; open and close repeated; five minutes with the interface stalled and the negative control; the delays from capture to RTP and from RTP to the speaker; the prototype in the bundle; anything on arm64. The echo test's person heard what they said; no signal was injected or measured by a fixture.
+
 ## What the run left
 
 The application's folder under Application Support did not exist before the run; it and the temporary folders were removed. The login keychain was not touched. The headset stays with the VM, the input volume at 90, and Terminal allowed the microphone, as said above.

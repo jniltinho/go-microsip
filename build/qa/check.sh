@@ -20,4 +20,7 @@ CGO_ENABLED=0 GOOS=windows go vet "$@"
 # macOS, both architectures of the universal application, tests included.
 CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go vet -tags purego "$@"
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go vet -tags purego "$@"
+# The CoreAudio prototype is behind a tag of its own (add-macos-universal, task 2.3).
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go vet -tags "purego coreaudio" ./internal/platform/audio
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go vet -tags "purego coreaudio" ./internal/platform/audio
 echo "check: gofmt and go vet OK (purego, cgo, no window, windows, macOS on x86_64 and arm64)"
